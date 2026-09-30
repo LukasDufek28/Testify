@@ -21,7 +21,8 @@ export default async function handler(req, res) {
     return res.status(200).json({ run, source: "Coinbase Exchange", bars: bars.length });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Backtest failed.";
-    const code = /Coinbase market data request failed/.test(message) ? 502 : 400;
+    const code = error?.status === 429 ? 429 : /Coinbase market data request failed/.test(message) ? 502 : 400;
+    if (code === 429) res.setHeader("Retry-After", "60");
     return res.status(code).json({ error: message });
   }
 }

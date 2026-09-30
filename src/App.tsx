@@ -33,6 +33,17 @@ function PriceChart({ dataset }: { dataset: Dataset }) {
 }
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) { return <div className="metric"><span>{label}</span><strong>{value}</strong>{hint && <small>{hint}</small>}</div>; }
 function download(name: string, content: string, type = "application/json") { const url = URL.createObjectURL(new Blob([content], { type })); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+async function fetchWithRateLimitRetry(input: RequestInfo | URL, init?: RequestInit, onWait?: (seconds: number, attempt: number) => void): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    const response = await fetch(input, init);
+    if (response.status !== 429 || attempt >= 6) return response;
+    const header = Number(response.headers.get("Retry-After"));
+    const seconds = Number.isFinite(header) && header > 0 ? Math.max(60, Math.min(300, header)) : 60;
+    onWait?.(seconds, attempt);
+    await pause(seconds * 1000);
+  }
+}
 function execute(dataset: Dataset, strategy: ReturnType<typeof parseStrategy>, settings: BacktestSettings, strategyId: string, name: string): Promise<Run> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL("./engine.worker.ts", import.meta.url), { type: "module" });
@@ -42,10 +53,10 @@ function execute(dataset: Dataset, strategy: ReturnType<typeof parseStrategy>, s
     worker.postMessage({ dataset, strategy, settings, strategyId, name });
   });
 }
-async function executeOnline(dataset: Dataset, strategy: ReturnType<typeof parseStrategy>, settings: BacktestSettings, strategyId: string, name: string): Promise<Run> {
+async function executeOnline(dataset: Dataset, strategy: ReturnType<typeof parseStrategy>, settings: BacktestSettings, strategyId: string, name: string, onWait?: (seconds: number, attempt: number) => void): Promise<Run> {
   const match = dataset.fileName.match(/Coinbase · (\d+)m/);
   if (!match) return execute(dataset, strategy, settings, strategyId, name);
-  const response = await fetch("/api/backtest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product: dataset.symbol, granularity: Number(match[1]) * 60, strategy, settings, strategyId, name }) });
+  const response = await fetchWithRateLimitRetry("/api/backtest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product: dataset.symbol, granularity: Number(match[1]) * 60, strategy, settings, strategyId, name }) }, onWait);
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Online backtest failed.");
   return data.run as Run;
@@ -108,7 +119,7 @@ export default function App() {
     setBusy("data"); setError("");
     try {
       const query = new URLSearchParams({ product: market, granularity: String(granularity), start: String(Date.parse(historyStart) / 1000), end: String(Date.parse(historyEnd) / 1000) });
-      const response = await fetch(`/api/candles?${query}`);
+      const response = await fetchWithRateLimitRetry(`/api/candles?${query}`, undefined, (seconds) => setNotice(`Coinbase is rate limiting requests. Retrying ${market} in ${seconds} seconds…`));
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not load candles.");
       const dataset: Dataset = { id: crypto.randomUUID(), symbol: data.symbol, fileName: `Coinbase · ${granularity / 60}m`, importedAt: Date.now(), utcOffset: 0, point: 0, bars: data.bars, skipped: 0 };
@@ -143,10 +154,11 @@ export default function App() {
       const assumptions = settings();
       const chosen = [...selectedMarkets];
       for (const [index, symbol] of chosen.entries()) {
+        if (index) await pause(1000);
         setRunProgress(`${index + 1} of ${chosen.length}: ${symbol}`);
         try {
           const name = runName.trim() || "Research run";
-          const run = await executeOnline(onlineDataset(symbol), strategy, assumptions, selectedStrategy.id, name);
+          const run = await executeOnline(onlineDataset(symbol), strategy, assumptions, selectedStrategy.id, name, (seconds) => setRunProgress(`${index + 1} of ${chosen.length}: ${symbol} · rate limited, retrying in ${seconds}s`));
           await localStore.putRun(run);
           completed.push(run);
           setRunId(run.id);
@@ -167,15 +179,16 @@ export default function App() {
     try {
       const base = settings();
       const query = new URLSearchParams({ product: market, granularity: String(granularity), start: String(base.start), end: String(base.end) });
-      const response = await fetch(`/api/candles?${query}`);
+      const response = await fetchWithRateLimitRetry(`/api/candles?${query}`, undefined, (seconds) => setNotice(`Coinbase is rate limiting requests. Retrying in ${seconds} seconds…`));
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not load validation candles.");
       const bars = data.bars as Dataset["bars"];
       if (bars.length < 50) throw new Error("Validation needs at least 50 bars in the selected range.");
       const split = Math.floor(bars.length * splitPct / 100); if (split < 20 || bars.length - split < 20) throw new Error("Each validation period needs at least 20 bars.");
       const strategy = parseStrategy(selectedStrategy.source);
-      const train = await executeOnline(onlineDataset(), strategy, { ...base, end: bars[split].time }, selectedStrategy.id, "Development");
-      const holdout = await executeOnline(onlineDataset(), strategy, { ...base, start: bars[split].time }, selectedStrategy.id, "Holdout");
+      const train = await executeOnline(onlineDataset(), strategy, { ...base, end: bars[split].time }, selectedStrategy.id, "Development", (seconds) => setNotice(`Coinbase is rate limiting requests. Retrying development in ${seconds} seconds…`));
+      await pause(1000);
+      const holdout = await executeOnline(onlineDataset(), strategy, { ...base, start: bars[split].time }, selectedStrategy.id, "Holdout", (seconds) => setNotice(`Coinbase is rate limiting requests. Retrying holdout in ${seconds} seconds…`));
       setValidation({ train, holdout }); setNotice("Development and later holdout periods tested online.");
     } catch (e) { message(e); } finally { setBusy(""); }
   }
