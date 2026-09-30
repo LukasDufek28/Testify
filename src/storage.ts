@@ -4,25 +4,47 @@ const DB_NAME = "testify-local-v1";
 type StoreName = "datasets" | "strategies" | "runs";
 let dbPromise: Promise<IDBDatabase> | undefined;
 function openDb(): Promise<IDBDatabase> {
-  if (!dbPromise) dbPromise = new Promise((resolve, reject) => {
+  if (!dbPromise) dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => {
       const db = request.result;
       for (const name of ["datasets", "strategies", "runs"] as StoreName[]) if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: "id" });
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      request.result.onversionchange = () => {
+        request.result.close();
+        dbPromise = undefined;
+      };
+      resolve(request.result);
+    };
     request.onerror = () => reject(request.error);
+  }).catch((error) => {
+    dbPromise = undefined;
+    throw error;
   });
   return dbPromise;
 }
 async function operation<T>(store: StoreName, mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(store, mode);
-    const req = fn(tx.objectStore(store));
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-    tx.onerror = () => reject(tx.error);
+    let tx: IDBTransaction;
+    try {
+      tx = db.transaction(store, mode);
+    } catch (error) {
+      dbPromise = undefined;
+      reject(error);
+      return;
+    }
+    let result: T;
+    tx.oncomplete = () => resolve(result);
+    tx.onabort = () => reject(tx.error || new Error("Browser storage could not finish this change. Check available browser storage and try again."));
+    try {
+      const req = fn(tx.objectStore(store));
+      req.onsuccess = () => { result = req.result; };
+    } catch (error) {
+      tx.abort();
+      reject(error);
+    }
   });
 }
 export const localStore = {
