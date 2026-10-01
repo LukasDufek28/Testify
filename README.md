@@ -38,3 +38,17 @@ npx.cmd vercel --prod
 ```
 
 There is no server database. Browser data can be lost if site storage is cleared; use Export backup.
+
+## Local landing page and APIs
+
+```powershell
+npm.cmd ci
+npm.cmd run build:engine
+npm.cmd run dev -- --host 127.0.0.1 --port 5173
+```
+
+Open http://127.0.0.1:5173/. The landing page follows the approved 1440×900 Figma foundation, with responsive layouts and the original transparent logo. Start for free opens Strategy studio; Explore the product opens the existing workspace. The workspace is loaded separately from the landing page.
+
+Vite serves the same `/api/markets`, `/api/candles`, `/api/backtest`, and `/api/generate-strategy` handlers used by Vercel. For local Gemini generation, set `GEMINI_API_KEY` in an ignored `.env.local` file and restart Vite. This is a server-only key; never use a `VITE_` prefix. Without a key, the API returns its existing configuration error. Account authentication is not implemented in this repository; Sign in explains this and offers the free browser workspace.
+
+Design reference: https://www.figma.com/design/v86SvAhQn48CZhWUhgPeJu/BacktestLab?node-id=63-1579
