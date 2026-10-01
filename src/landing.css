@@ -6,7 +6,7 @@
   background: var(--base);
   color: #fff;
   min-height: 100vh;
-  padding: 24px 64px 26px;
+  padding: 24px 64px 25px;
   font-family: Inter, sans-serif;
 }
 .landing a {
@@ -505,3 +505,4 @@
 .landing-flow {
   font-weight: 400;
 }
+
