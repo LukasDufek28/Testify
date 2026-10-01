@@ -1,15 +1,26 @@
-export type IndicatorKind = "close" | "open" | "high" | "low" | "sma" | "ema" | "rsi";
-export type Indicator = { kind: IndicatorKind; period?: number };
+export type IndicatorKind = "close" | "open" | "high" | "low" | "volume" | "sma" | "ema" | "rsi" | "atr" | "custom";
+export type Indicator = { kind: IndicatorKind; period?: number; name?: string };
 export type Rule = { left: Indicator; op: "gt" | "lt" | "crosses_above" | "crosses_below"; right: Indicator | number };
+export type RuleSet = Rule[] | Rule[][];
+export type Formula =
+  | { op: "source"; field: "open" | "high" | "low" | "close" | "volume" }
+  | { op: "constant"; value: number }
+  | { op: "ref"; name: string }
+  | { op: "add" | "subtract" | "multiply" | "divide" | "min" | "max"; left: Formula; right: Formula }
+  | { op: "abs" | "negate" | "cumsum"; input: Formula }
+  | { op: "lag" | "sma" | "ema" | "rsi" | "highest" | "lowest" | "stdev"; input: Formula; period: number }
+  | { op: "atr"; period: number };
+export type CustomIndicator = { name: string; formula: Formula };
 export type Strategy = {
-  version: 1;
+  version: 1 | 2;
   name: string;
   description: string;
   side: "long" | "short" | "both";
-  entryLong: Rule[];
-  entryShort: Rule[];
-  exitLong: Rule[];
-  exitShort: Rule[];
+  indicators?: CustomIndicator[];
+  entryLong: RuleSet;
+  entryShort: RuleSet;
+  exitLong: RuleSet;
+  exitShort: RuleSet;
   stopLossPct: number;
   takeProfitPct: number;
   allocationPct: number;
@@ -36,23 +47,56 @@ export const exampleStrategy: Strategy = {
   allocationPct: 100,
 };
 
-const kinds = new Set<IndicatorKind>(["close", "open", "high", "low", "sma", "ema", "rsi"]);
+const kinds = new Set<IndicatorKind>(["close", "open", "high", "low", "volume", "sma", "ema", "rsi", "atr", "custom"]);
 const ops = new Set<Rule["op"]>(["gt", "lt", "crosses_above", "crosses_below"]);
+const validName = (value: unknown): value is string => typeof value === "string" && /^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(value);
 function indicator(value: unknown): value is Indicator {
   if (!value || typeof value !== "object") return false;
   const i = value as Indicator;
-  return kinds.has(i.kind) && (!["sma", "ema", "rsi"].includes(i.kind) || (Number.isInteger(i.period) && i.period! >= 2 && i.period! <= 500));
+  return kinds.has(i.kind) && (i.kind !== "custom" || validName(i.name)) && (!["sma", "ema", "rsi", "atr"].includes(i.kind) || (Number.isInteger(i.period) && i.period! >= 2 && i.period! <= 500));
 }
-function rules(value: unknown): value is Rule[] {
-  return Array.isArray(value) && value.length <= 12 && value.every((r) => r && typeof r === "object" && indicator(r.left) && ops.has(r.op) && (indicator(r.right) || (typeof r.right === "number" && Number.isFinite(r.right))));
+function rule(value: unknown): value is Rule {
+  const r = value as Rule;
+  return !!r && typeof r === "object" && indicator(r.left) && ops.has(r.op) && (indicator(r.right) || (typeof r.right === "number" && Number.isFinite(r.right)));
+}
+function rules(value: unknown): value is RuleSet {
+  return Array.isArray(value) && value.length <= 12 && (value.every(rule) || (value.length <= 8 && value.every((group) => Array.isArray(group) && group.length > 0 && group.length <= 12 && group.every(rule))));
+}
+function hasRules(value: RuleSet): boolean { return value.length > 0; }
+function formula(value: unknown, refs: Set<string>, budget: { nodes: number }, depth = 0): value is Formula {
+  if (!value || typeof value !== "object" || depth > 12 || ++budget.nodes > 300) return false;
+  const node = value as Record<string, unknown>;
+  if (node.op === "source") return ["open", "high", "low", "close", "volume"].includes(String(node.field));
+  if (node.op === "constant") return typeof node.value === "number" && Number.isFinite(node.value) && Math.abs(node.value) <= 1e12;
+  if (node.op === "ref") { if (!validName(node.name)) return false; refs.add(node.name.toLowerCase()); return true; }
+  if (["add", "subtract", "multiply", "divide", "min", "max"].includes(String(node.op))) return formula(node.left, refs, budget, depth + 1) && formula(node.right, refs, budget, depth + 1);
+  if (["abs", "negate", "cumsum"].includes(String(node.op))) return formula(node.input, refs, budget, depth + 1);
+  if (node.op === "atr") return Number.isInteger(node.period) && (node.period as number) >= 2 && (node.period as number) <= 500;
+  if (["lag", "sma", "ema", "rsi", "highest", "lowest", "stdev"].includes(String(node.op))) return Number.isInteger(node.period) && (node.period as number) >= (node.op === "lag" ? 1 : 2) && (node.period as number) <= 500 && formula(node.input, refs, budget, depth + 1);
+  return false;
 }
 export function parseStrategy(source: string): Strategy {
   let s: Strategy;
   try { s = JSON.parse(source) as Strategy; } catch { throw new Error("Strategy is not valid JSON."); }
-  if (s?.version !== 1 || typeof s.name !== "string" || !s.name.trim() || s.name.length > 100 || typeof s.description !== "string" || !["long", "short", "both"].includes(s.side) || !rules(s.entryLong) || !rules(s.entryShort) || !rules(s.exitLong) || !rules(s.exitShort)) throw new Error("Strategy does not match the Testify strategy format.");
+  if (![1, 2].includes(s?.version) || typeof s.name !== "string" || !s.name.trim() || s.name.length > 100 || typeof s.description !== "string" || !["long", "short", "both"].includes(s.side) || !rules(s.entryLong) || !rules(s.entryShort) || !rules(s.exitLong) || !rules(s.exitShort)) throw new Error("Strategy does not match the Testify strategy format.");
+  if (s.indicators !== undefined) {
+    if (!Array.isArray(s.indicators) || s.indicators.length > 16) throw new Error("A strategy can define at most 16 custom indicators.");
+    const definitions = new Map<string, Set<string>>();
+    const budget = { nodes: 0 };
+    for (const item of s.indicators) {
+      if (!item || !validName(item.name) || definitions.has(item.name.toLowerCase())) throw new Error("Custom indicator names must be unique letters and numbers, starting with a letter.");
+      const refs = new Set<string>();
+      if (!formula(item.formula, refs, budget)) throw new Error(`Invalid formula for ${item.name}.`);
+      definitions.set(item.name.toLowerCase(), refs);
+    }
+    for (const list of [s.entryLong, s.entryShort, s.exitLong, s.exitShort]) for (const group of (Array.isArray(list[0]) ? list as Rule[][] : [list as Rule[]])) for (const r of group) for (const operand of [r.left, r.right]) if (typeof operand !== "number" && operand.kind === "custom" && !definitions.has(operand.name!.toLowerCase())) throw new Error(`Unknown custom indicator ${operand.name}.`);
+    const visited = new Set<string>(); const active = new Set<string>();
+    const visit = (name: string) => { if (active.has(name)) throw new Error("Custom indicators cannot reference each other in a cycle."); if (visited.has(name)) return; if (!definitions.has(name)) throw new Error(`Unknown custom indicator ${name}.`); active.add(name); for (const ref of definitions.get(name)!) visit(ref); active.delete(name); visited.add(name); };
+    for (const name of definitions.keys()) visit(name);
+  } else if ([s.entryLong, s.entryShort, s.exitLong, s.exitShort].some((list) => (Array.isArray(list[0]) ? list as Rule[][] : [list as Rule[]]).some((group) => group.some((r) => r.left.kind === "custom" || (typeof r.right !== "number" && r.right.kind === "custom"))))) throw new Error("Custom rules need indicator definitions.");
   for (const n of [s.stopLossPct, s.takeProfitPct, s.allocationPct]) if (typeof n !== "number" || !Number.isFinite(n)) throw new Error("Strategy risk values must be numbers.");
   if (s.stopLossPct < 0 || s.stopLossPct > 100 || s.takeProfitPct < 0 || s.takeProfitPct > 100 || s.allocationPct <= 0 || s.allocationPct > 100) throw new Error("Strategy risk values are outside allowed ranges.");
-  if ((s.side === "long" || s.side === "both") && !s.entryLong.length) throw new Error("A long strategy needs at least one entry rule.");
-  if ((s.side === "short" || s.side === "both") && !s.entryShort.length) throw new Error("A short strategy needs at least one entry rule.");
+  if ((s.side === "long" || s.side === "both") && !hasRules(s.entryLong)) throw new Error("A long strategy needs at least one entry rule.");
+  if ((s.side === "short" || s.side === "both") && !hasRules(s.entryShort)) throw new Error("A short strategy needs at least one entry rule.");
   return s;
 }

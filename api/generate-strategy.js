@@ -1,23 +1,27 @@
+import { parseStrategy } from "../lib/shared/types.js";
+
 const MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"];
-const MAX_IDEA_LENGTH = 1200;
+const MAX_IDEA_LENGTH = 3000;
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 5;
 const attempts = new Map();
 
-const indicatorSchema = { type: "object", properties: { kind: { type: "string", enum: ["close", "open", "high", "low", "sma", "ema", "rsi"] }, period: { type: "integer" } }, required: ["kind"] };
+const indicatorSchema = { type: "object", properties: { kind: { type: "string", enum: ["close", "open", "high", "low", "volume", "sma", "ema", "rsi", "atr", "custom"] }, period: { type: "integer" }, name: { type: "string" } }, required: ["kind"] };
 const ruleSchema = { type: "object", properties: { left: indicatorSchema, op: { type: "string", enum: ["gt", "lt", "crosses_above", "crosses_below"] }, right: { anyOf: [indicatorSchema, { type: "number" }] } }, required: ["left", "op", "right"] };
-const schema = { type: "object", properties: { version: { type: "integer" }, name: { type: "string" }, description: { type: "string" }, side: { type: "string", enum: ["long", "short", "both"] }, entryLong: { type: "array", items: ruleSchema }, entryShort: { type: "array", items: ruleSchema }, exitLong: { type: "array", items: ruleSchema }, exitShort: { type: "array", items: ruleSchema }, stopLossPct: { type: "number" }, takeProfitPct: { type: "number" }, allocationPct: { type: "number" } }, required: ["version", "name", "description", "side", "entryLong", "entryShort", "exitLong", "exitShort", "stopLossPct", "takeProfitPct", "allocationPct"] };
-const instructions = `Return exactly one JSON strategy object for Testify. Do not return JavaScript, Rust, Markdown, or explanations outside JSON. Required fields: version=1, name, description, side (long, short, both), entryLong, entryShort, exitLong, exitShort, stopLossPct, takeProfitPct, allocationPct. A rule has left indicator, op, right indicator or number. Indicator kinds: close/open/high/low (no period), sma/ema/rsi (integer period 2-500). Operators: gt, lt, crosses_above, crosses_below. All rules in an array are combined with AND. Signals use completed bars only and fill at the next bar open. Include a meaningful exit rule and modest risk settings. Never claim that a strategy will be profitable. Do not reference future data or unsupported fields.`;
-
-function validIndicator(value) {
-  return value && typeof value === "object" && ["close", "open", "high", "low", "sma", "ema", "rsi"].includes(value.kind) && (!["sma", "ema", "rsi"].includes(value.kind) || (Number.isInteger(value.period) && value.period >= 2 && value.period <= 500));
-}
-function validRules(value) {
-  return Array.isArray(value) && value.length <= 12 && value.every((rule) => rule && validIndicator(rule.left) && ["gt", "lt", "crosses_above", "crosses_below"].includes(rule.op) && (validIndicator(rule.right) || (typeof rule.right === "number" && Number.isFinite(rule.right))));
-}
-function validStrategy(value) {
-  return value && value.version === 1 && typeof value.name === "string" && value.name.trim().length > 0 && value.name.length <= 100 && typeof value.description === "string" && ["long", "short", "both"].includes(value.side) && [value.entryLong, value.entryShort, value.exitLong, value.exitShort].every(validRules) && [value.stopLossPct, value.takeProfitPct, value.allocationPct].every((v) => typeof v === "number" && Number.isFinite(v)) && value.stopLossPct >= 0 && value.stopLossPct <= 100 && value.takeProfitPct >= 0 && value.takeProfitPct <= 100 && value.allocationPct > 0 && value.allocationPct <= 100 && (value.side === "short" || value.entryLong.length > 0) && (value.side === "long" || value.entryShort.length > 0);
-}
+const ruleSetSchema = { anyOf: [{ type: "array", items: ruleSchema }, { type: "array", items: { type: "array", items: ruleSchema } }] };
+const formulaSchema = { $ref: "#/$defs/formula" };
+const schema = { type: "object", $defs: { formula: { type: "object", properties: { op: { type: "string", enum: ["source", "constant", "ref", "add", "subtract", "multiply", "divide", "min", "max", "abs", "negate", "cumsum", "lag", "sma", "ema", "rsi", "highest", "lowest", "stdev", "atr"] }, field: { type: "string" }, name: { type: "string" }, value: { type: "number" }, period: { type: "integer" }, left: formulaSchema, right: formulaSchema, input: formulaSchema }, required: ["op"] } }, properties: { version: { type: "integer" }, name: { type: "string" }, description: { type: "string" }, side: { type: "string", enum: ["long", "short", "both"] }, indicators: { type: "array", items: { type: "object", properties: { name: { type: "string" }, formula: formulaSchema }, required: ["name", "formula"] } }, entryLong: ruleSetSchema, entryShort: ruleSetSchema, exitLong: ruleSetSchema, exitShort: ruleSetSchema, stopLossPct: { type: "number" }, takeProfitPct: { type: "number" }, allocationPct: { type: "number" } }, required: ["version", "name", "description", "side", "indicators", "entryLong", "entryShort", "exitLong", "exitShort", "stopLossPct", "takeProfitPct", "allocationPct"] };
+const instructions = `Create one executable Testify strategy as JSON only. Use version 2. Honor the user's requested logic and parameters where the format supports them; do not silently substitute a different indicator. The top-level fields are version, name, description, side (long/short/both), indicators, entryLong, entryShort, exitLong, exitShort, stopLossPct, takeProfitPct, allocationPct.
+You may define up to 16 original named indicators in indicators: [{"name":"Momentum","formula":{...}}]. Names use letters, digits and underscores, start with a letter, and are unique. Formulas are expression trees with an op:
+- source: {"op":"source","field":"close"}; fields open/high/low/close/volume.
+- constant: {"op":"constant","value":2}; ref: {"op":"ref","name":"Momentum"} to use another named indicator.
+- binary add/subtract/multiply/divide/min/max: {"op":"subtract","left":{...},"right":{...}}.
+- unary abs/negate/cumsum: {"op":"abs","input":{...}}.
+- rolling lag/sma/ema/rsi/highest/lowest/stdev: {"op":"ema","input":{...},"period":20}. Period is 2-500 except lag is 1-500.
+- atr: {"op":"atr","period":14}. ATR is the moving average of true range.
+You can build MACD, Bollinger bands, volume-weighted formulas, momentum, and other original indicators by composing these operations. Keep formulas acyclic and use current or past bars only. Never use code, scripts, future bars, or fields outside this grammar.
+Rules compare built-in indicators or custom indicators with gt/lt/crosses_above/crosses_below. Built-ins: close/open/high/low/volume; sma/ema/rsi/atr with period 2-500. A custom operand is {"kind":"custom","name":"Momentum"}. A rule is {"left":{...},"op":"gt","right":{...}}; right can also be a number. A flat rule array means AND. An array of rule arrays means OR between groups, AND within each group. Use at most 8 OR groups and 12 rules per group. For example entryLong:[[ruleA,ruleB],[ruleC]] means (A AND B) OR C. Empty exit arrays are allowed, but define meaningful exits where possible. Include long and short entry rules for side=both.
+Signals use completed bars and orders fill at the next bar open. Stops and targets are percentages; allocationPct is 0-100. Use the requested risk settings or conservative defaults. Describe what the strategy really does. Never promise profit or invent unsupported features. If an idea requires unavailable data or execution behavior, adapt only the unsupported part and state the limitation in description.`;
 
 export default async function handler(request, response) {
   response.setHeader("Cache-Control", "no-store");
@@ -29,11 +33,11 @@ export default async function handler(request, response) {
     if (!sameOrigin) return response.status(403).json({ error: "Requests must come from Testify." });
   }
   const rawLength = Number(request.headers["content-length"] || 0);
-  if (rawLength > 5000) return response.status(413).json({ error: "Strategy description is too long." });
+  if (rawLength > 9000) return response.status(413).json({ error: "Strategy description is too long." });
   let body = request.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { return response.status(400).json({ error: "Invalid JSON." }); } }
   const idea = body?.idea;
-  if (typeof idea !== "string" || !idea.trim() || idea.length > MAX_IDEA_LENGTH) return response.status(400).json({ error: "Enter a strategy description up to 1,200 characters." });
+  if (typeof idea !== "string" || !idea.trim() || idea.length > MAX_IDEA_LENGTH) return response.status(400).json({ error: "Enter a strategy description up to 3,000 characters." });
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return response.status(503).json({ error: "Gemini is not configured yet. The site owner must add GEMINI_API_KEY in Vercel." });
 
@@ -50,7 +54,7 @@ export default async function handler(request, response) {
       const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `${instructions}\n\nStrategy request:\n${idea.trim()}` }] }], generationConfig: { responseMimeType: "application/json", responseJsonSchema: schema, thinkingConfig: { thinkingLevel: "low" }, maxOutputTokens: 2000 } }),
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `${instructions}\n\nStrategy request:\n${idea.trim()}` }] }], generationConfig: { responseMimeType: "application/json", responseJsonSchema: schema, thinkingConfig: { thinkingLevel: "low" }, maxOutputTokens: 6000 } }),
         signal: AbortSignal.timeout(45_000),
       });
       const result = await upstream.json().catch(() => ({}));
@@ -64,7 +68,7 @@ export default async function handler(request, response) {
       if (!text) return response.status(502).json({ error: "Gemini returned an empty strategy." });
       let strategy;
       try { strategy = JSON.parse(text); } catch { return response.status(502).json({ error: "Gemini returned invalid JSON. Try again." }); }
-      if (!validStrategy(strategy)) return response.status(502).json({ error: "Gemini returned unsupported strategy rules. Try a simpler request." });
+      try { strategy = parseStrategy(JSON.stringify(strategy)); } catch (error) { return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${error.message}` }); }
       return response.status(200).json({ strategy, model });
     } catch {
       console.warn("Gemini connection failed", model);

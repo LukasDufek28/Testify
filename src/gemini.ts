@@ -7,7 +7,7 @@ export async function generateStrategy(idea: string): Promise<{ strategy: Strate
   const response = await fetch("/api/generate-strategy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idea: idea.trim().slice(0, 1200) }),
+    body: JSON.stringify({ idea: idea.trim().slice(0, 3000) }),
   });
   const body = await response.json().catch(() => ({})) as { error?: string; strategy?: unknown; model?: string };
   if (!response.ok) throw new Error(body.error || `Gemini request failed (HTTP ${response.status}).`);

@@ -1,32 +1,110 @@
-import type { BacktestSettings, Bar, Dataset, EquityPoint, Indicator, Rule, Run, Strategy, Trade } from "./types";
+import type { BacktestSettings, Bar, Dataset, EquityPoint, Formula, Indicator, Rule, RuleSet, Run, Strategy, Trade } from "./types";
 
-const key = (i: Indicator) => `${i.kind}:${i.period ?? 0}`;
-function indicatorSeries(bars: Bar[], indicator: Indicator): number[] {
-  const { kind, period = 0 } = indicator;
-  if (["open", "high", "low", "close"].includes(kind)) return bars.map((b) => b[kind as "open" | "high" | "low" | "close"]);
-  const close = bars.map((b) => b.close);
-  const output = Array<number>(bars.length).fill(NaN);
-  if (kind === "sma") {
-    let sum = 0;
-    for (let i = 0; i < close.length; i++) { sum += close[i]; if (i >= period) sum -= close[i - period]; if (i >= period - 1) output[i] = sum / period; }
-  } else if (kind === "ema") {
-    let sum = 0; const k = 2 / (period + 1);
-    for (let i = 0; i < close.length; i++) { if (i < period) sum += close[i]; if (i === period - 1) output[i] = sum / period; else if (i >= period) output[i] = close[i] * k + output[i - 1] * (1 - k); }
-  } else if (kind === "rsi") {
-    let gains = 0; let losses = 0;
-    for (let i = 1; i < close.length; i++) {
-      const change = close[i] - close[i - 1]; const gain = Math.max(0, change); const loss = Math.max(0, -change);
-      if (i <= period) { gains += gain; losses += loss; if (i === period) output[i] = losses === 0 ? 100 : 100 - 100 / (1 + gains / losses); }
-      else { gains = (gains * (period - 1) / period) + gain; losses = (losses * (period - 1) / period) + loss; output[i] = losses === 0 ? 100 : 100 - 100 / (1 + gains / losses); }
+const key = (i: Indicator) => i.kind === "custom" ? `custom:${i.name!.toLowerCase()}` : `${i.kind}:${i.period ?? 0}`;
+function rolling(input: number[], op: string, period: number): number[] {
+  const output = Array<number>(input.length).fill(NaN);
+  if (op === "sma") {
+    let sum = 0; let valid = 0;
+    for (let i = 0; i < input.length; i++) {
+      if (Number.isFinite(input[i])) { sum += input[i]; valid++; }
+      if (i >= period && Number.isFinite(input[i - period])) { sum -= input[i - period]; valid--; }
+      if (valid === period) output[i] = sum / period;
+    }
+  } else if (op === "ema") {
+    let count = 0; let seed = 0;
+    const k = 2 / (period + 1);
+    for (let i = 0; i < input.length; i++) {
+      if (!Number.isFinite(input[i])) { count = 0; seed = 0; continue; }
+      if (count < period) { seed += input[i]; count++; if (count === period) output[i] = seed / period; }
+      else output[i] = input[i] * k + output[i - 1] * (1 - k);
+    }
+  } else if (op === "rsi") {
+    let count = 0; let gains = 0; let losses = 0;
+    for (let i = 1; i < input.length; i++) {
+      if (!Number.isFinite(input[i]) || !Number.isFinite(input[i - 1])) { count = 0; gains = 0; losses = 0; continue; }
+      const change = input[i] - input[i - 1]; const gain = Math.max(0, change); const loss = Math.max(0, -change);
+      if (count < period) { gains += gain; losses += loss; count++; if (count === period) { gains /= period; losses /= period; } }
+      else { gains = (gains * (period - 1) + gain) / period; losses = (losses * (period - 1) + loss) / period; }
+      if (count >= period) output[i] = losses === 0 ? 100 : 100 - 100 / (1 + gains / losses);
+    }
+  } else if (op === "stdev") {
+    let sum = 0; let squares = 0; let valid = 0;
+    for (let i = 0; i < input.length; i++) {
+      if (Number.isFinite(input[i])) { sum += input[i]; squares += input[i] ** 2; valid++; }
+      if (i >= period && Number.isFinite(input[i - period])) { sum -= input[i - period]; squares -= input[i - period] ** 2; valid--; }
+      if (valid === period) output[i] = Math.sqrt(Math.max(0, squares / period - (sum / period) ** 2));
+    }
+  } else {
+    const deque: number[] = []; let valid = 0;
+    for (let i = period - 1; i < input.length; i++) {
+      if (i === period - 1) {
+        for (let j = 0; j < i; j++) {
+          if (!Number.isFinite(input[j])) continue;
+          valid++;
+          while (deque.length && (op === "highest" ? input[deque.at(-1)!] <= input[j] : input[deque.at(-1)!] >= input[j])) deque.pop();
+          deque.push(j);
+        }
+      }
+      while (deque.length && deque[0] <= i - period) deque.shift();
+      if (Number.isFinite(input[i])) {
+        valid++;
+        while (deque.length && (op === "highest" ? input[deque.at(-1)!] <= input[i] : input[deque.at(-1)!] >= input[i])) deque.pop();
+        deque.push(i);
+      }
+      if (i > period - 1 && Number.isFinite(input[i - period])) valid--;
+      if (valid === period) output[i] = input[deque[0]];
     }
   }
   return output;
 }
+function atrSeries(bars: Bar[], period: number): number[] {
+  const trueRange = bars.map((bar, i) => i === 0 ? bar.high - bar.low : Math.max(bar.high - bar.low, Math.abs(bar.high - bars[i - 1].close), Math.abs(bar.low - bars[i - 1].close)));
+  return rolling(trueRange, "sma", period);
+}
+function indicatorSeries(bars: Bar[], indicator: Indicator): number[] {
+  const { kind, period = 0 } = indicator;
+  if (["open", "high", "low", "close", "volume"].includes(kind)) return bars.map((b) => b[kind as "open" | "high" | "low" | "close" | "volume"]);
+  if (kind === "atr") return atrSeries(bars, period);
+  return rolling(bars.map((b) => b.close), kind, period);
+}
 function buildSeries(bars: Bar[], strategy: Strategy): Map<string, number[]> {
+  const definitions = new Map((strategy.indicators || []).map((item) => [item.name.toLowerCase(), item.formula]));
+  const custom = new Map<string, number[]>();
+  const expressionCache = new WeakMap<Formula, number[]>();
+  const evaluate = (formula: Formula): number[] => {
+    const cached = expressionCache.get(formula); if (cached) return cached;
+    let result: number[];
+    if (formula.op === "source") result = bars.map((bar) => bar[formula.field]);
+    else if (formula.op === "constant") result = bars.map(() => formula.value);
+    else if (formula.op === "ref") result = customSeries(formula.name);
+    else if (["add", "subtract", "multiply", "divide", "min", "max"].includes(formula.op)) {
+      const node = formula as Extract<Formula, { left: Formula }>;
+      const left = evaluate(node.left); const right = evaluate(node.right);
+      result = left.map((a, i) => { const b = right[i]; if (!Number.isFinite(a) || !Number.isFinite(b)) return NaN; if (node.op === "add") return a + b; if (node.op === "subtract") return a - b; if (node.op === "multiply") return a * b; if (node.op === "divide") return b === 0 ? NaN : a / b; if (node.op === "min") return Math.min(a, b); return Math.max(a, b); });
+    } else if (["abs", "negate", "cumsum"].includes(formula.op)) {
+      const node = formula as Extract<Formula, { input: Formula }>;
+      const input = evaluate(node.input); let sum = 0;
+      result = input.map((value) => { if (!Number.isFinite(value)) return NaN; if (node.op === "abs") return Math.abs(value); if (node.op === "negate") return -value; sum += value; return sum; });
+    } else if (formula.op === "atr") result = atrSeries(bars, formula.period);
+    else {
+      const node = formula as Extract<Formula, { input: Formula; period: number }>;
+      const input = evaluate(node.input);
+      result = node.op === "lag" ? input.map((_, i) => i >= node.period ? input[i - node.period] : NaN) : rolling(input, node.op, node.period);
+    }
+    expressionCache.set(formula, result);
+    return result;
+  };
+  const customSeries = (name: string): number[] => {
+    const normalized = name.toLowerCase();
+    const cached = custom.get(normalized); if (cached) return cached;
+    const expression = definitions.get(normalized);
+    if (!expression) throw new Error(`Unknown custom indicator ${name}.`);
+    const result = evaluate(expression); custom.set(normalized, result); return result;
+  };
   const indicators: Indicator[] = [];
-  for (const list of [strategy.entryLong, strategy.entryShort, strategy.exitLong, strategy.exitShort]) for (const rule of list) { indicators.push(rule.left); if (typeof rule.right !== "number") indicators.push(rule.right); }
+  for (const list of [strategy.entryLong, strategy.entryShort, strategy.exitLong, strategy.exitShort]) for (const group of (Array.isArray(list[0]) ? list as Rule[][] : [list as Rule[]])) for (const rule of group) { indicators.push(rule.left); if (typeof rule.right !== "number") indicators.push(rule.right); }
   const series = new Map<string, number[]>();
-  for (const i of indicators) if (!series.has(key(i))) series.set(key(i), indicatorSeries(bars, i));
+  for (const i of indicators) if (!series.has(key(i))) series.set(key(i), i.kind === "custom" ? customSeries(i.name!) : indicatorSeries(bars, i));
   return series;
 }
 function matches(rule: Rule, index: number, series: Map<string, number[]>): boolean {
@@ -41,7 +119,7 @@ function matches(rule: Rule, index: number, series: Map<string, number[]>): bool
   if (!Number.isFinite(prevA) || !Number.isFinite(prevB)) return false;
   return rule.op === "crosses_above" ? prevA <= prevB && a > b : prevA >= prevB && a < b;
 }
-const all = (rules: Rule[], index: number, series: Map<string, number[]>) => rules.length > 0 && rules.every((r) => matches(r, index, series));
+const all = (rules: RuleSet, index: number, series: Map<string, number[]>) => rules.length > 0 && (Array.isArray(rules[0]) ? (rules as Rule[][]).some((group) => group.every((r) => matches(r, index, series))) : (rules as Rule[]).every((r) => matches(r, index, series)));
 type Position = { side: 1 | -1; entry: number; entryTime: number; units: number; equityAtEntry: number; entryFee: number };
 
 export function runBacktest(dataset: Dataset, strategy: Strategy, settings: BacktestSettings, strategyId: string, name: string): Run {

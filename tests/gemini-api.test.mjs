@@ -48,3 +48,17 @@ test("falls back to 3.7 Flash when 3.8 Flash is busy", async () => {
   try { const res = reply(); await handler(request(), res); assert.equal(res.statusCode, 200); assert.equal(res.body.model, "gemini-3.7-flash"); assert.match(seen[0], /gemini-3\.8-flash/); assert.match(seen[1], /gemini-3\.7-flash/); }
   finally { globalThis.fetch = oldFetch; if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey; }
 });
+
+test("Gemini can return a validated custom indicator strategy", async () => {
+  const oldKey = process.env.GEMINI_API_KEY;
+  const oldFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = "test-secret";
+  const strategy = { version: 2, name: "Custom momentum", description: "Uses a one-bar change", side: "long", indicators: [{ name: "Momentum", formula: { op: "subtract", left: { op: "source", field: "close" }, right: { op: "lag", input: { op: "source", field: "close" }, period: 1 } } }], entryLong: [{ left: { kind: "custom", name: "Momentum" }, op: "gt", right: 0 }], entryShort: [], exitLong: [{ left: { kind: "custom", name: "Momentum" }, op: "lt", right: 0 }], exitShort: [], stopLossPct: 1, takeProfitPct: 2, allocationPct: 50 };
+  globalThis.fetch = async (_url, options) => {
+    const prompt = JSON.parse(options.body).contents[0].parts[0].text;
+    assert.match(prompt, /original named indicators/);
+    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(strategy) }] } }] }) };
+  };
+  try { const res = reply(); await handler(request("Create a custom momentum indicator"), res); assert.equal(res.statusCode, 200); assert.deepEqual(res.body.strategy, strategy); }
+  finally { globalThis.fetch = oldFetch; if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey; }
+});
