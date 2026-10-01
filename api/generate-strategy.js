@@ -74,9 +74,10 @@ export default async function handler(request, response) {
       let strategy;
       try { strategy = JSON.parse(text); } catch { return response.status(502).json({ error: "Gemini returned invalid JSON. Try again." }); }
       try { strategy = parseStrategy(JSON.stringify(strategy)); } catch (error) {
+        console.warn("Gemini strategy validation", error.message, JSON.stringify(strategy.indicators || []).slice(0, 2000));
         const repair = await generate(model, apiKey, `${prompt}\n\nYour previous JSON was rejected: ${error.message}\nCorrect every invalid formula and rule. Each formula operation must include its required fields exactly as specified above. Return the complete corrected strategy JSON. Previous JSON:\n${text.slice(0, 20000)}`);
         if (!repair.upstream.ok || !repair.text) return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${error.message}` });
-        try { strategy = parseStrategy(repair.text); } catch (repairError) { return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${repairError.message}` }); }
+        try { strategy = parseStrategy(repair.text); } catch (repairError) { console.warn("Gemini repaired strategy validation", repairError.message, JSON.stringify(JSON.parse(repair.text).indicators || []).slice(0, 2000)); return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${repairError.message}` }); }
       }
       return response.status(200).json({ strategy, model });
     } catch {
