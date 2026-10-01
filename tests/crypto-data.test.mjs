@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { getCandles } from "../lib/crypto-data.js";
+import { getCandles, validateRange } from "../lib/crypto-data.js";
+
+test("historical ranges are not capped at 3,000 candles", () => {
+  assert.doesNotThrow(() => validateRange("BTC-USD", 60, 1_700_000_000, 1_700_000_000 + 60 * 100_000));
+});
 
 test("candle chunks are fetched one at a time", async () => {
   const originalFetch = globalThis.fetch;
