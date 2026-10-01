@@ -10,9 +10,9 @@ const instructions = `Create one executable Testify strategy as JSON only. Use v
 You may define up to 16 original named indicators in indicators: [{"name":"Momentum","formula":{...}}]. Names use letters, digits and underscores, start with a letter, and are unique. Formulas are expression trees with an op:
 - source: {"op":"source","field":"close"}; fields open/high/low/close/volume.
 - constant: {"op":"constant","value":2}; ref: {"op":"ref","name":"Momentum"} to use another named indicator.
-- binary add/subtract/multiply/divide/min/max: {"op":"subtract","left":{...},"right":{...}}.
-- unary abs/negate/cumsum: {"op":"abs","input":{...}}.
-- rolling lag/sma/ema/rsi/highest/lowest/stdev: {"op":"ema","input":{...},"period":20}. Period is 2-500 except lag is 1-500.
+- binary add/subtract/multiply/divide/min/max require both left and right formula objects. Example: {"op":"subtract","left":{"op":"source","field":"close"},"right":{"op":"lag","input":{"op":"source","field":"close"},"period":1}}.
+- unary abs/negate/cumsum require an input formula object. Example: {"op":"abs","input":{"op":"source","field":"close"}}.
+- rolling lag/sma/ema/rsi/highest/lowest/stdev require an input formula object and period. Example: {"op":"ema","input":{"op":"source","field":"volume"},"period":20}. Period is 2-500 except lag is 1-500.
 - atr: {"op":"atr","period":14}. ATR is the moving average of true range.
 You can build MACD, Bollinger bands, volume-weighted formulas, momentum, and other original indicators by composing these operations. Keep formulas acyclic and use current or past bars only. Never use code, scripts, future bars, or fields outside this grammar.
 Rules compare built-in indicators or custom indicators with gt/lt/crosses_above/crosses_below. Built-ins: close/open/high/low/volume; sma/ema/rsi/atr with period 2-500. A custom operand is {"kind":"custom","name":"Momentum"}. A rule is {"left":{...},"op":"gt","right":{...}}; right can also be a number. A flat rule array means AND. An array of rule arrays means OR between groups, AND within each group. Use at most 8 OR groups and 12 rules per group. For example entryLong:[[ruleA,ruleB],[ruleC]] means (A AND B) OR C. Empty exit arrays are allowed, but define meaningful exits where possible. Include long and short entry rules for side=both.
@@ -69,7 +69,6 @@ export default async function handler(request, response) {
       let strategy;
       try { strategy = JSON.parse(text); } catch { return response.status(502).json({ error: "Gemini returned invalid JSON. Try again." }); }
       try { strategy = parseStrategy(JSON.stringify(strategy)); } catch (error) {
-        console.warn("Gemini formula shape", JSON.stringify(strategy.indicators || []).slice(0, 2000));
         const repair = await generate(model, apiKey, `${prompt}\n\nYour previous JSON was rejected: ${error.message}\nCorrect every invalid formula and rule. Each formula operation must include its required fields exactly as specified above. Return the complete corrected strategy JSON. Previous JSON:\n${text.slice(0, 20000)}`);
         if (!repair.upstream.ok || !repair.text) return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${error.message}` });
         try { strategy = parseStrategy(repair.text); } catch (repairError) { return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${repairError.message}` }); }
