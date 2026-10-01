@@ -1,6 +1,6 @@
 import { parseStrategy } from "../lib/shared/types.js";
 
-const MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"];
+const MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
 const MAX_IDEA_LENGTH = 3000;
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 5;
@@ -55,6 +55,7 @@ export default async function handler(request, response) {
   recent.push(now); attempts.set(ip, recent);
   if (attempts.size > 2000) for (const [key, times] of attempts) if (times.every((time) => now - time >= WINDOW_MS)) attempts.delete(key);
 
+  let validationError = null;
   for (const model of MODELS) {
     try {
       const prompt = `${instructions}\n\nStrategy request:\n${idea.trim()}`;
@@ -65,18 +66,18 @@ export default async function handler(request, response) {
         if (upstream.status === 503) continue;
         return response.status(upstream.status === 429 ? 429 : 502).json({ error: upstream.status === 429 ? "Gemini quota reached. Please try again later." : "Gemini could not generate a strategy right now." });
       }
-      if (!text) return response.status(502).json({ error: "Gemini returned an empty strategy." });
+      if (!text) { validationError = "Gemini returned an empty strategy."; continue; }
       let strategy;
-      try { strategy = JSON.parse(text); } catch { return response.status(502).json({ error: "Gemini returned invalid JSON. Try again." }); }
+      try { strategy = JSON.parse(text); } catch { validationError = "Gemini returned invalid JSON. Try again."; continue; }
       try { strategy = parseStrategy(JSON.stringify(strategy)); } catch (error) {
         const repair = await generate(model, apiKey, `${prompt}\n\nYour previous JSON was rejected: ${error.message}\nCorrect every invalid formula and rule. Each formula operation must include its required fields exactly as specified above. Return the complete corrected strategy JSON. Previous JSON:\n${text.slice(0, 20000)}`);
-        if (!repair.upstream.ok || !repair.text) return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${error.message}` });
-        try { strategy = parseStrategy(repair.text); } catch (repairError) { return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${repairError.message}` }); }
+        if (!repair.upstream.ok || !repair.text) { validationError = `Gemini returned a strategy Testify cannot run: ${error.message}`; continue; }
+        try { strategy = parseStrategy(repair.text); } catch (repairError) { validationError = `Gemini returned a strategy Testify cannot run: ${repairError.message}`; continue; }
       }
       return response.status(200).json({ strategy, model });
     } catch {
       console.warn("Gemini connection failed", model);
     }
   }
-  return response.status(503).json({ error: "Gemini is temporarily busy. Please try again shortly." });
+  return response.status(validationError ? 502 : 503).json({ error: validationError || "Gemini is temporarily busy. Please try again shortly." });
 }
