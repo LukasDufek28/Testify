@@ -49,6 +49,22 @@ test("falls back to 3.7 Flash when 3.8 Flash is busy", async () => {
   finally { globalThis.fetch = oldFetch; if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey; }
 });
 
+test("falls back when a model fails or returns an invalid strategy", async () => {
+  const oldKey = process.env.GEMINI_API_KEY;
+  const oldFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = "test-secret";
+  const seen = [];
+  const strategy = { version: 2, name: "Mean reversion", description: "Buys below a moving average", side: "long", indicators: [], entryLong: [{ left: { kind: "close" }, op: "lt", right: { kind: "sma", period: 20 } }], entryShort: [], exitLong: [{ left: { kind: "close" }, op: "gt", right: { kind: "sma", period: 20 } }], exitShort: [], stopLossPct: 2, takeProfitPct: 3, allocationPct: 50 };
+  globalThis.fetch = async (url) => {
+    seen.push(url);
+    if (seen.length === 1) return { ok: false, status: 502, json: async () => ({ error: { status: "BAD_GATEWAY", message: "temporary" } }) };
+    if (seen.length < 4) return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ ...strategy, entryLong: [] }) }] } }] }) };
+    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(strategy) }] } }] }) };
+  };
+  try { const res = reply(); await handler(request("make me a mean reversion strategy"), res); assert.equal(res.statusCode, 200); assert.deepEqual(res.body.strategy, strategy); assert.equal(res.body.model, "gemini-3.6-flash"); }
+  finally { globalThis.fetch = oldFetch; if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey; }
+});
+
 test("Gemini can return a validated custom indicator strategy", async () => {
   const oldKey = process.env.GEMINI_API_KEY;
   const oldFetch = globalThis.fetch;

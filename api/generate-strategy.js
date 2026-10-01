@@ -63,7 +63,7 @@ export default async function handler(request, response) {
       if (!upstream.ok) {
         const detail = String(result.error?.message || "").replaceAll(apiKey, "[redacted]").slice(0, 500);
         console.warn("Gemini upstream error", model, upstream.status, result.error?.status || "unknown", detail);
-        if (upstream.status === 503) continue;
+        if ([404, 500, 502, 503, 504].includes(upstream.status)) continue;
         return response.status(upstream.status === 429 ? 429 : 502).json({ error: upstream.status === 429 ? "Gemini quota reached. Please try again later." : "Gemini could not generate a strategy right now." });
       }
       if (!text) { validationError = "Gemini returned an empty strategy."; continue; }
