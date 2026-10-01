@@ -27,7 +27,7 @@ test("the function fixes the model, validates output, and does not return the ke
     assert.doesNotMatch(options.body, /test-secret/);
     const requestBody = JSON.parse(options.body);
     assert.equal(requestBody.generationConfig.responseMimeType, "application/json");
-    assert.ok(requestBody.generationConfig.responseJsonSchema);
+    assert.equal(requestBody.generationConfig.responseJsonSchema, undefined);
     return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(strategy) }] } }] }) };
   };
   try { const res = reply(); await handler(request(), res); assert.equal(res.statusCode, 200); assert.deepEqual(res.body.strategy, strategy); assert.doesNotMatch(JSON.stringify(res.body), /test-secret/); }

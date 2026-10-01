@@ -6,11 +6,6 @@ const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 5;
 const attempts = new Map();
 
-const indicatorSchema = { type: "object", properties: { kind: { type: "string", enum: ["close", "open", "high", "low", "volume", "sma", "ema", "rsi", "atr", "custom"] }, period: { type: "integer" }, name: { type: "string" } }, required: ["kind"] };
-const ruleSchema = { type: "object", properties: { left: indicatorSchema, op: { type: "string", enum: ["gt", "lt", "crosses_above", "crosses_below"] }, right: { anyOf: [indicatorSchema, { type: "number" }] } }, required: ["left", "op", "right"] };
-const ruleSetSchema = { anyOf: [{ type: "array", items: ruleSchema }, { type: "array", items: { type: "array", items: ruleSchema } }] };
-const formulaSchema = { $ref: "#/$defs/formula" };
-const schema = { type: "object", $defs: { formula: { type: "object", properties: { op: { type: "string", enum: ["source", "constant", "ref", "add", "subtract", "multiply", "divide", "min", "max", "abs", "negate", "cumsum", "lag", "sma", "ema", "rsi", "highest", "lowest", "stdev", "atr"] }, field: { type: "string" }, name: { type: "string" }, value: { type: "number" }, period: { type: "integer" }, left: formulaSchema, right: formulaSchema, input: formulaSchema }, required: ["op"] } }, properties: { version: { type: "integer" }, name: { type: "string" }, description: { type: "string" }, side: { type: "string", enum: ["long", "short", "both"] }, indicators: { type: "array", items: { type: "object", properties: { name: { type: "string" }, formula: formulaSchema }, required: ["name", "formula"] } }, entryLong: ruleSetSchema, entryShort: ruleSetSchema, exitLong: ruleSetSchema, exitShort: ruleSetSchema, stopLossPct: { type: "number" }, takeProfitPct: { type: "number" }, allocationPct: { type: "number" } }, required: ["version", "name", "description", "side", "indicators", "entryLong", "entryShort", "exitLong", "exitShort", "stopLossPct", "takeProfitPct", "allocationPct"] };
 const instructions = `Create one executable Testify strategy as JSON only. Use version 2. Honor the user's requested logic and parameters where the format supports them; do not silently substitute a different indicator. The top-level fields are version, name, description, side (long/short/both), indicators, entryLong, entryShort, exitLong, exitShort, stopLossPct, takeProfitPct, allocationPct.
 You may define up to 16 original named indicators in indicators: [{"name":"Momentum","formula":{...}}]. Names use letters, digits and underscores, start with a letter, and are unique. Formulas are expression trees with an op:
 - source: {"op":"source","field":"close"}; fields open/high/low/close/volume.
@@ -27,7 +22,7 @@ async function generate(model, apiKey, prompt) {
   const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", responseJsonSchema: schema, thinkingConfig: { thinkingLevel: "low" }, maxOutputTokens: 6000 } }),
+    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", thinkingConfig: { thinkingLevel: "low" }, maxOutputTokens: 6000 } }),
     signal: AbortSignal.timeout(45_000),
   });
   const result = await upstream.json().catch(() => ({}));
@@ -74,10 +69,9 @@ export default async function handler(request, response) {
       let strategy;
       try { strategy = JSON.parse(text); } catch { return response.status(502).json({ error: "Gemini returned invalid JSON. Try again." }); }
       try { strategy = parseStrategy(JSON.stringify(strategy)); } catch (error) {
-        console.warn("Gemini strategy validation", error.message, JSON.stringify(strategy.indicators || []).slice(0, 2000));
         const repair = await generate(model, apiKey, `${prompt}\n\nYour previous JSON was rejected: ${error.message}\nCorrect every invalid formula and rule. Each formula operation must include its required fields exactly as specified above. Return the complete corrected strategy JSON. Previous JSON:\n${text.slice(0, 20000)}`);
         if (!repair.upstream.ok || !repair.text) return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${error.message}` });
-        try { strategy = parseStrategy(repair.text); } catch (repairError) { console.warn("Gemini repaired strategy validation", repairError.message, JSON.stringify(JSON.parse(repair.text).indicators || []).slice(0, 2000)); return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${repairError.message}` }); }
+        try { strategy = parseStrategy(repair.text); } catch (repairError) { return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${repairError.message}` }); }
       }
       return response.status(200).json({ strategy, model });
     } catch {
