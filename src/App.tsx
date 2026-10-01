@@ -238,7 +238,7 @@ export default function App() {
       if (bars.length < 50) throw new Error("Validation needs at least 50 bars in the selected range.");
       const split = Math.floor(bars.length * splitPct / 100); if (split < 20 || bars.length - split < 20) throw new Error("Each validation period needs at least 20 bars.");
       const strategy = parseStrategy(selectedStrategy.source);
-      const train = await execute({ ...onlineDataset(), bars: bars.slice(0, split + 1) }, strategy, { ...base, end: bars[split].time }, selectedStrategy.id, "Development");
+      const train = await execute({ ...onlineDataset(), bars: bars.slice(0, split) }, strategy, { ...base, end: bars[split - 1].time }, selectedStrategy.id, "Development");
       const holdout = await execute({ ...onlineDataset(), bars: bars.slice(split) }, strategy, { ...base, start: bars[split].time }, selectedStrategy.id, "Holdout");
       setValidation({ train, holdout }); setNotice("Development and later holdout periods tested online.");
     } catch (e) { message(e); } finally { setBusy(""); }
