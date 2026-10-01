@@ -23,6 +23,17 @@ You can build MACD, Bollinger bands, volume-weighted formulas, momentum, and oth
 Rules compare built-in indicators or custom indicators with gt/lt/crosses_above/crosses_below. Built-ins: close/open/high/low/volume; sma/ema/rsi/atr with period 2-500. A custom operand is {"kind":"custom","name":"Momentum"}. A rule is {"left":{...},"op":"gt","right":{...}}; right can also be a number. A flat rule array means AND. An array of rule arrays means OR between groups, AND within each group. Use at most 8 OR groups and 12 rules per group. For example entryLong:[[ruleA,ruleB],[ruleC]] means (A AND B) OR C. Empty exit arrays are allowed, but define meaningful exits where possible. Include long and short entry rules for side=both.
 Signals use completed bars and orders fill at the next bar open. Stops and targets are percentages; allocationPct is 0-100. Use the requested risk settings or conservative defaults. Describe what the strategy really does. Never promise profit or invent unsupported features. If an idea requires unavailable data or execution behavior, adapt only the unsupported part and state the limitation in description.`;
 
+async function generate(model, apiKey, prompt) {
+  const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", responseJsonSchema: schema, thinkingConfig: { thinkingLevel: "low" }, maxOutputTokens: 6000 } }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  const result = await upstream.json().catch(() => ({}));
+  return { upstream, result, text: result.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") };
+}
+
 export default async function handler(request, response) {
   response.setHeader("Cache-Control", "no-store");
   if (request.method !== "POST") return response.status(405).json({ error: "Use POST." });
@@ -51,24 +62,22 @@ export default async function handler(request, response) {
 
   for (const model of MODELS) {
     try {
-      const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `${instructions}\n\nStrategy request:\n${idea.trim()}` }] }], generationConfig: { responseMimeType: "application/json", responseJsonSchema: schema, thinkingConfig: { thinkingLevel: "low" }, maxOutputTokens: 6000 } }),
-        signal: AbortSignal.timeout(45_000),
-      });
-      const result = await upstream.json().catch(() => ({}));
+      const prompt = `${instructions}\n\nStrategy request:\n${idea.trim()}`;
+      const { upstream, result, text } = await generate(model, apiKey, prompt);
       if (!upstream.ok) {
         const detail = String(result.error?.message || "").replaceAll(apiKey, "[redacted]").slice(0, 500);
         console.warn("Gemini upstream error", model, upstream.status, result.error?.status || "unknown", detail);
         if (upstream.status === 503) continue;
         return response.status(upstream.status === 429 ? 429 : 502).json({ error: upstream.status === 429 ? "Gemini quota reached. Please try again later." : "Gemini could not generate a strategy right now." });
       }
-      const text = result.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("");
       if (!text) return response.status(502).json({ error: "Gemini returned an empty strategy." });
       let strategy;
       try { strategy = JSON.parse(text); } catch { return response.status(502).json({ error: "Gemini returned invalid JSON. Try again." }); }
-      try { strategy = parseStrategy(JSON.stringify(strategy)); } catch (error) { return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${error.message}` }); }
+      try { strategy = parseStrategy(JSON.stringify(strategy)); } catch (error) {
+        const repair = await generate(model, apiKey, `${prompt}\n\nYour previous JSON was rejected: ${error.message}\nCorrect every invalid formula and rule. Each formula operation must include its required fields exactly as specified above. Return the complete corrected strategy JSON. Previous JSON:\n${text.slice(0, 20000)}`);
+        if (!repair.upstream.ok || !repair.text) return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${error.message}` });
+        try { strategy = parseStrategy(repair.text); } catch (repairError) { return response.status(502).json({ error: `Gemini returned a strategy Testify cannot run: ${repairError.message}` }); }
+      }
       return response.status(200).json({ strategy, model });
     } catch {
       console.warn("Gemini connection failed", model);
