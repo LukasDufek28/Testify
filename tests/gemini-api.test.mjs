@@ -78,3 +78,24 @@ test("Gemini can return a validated custom indicator strategy", async () => {
   try { const res = reply(); await handler(request("Create a custom momentum indicator"), res); assert.equal(res.statusCode, 200); assert.deepEqual(res.body.strategy, strategy); }
   finally { globalThis.fetch = oldFetch; if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey; }
 });
+
+test("Gemini revision receives the selected strategy and development summaries", async () => {
+  const oldKey = process.env.GEMINI_API_KEY;
+  const oldFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = "test-secret";
+  const strategy = { version: 2, name: "Mean reversion", description: "Revised fees", side: "long", indicators: [], entryLong: [{ left: { kind: "close" }, op: "lt", right: { kind: "sma", period: 20 } }], entryShort: [], exitLong: [], exitShort: [], stopLossPct: 2, takeProfitPct: 3, allocationPct: 50 };
+  const result = { phase: "development", name: "Research run", symbol: "BTC-USD", netReturnPct: -2, tradeCount: 100, totalFees: 50 };
+  let prompt = "";
+  globalThis.fetch = async (_url, options) => { prompt = JSON.parse(options.body).contents[0].parts[0].text; return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(strategy) }] } }] }) }; };
+  try {
+    const req = request(""); req.body = { mode: "revise", idea: "Reduce overtrading", strategy, results: [result] };
+    const res = reply(); await handler(req, res);
+    assert.equal(res.statusCode, 200);
+    assert.match(prompt, /Reduce overtrading/);
+    assert.match(prompt, /Mean reversion/);
+    assert.match(prompt, /totalFees/);
+    assert.match(prompt, /reserved holdout/);
+    const invalid = reply(); req.headers["x-forwarded-for"] = crypto.randomUUID(); req.body.results = [{ ...result, phase: "validation" }]; await handler(req, invalid);
+    assert.equal(invalid.statusCode, 400);
+  } finally { globalThis.fetch = oldFetch; if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey; }
+});
