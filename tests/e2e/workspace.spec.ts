@@ -51,13 +51,13 @@ test("CSV data import validates files and runs the real worker on stored candles
   await expect(page.locator(".banner.success")).toContainText("1 backtest saved");
   await page.route("**/api/candles?**", route=>route.abort());
   await page.getByRole("button",{name:"Validate holdout",exact:true}).click();
-  await page.getByRole("button",{name:"Check shown",exact:true}).click();
+  
   await page.getByRole("button",{name:"Validate 1 run",exact:true}).click();
   await expect(page.getByRole("heading",{name:"1 holdout result",exact:true})).toBeVisible();
   await page.goto("/#/app/history");
-  await expect(page.locator(".run-list")).toContainText("New research run");
+  await expect(page.locator(".history-table")).toContainText("New research run");
   await page.reload();
-  await expect(page.locator(".run-list")).toContainText("New research run");
+  await expect(page.locator(".history-table")).toContainText("New research run");
   expect(errors).toEqual([]);
 });
 

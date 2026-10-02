@@ -3,11 +3,11 @@ import "./dashboard.css";
 import "./motion.css";
 import "./workspace.css";
 
-export type WorkspacePage = "overview" | "strategies" | "studio" | "data" | "backtests" | "history" | "validation" | "portfolio";
+export type WorkspacePage = "overview" | "strategies" | "studio" | "data" | "backtests" | "history" | "results" | "compare" | "validation" | "portfolio";
 export default function WorkspaceShell({ page, onNavigate, onBackup, children }: { page: WorkspacePage; onNavigate: (page: WorkspacePage) => void; onBackup: () => Promise<void>; children: ReactNode }) {
   const settings = useRef<HTMLDialogElement>(null);
-  const active = page === "studio" ? "strategies" : ["history", "validation", "portfolio"].includes(page) ? "backtests" : page;
-  const labels: Record<WorkspacePage, string> = { overview: "Dashboard", strategies: "Strategies", studio: "Strategies / Edit strategy", data: "Data / Market data", backtests: "Backtests / New backtest", history: "Backtests / History", validation: "Backtests / Validation", portfolio: "Backtests / Portfolio" };
+  const active = page === "studio" ? "strategies" : ["history", "results", "compare", "validation", "portfolio"].includes(page) ? "backtests" : page;
+  const labels: Record<WorkspacePage, string> = { overview: "Dashboard", strategies: "Strategies", studio: "Strategies / Edit strategy", data: "Data / Market data", backtests: "Backtests / New backtest", history: "Backtests / History", results: "Backtests / Backtest results", compare: "Backtests / Compare backtests", validation: "Backtests / Validation", portfolio: "Backtests / Portfolio" };
   return <div className="dashboard-shell workspace-shell">
     <aside className="dashboard-sidebar"><a href="#" aria-label="Back to Testify home"><img src="/testify-logo.png" alt="Testify" width="150" height="50" /></a><span className="dashboard-brand-caption">BACKTESTING WORKSPACE</span>
       <nav aria-label="Workspace navigation">{([['overview','Dashboard'],['strategies','Strategies'],['backtests','Backtests'],['data','Data']] as const).map(([id,label]) => <button key={id} aria-current={active === id ? "page" : undefined} onClick={() => onNavigate(id)}>{label}</button>)}<button onClick={() => settings.current?.showModal()}>Settings</button></nav>

@@ -32,7 +32,7 @@ export type Trade = { entryTime: number; exitTime: number; side: 1 | -1; entry: 
 export type EquityPoint = { time: number; equity: number };
 export type BacktestSettings = { capital: number; feeBps: number; slippageBps: number; useMt5Spread: boolean; start: number; end: number };
 export type ResearchWindow = { phase: "development" | "validation"; fullStart: number; fullEnd: number; boundary: number; splitPct: number; parentRunId?: string };
-export type Run = { id: string; name: string; createdAt: number; symbol: string; granularity?: number; datasetId?: string; strategyId: string; strategyName: string; strategySource?: string; research?: ResearchWindow; settings: BacktestSettings; metrics: { netReturnPct: number; maxDrawdownPct: number; sharpe: number | null; winRatePct: number; tradeCount: number; totalFees: number }; curve: EquityPoint[]; trades: Trade[]; warnings: string[] };
+export type Run = { id: string; name: string; createdAt: number; symbol: string; granularity?: number; datasetId?: string; priceDatasetId?: string; strategyId: string; strategyName: string; strategySource?: string; research?: ResearchWindow; settings: BacktestSettings; metrics: { netReturnPct: number; maxDrawdownPct: number; sharpe: number | null; winRatePct: number; tradeCount: number; totalFees: number }; curve: EquityPoint[]; trades: Trade[]; warnings: string[] };
 
 export const exampleStrategy: Strategy = {
   version: 1,
