@@ -135,3 +135,32 @@
  .workspace-studio .studio-editor { height:480px; }
  .workspace-studio .studio-assistant { overflow:visible; }
 }
+/* Keep the approved palette through hover, focus and success states. */
+.workspace-shell .button.primary:hover:not(:disabled),.dashboard-shell .dashboard-primary:hover:not(:disabled) { background:#f2842f; color:white; }
+.workspace-shell .button.subtle:hover:not(:disabled) { background:#455b8a; color:white; }
+.workspace-shell .button.ghost:hover:not(:disabled) { background:#455b8a; color:white; }
+.workspace-shell :is(.positive,.good-result),.workspace-shell .positive strong { color:#f2842f; }
+.workspace-shell .file-dot { background:#f2842f; box-shadow:none; }
+.workspace-shell .banner.success { background:#30497d; color:white; border:1px solid #f2842f; }
+.workspace-shell .banner.success svg,.workspace-shell .run-picker-count { color:#f2842f; }
+.workspace-shell .strategy-list button:hover { background:#455b8a; color:white; }
+.dashboard-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:24px; }
+.dashboard-summary article { padding:20px; border-radius:8px; background:#30497d; display:grid; gap:12px; animation:testify-pop 450ms cubic-bezier(.16,1,.3,1) both; }
+.dashboard-summary article:nth-child(2) { animation-delay:60ms; }
+.dashboard-summary article:nth-child(3) { animation-delay:120ms; }
+.dashboard-summary article:nth-child(4) { animation-delay:180ms; }
+.dashboard-summary span,.dashboard-summary small { font-size:12px; }
+.dashboard-summary strong { font-size:27px; }
+.dashboard-working { display:grid; grid-template-columns:minmax(0,2fr) minmax(250px,1fr); gap:20px; }
+.dashboard-ready { display:flex; flex-direction:column; align-items:flex-start; }
+.dashboard-ready .dashboard-button { margin-top:auto; width:100%; }
+.dashboard-backup { font-size:12px; }
+.dashboard-backup summary { cursor:pointer; }
+@media(max-width:1000px) { .dashboard-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }.dashboard-working { grid-template-columns:1fr; }.dashboard-ready .dashboard-button { margin-top:20px; width:auto; } }
+@media(max-width:560px) { .dashboard-summary article { padding:16px; }.returning-dashboard .workspace-page-heading { flex-wrap:wrap; } }
+
+.workspace-shell .market-picker-head strong span { color:#f2842f; }
+.workspace-shell .muted,.workspace-shell .run-check small { color:white; opacity:.7; }
+.workspace-studio .strategy-panel { z-index:20; }
+
+.workspace-shell .good { color:#f2842f; }

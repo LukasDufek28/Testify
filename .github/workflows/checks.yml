@@ -1,13 +1,14 @@
 name: Testify checks
 on:
   push:
+    branches: [devAdam]
   pull_request:
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: checks-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   checks:
     runs-on: ubuntu-latest

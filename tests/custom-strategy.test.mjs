@@ -53,3 +53,15 @@ test("custom formulas reject lookahead, missing references, and cycles", () => {
   cycle.indicators[1].formula = { op: "ref", name: "Momentum" };
   assert.throws(() => parseStrategy(JSON.stringify(cycle)), /cycle/);
 });
+
+test('progress reports actual processed bars without changing backtest results', () => {
+  const bars=Array.from({length:500},(_,i)=>({time:1700000000+i*60,open:100+i*.01,high:102+i*.01,low:99+i*.01,close:101+i*.01,volume:100,spread:0}));
+  const dataset={id:'progress',symbol:'BTC-USD',fileName:'test',importedAt:0,utcOffset:0,point:0,bars,skipped:0};
+  const settings={capital:10000,feeBps:2,slippageBps:1,useMt5Spread:false,start:bars[0].time,end:bars.at(-1).time};
+  const values=[];
+  const result=runBacktest(dataset,strategy,settings,'s','test',value=>values.push(value));
+  assert.equal(values[0],0);assert.equal(values.at(-1),1);
+  assert.ok(values.length>20);assert.ok(values.every((v,i)=>v>=0&&v<=1&&(!i||v>=values[i-1])));
+  const baseline=runBacktest(dataset,strategy,settings,'s','test');
+  assert.deepEqual(result.curve,baseline.curve);assert.deepEqual(result.trades,baseline.trades);assert.deepEqual(result.metrics,baseline.metrics);
+});

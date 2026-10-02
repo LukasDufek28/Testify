@@ -64,7 +64,7 @@ test("completed backtests select the returning-user dashboard after storage load
     });
   });
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Build. Test. Learn.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
   await expect(page.locator(".dashboard-welcome")).toHaveCount(0);
 });
 

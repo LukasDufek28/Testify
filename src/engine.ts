@@ -122,7 +122,7 @@ function matches(rule: Rule, index: number, series: Map<string, number[]>): bool
 const all = (rules: RuleSet, index: number, series: Map<string, number[]>) => rules.length > 0 && (Array.isArray(rules[0]) ? (rules as Rule[][]).some((group) => group.every((r) => matches(r, index, series))) : (rules as Rule[]).every((r) => matches(r, index, series)));
 type Position = { side: 1 | -1; entry: number; entryTime: number; units: number; equityAtEntry: number; entryFee: number };
 
-export function runBacktest(dataset: Dataset, strategy: Strategy, settings: BacktestSettings, strategyId: string, name: string): Run {
+export function runBacktest(dataset: Dataset, strategy: Strategy, settings: BacktestSettings, strategyId: string, name: string, onProgress?: (fraction: number) => void): Run {
   if (!(settings.capital > 0) || !Number.isFinite(settings.capital)) throw new Error("Starting capital must be positive.");
   if (settings.feeBps < 0 || settings.slippageBps < 0 || !Number.isFinite(settings.feeBps + settings.slippageBps)) throw new Error("Trading costs must be nonnegative.");
   const bars = dataset.bars.filter((b) => b.time >= settings.start && b.time <= settings.end);
@@ -131,6 +131,7 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
   const intervals = bars.slice(1).map((b, i) => b.time - bars[i].time).filter((v) => v > 0).sort((a, b) => a - b);
   const coinbaseMinutes = dataset.fileName.match(/^Coinbase · (\d+)m$/)?.[1];
   const barSeconds = coinbaseMinutes ? Number(coinbaseMinutes) * 60 : intervals[Math.floor(intervals.length / 2)] || 60;
+  onProgress?.(0);
   const series = buildSeries(bars, strategy);
   let cash = settings.capital; let position: Position | null = null; let pending: 0 | 1 | -1 | 2 = 0;
   let totalFees = 0; const curve: EquityPoint[] = []; const trades: Trade[] = []; const warnings: string[] = [];
@@ -160,6 +161,7 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
     position = { side, entry: price, entryTime: bar.time, units, equityAtEntry, entryFee: fee };
   };
   for (let i = 0; i < bars.length; i++) {
+    if (i % Math.max(1, Math.ceil(bars.length / 100)) === 0) onProgress?.(i / bars.length);
     const bar = bars[i];
     if (pending === 2) exit(bar.open, bar, "Signal");
     else if (pending === 1 || pending === -1) { if (position) exit(bar.open, bar, "Reverse signal"); if (cash > 0) enter(pending, bar); }
@@ -188,6 +190,7 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
   }
   if (position) { const last = bars[bars.length - 1]; exit(last.close, last, "End of test", true); curve[curve.length - 1].equity = cash; }
   let peak = settings.capital; let maxDrawdownPct = 0;
+  onProgress?.(1);
   for (const point of curve) { peak = Math.max(peak, point.equity); maxDrawdownPct = Math.max(maxDrawdownPct, (peak - point.equity) / peak * 100); }
   const dailyClose = new Map<string, number>();
   for (const p of curve) dailyClose.set(new Date(p.time * 1000).toISOString().slice(0, 10), p.equity);
