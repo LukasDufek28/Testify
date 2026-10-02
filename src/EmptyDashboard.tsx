@@ -4,7 +4,7 @@ import "./dashboard.css";
 
 type Props = {
   strategyCount: number;
-  onNavigate: (page: "studio" | "data" | "backtests") => void;
+  onNavigate: (page: "studio" | "strategies" | "data" | "backtests") => void;
   onImport: (file: File) => Promise<void>;
   onBackup: () => Promise<void>;
   error: string;
@@ -19,7 +19,7 @@ export default function EmptyDashboard({ strategyCount, onNavigate, onImport, on
       <span className="dashboard-brand-caption">BACKTESTING WORKSPACE</span>
       <nav aria-label="Workspace navigation">
         <button aria-current="page">Dashboard</button>
-        <button onClick={() => onNavigate("studio")}>Strategies</button>
+        <button onClick={() => onNavigate("strategies")}>Strategies</button>
         <button onClick={() => onNavigate("backtests")}>Backtests</button>
         <button onClick={() => onNavigate("data")}>Data</button>
         <button onClick={() => settings.current?.showModal()}>Settings</button>

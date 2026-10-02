@@ -27,7 +27,7 @@ test("new user dashboard matches the design, stays empty, and resizes", async ({
 });
 
 test("onboarding steps open existing strategy, data, and backtest flows", async ({ page }) => {
-  for (const [step, heading] of [["1 Create a strategy", "Strategy creation"], ["2 Choose your data", "Crypto markets"], ["3 Run and review", "Backtests"]]) {
+  for (const [step, heading] of [["1 Create a strategy", "Strategy creation"], ["2 Choose your data", "Market data"], ["3 Run and review", "New backtest"]]) {
     await page.goto("/#/app/overview");
     await page.reload();
     await page.getByRole("button", { name: `Open this step: ${step}`, exact: true }).click();
@@ -43,7 +43,7 @@ test("JSON import validates files and persists the user's strategy", async ({ pa
   await page.locator('input[type="file"]').setInputFiles({ name: "strategy.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(strategy)) });
   await expect(page.getByRole("heading", { name: "Strategy creation", exact: true })).toBeVisible();
   await expect(page.locator(".strategy-list")).toContainText(strategy.name);
-  await page.reload();
+  await page.goto("/#/app/overview");
   await expect(page.getByText("You have 1 saved strategy, ready for a first backtest.", { exact: false })).toBeVisible();
 });
 

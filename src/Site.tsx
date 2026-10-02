@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import Landing from "./Landing";
+import type { WorkspacePage } from "./WorkspaceShell";
 const App = lazy(() => import("./App"));
 export default function Site() {
   const [hash, setHash] = useState(location.hash);
@@ -13,6 +14,8 @@ export default function Site() {
       window.scrollTo(0, 0);
   }, [hash]);
   if (!hash.startsWith("#/app/")) return <Landing />;
+  const route = hash.replace("#/app/", "");
+  const initialPage: WorkspacePage = (["overview", "studio", "strategies", "data", "backtests", "history", "portfolio", "validation"] as string[]).includes(route) ? route as WorkspacePage : "overview";
   return (
     <Suspense
       fallback={
@@ -23,7 +26,7 @@ export default function Site() {
     >
       <App
         key={hash}
-        initialPage={hash === "#/app/studio" ? "studio" : "overview"}
+        initialPage={initialPage}
       />
     </Suspense>
   );
