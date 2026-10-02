@@ -144,9 +144,10 @@ test("landing links, dialog keyboard handling, and actual workspace navigation w
   );
 });
 
-test("hover grows the CTA slightly and runs a white glare sweep", async ({
+test("hover grows the CTA slightly and runs a white glare sweep even with system motion reduction", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   const cta = page
     .getByRole("link", { name: "Start for free", exact: true })
@@ -172,6 +173,7 @@ test("hover grows the CTA slightly and runs a white glare sweep", async ({
 test("preview content enters in sequence and equity draws with deceleration", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   const animation = await page.evaluate(() => {
     const delays = [...document.querySelectorAll(".landing-metrics>div")].map(
@@ -204,31 +206,17 @@ test("preview content enters in sequence and equity draws with deceleration", as
   expect(animation.easing).toBe("cubic-bezier(0.12, 0.8, 0.2, 1)");
 });
 
-test("reduced motion shows all content and the full chart immediately", async ({
-  page,
-}) => {
+test("equity actually progresses over time with the user's system motion setting", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  for (const selector of [
-    ".landing-preview",
-    ".landing-preview h2",
-    ".landing-metrics>div",
-    ".landing-chart",
-    ".landing-curve-reveal",
-  ]) {
-    expect(
-      await page
-        .locator(selector)
-        .first()
-        .evaluate((e) => getComputedStyle(e).animationName),
-    ).toBe("none");
-  }
-  expect(
-    await page
-      .locator(".landing-curve-reveal")
-      .evaluate((e) => getComputedStyle(e).transform),
-  ).toBe("none");
-  await expect(
-    page.locator(".landing-metrics").getByText("+12.4%", { exact: true }),
-  ).toBeVisible();
+  const curve = page.locator(".landing-curve-reveal");
+  const progress = () => curve.evaluate((e) => {
+    const transform = getComputedStyle(e).transform;
+    return transform === "none" ? 1 : Number(transform.match(/matrix\(([^,]+)/)?.[1]);
+  });
+  expect(await progress()).toBeLessThan(1);
+  await expect.poll(progress).toBeGreaterThan(0.1);
+  await expect.poll(progress).toBe(1);
 });
+
+

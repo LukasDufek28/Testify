@@ -553,23 +553,4 @@
     font-size: 12px;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .landing-preview,
-  .landing-preview h2,
-  .landing-preview-caption,
-  .landing-strategy,
-  .landing-metrics > div,
-  .landing-chart,
-  .landing-curve-reveal {
-    animation: none;
-  }
-  .landing-button {
-    transition: none;
-  }
-  .landing-primary:hover {
-    transform: none;
-  }
-  .landing-primary:hover::after {
-    animation: none;
-  }
-}
+
