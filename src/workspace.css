@@ -97,3 +97,41 @@
 @media(max-width:1000px) { .backtest-setup-layout { grid-template-columns: 1fr; } .workspace-shell .studio-layout { grid-template-columns: 1fr; } .workspace-shell .strategy-list { max-height: 200px; } .workspace-shell .editor-toolbar .button { padding-inline: 12px; } }
 @media(max-width:850px) { .workspace-shell .workspace-content { padding-inline: 24px; } .strategy-grid { grid-template-columns: 1fr; } .workspace-page-heading { align-items: flex-start; flex-wrap: wrap; } }
 @media(max-width:560px) { .workspace-shell .workspace-content { padding: 24px 20px; } .workspace-form-grid { grid-template-columns: 1fr; } .workspace-panel { padding: 20px; } .csv-actions { width: 100%; } .csv-actions :is(select,button) { width: 100%; } .workspace-table { min-width: 700px; } .workspace-shell .workspace-empty { padding: 28px 20px; } .workspace-shell .form-stack { padding: 20px; } .workspace-shell .form-split { grid-template-columns: 1fr; } .workspace-shell .editor-toolbar { padding: 16px; } .workspace-shell .editor-toolbar > div { min-width: 0; } .workspace-shell .page-header { flex-wrap: wrap; } }
+/* Strategy studio keeps the editor and assistant within the desktop workspace. */
+.workspace-studio .studio-layout { display:flex; flex-direction:column; flex:1; min-height:0; gap:14px; }
+.workspace-studio .page-header { margin-bottom:18px; flex-shrink:0; }
+.workspace-studio .page-header p { margin-bottom:0; }
+.workspace-studio .strategy-panel { min-height:0; position:relative; overflow:visible; flex-shrink:0; }
+.workspace-studio .strategy-panel summary { cursor:pointer; padding:12px 18px; font-size:13px; font-weight:600; }
+.workspace-studio .strategy-panel summary span { margin-left:8px; opacity:.7; }
+.workspace-studio .strategy-list { position:absolute; z-index:10; top:100%; left:0; right:0; max-height:220px; overflow:auto; background:#30497d; border:1px solid #455b8a; border-radius:8px; box-shadow:0 12px 28px #15254966; }
+.workspace-studio .studio-main { display:grid; grid-template-columns:minmax(0,1fr) minmax(270px,330px); gap:18px; flex:1; min-height:0; }
+.workspace-studio .studio-editor { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+.workspace-studio .editor-toolbar { padding:10px 16px; gap:10px; flex-shrink:0; }
+.workspace-studio .editor-toolbar .button { padding:8px 12px; min-width:0; }
+.workspace-studio .editor-toolbar .muted { display:none; }
+.workspace-studio .editor-wrap { flex:1; min-height:0; }
+.workspace-studio .editor-footer { padding:8px 14px; font-size:11px; flex-shrink:0; }
+.workspace-studio .studio-assistant { min-height:0; overflow:auto; }
+.workspace-studio .studio-assistant .panel-head { padding:20px 20px 12px; }
+.workspace-studio .studio-assistant h3 { font-size:19px; }
+.workspace-studio .studio-assistant .panel-head p { font-size:12px; line-height:1.6; }
+.workspace-studio .form-stack { padding:18px 20px; gap:16px; }
+.workspace-studio .form-stack textarea { min-height:140px; resize:vertical; }
+.workspace-studio .form-stack .button { width:100%; min-width:0; white-space:normal; }
+.studio-mode { display:flex; gap:4px; margin:0 20px; padding:4px; background:#253c6d; border-radius:8px; }
+.studio-mode button { flex:1; padding:9px; border:0; border-radius:5px; background:transparent; font-size:13px; transition:background 180ms,filter 180ms; }
+.studio-mode button[aria-selected=true] { background:#455b8a; }
+.studio-mode button:hover { filter:brightness(1.1); }
+@media(min-width:900px) and (min-height:600px) {
+ .workspace-studio { height:100dvh; min-height:0; }
+ .workspace-studio .dashboard-main { min-height:0; }
+ .workspace-studio .workspace-content { display:flex; flex-direction:column; flex:1; min-height:0; padding:20px 24px 12px; }
+ .workspace-studio .dashboard-main footer { padding:8px 24px 14px; flex-shrink:0; }
+ .workspace-studio .banner { flex-shrink:0; max-height:90px; overflow:auto; }
+}
+@media(max-width:899px), (max-height:599px) {
+ .workspace-studio .studio-main { grid-template-columns:1fr; }
+ .workspace-studio .studio-editor { height:480px; }
+ .workspace-studio .studio-assistant { overflow:visible; }
+}
