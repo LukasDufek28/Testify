@@ -164,3 +164,14 @@
 .workspace-studio .strategy-panel { z-index:20; }
 
 .workspace-shell .good { color:#f2842f; }
+:root { --testify-profit:#ffcd87; --testify-drawdown:#ffa3ae; }
+.workspace-shell :is(.positive,.good-result,.good),.workspace-shell .positive strong { color:var(--testify-profit); }
+.workspace-shell :is(.negative,.bad) { color:var(--testify-drawdown); }
+/* A small turning marker makes the selected destination distinct from hover. */
+.dashboard-sidebar nav button { position:relative; overflow:hidden; transition:background 180ms ease,box-shadow 220ms ease; }
+.dashboard-sidebar nav button:not([aria-current]):hover { background:#455b8a66; box-shadow:inset 0 0 0 1px #ffffff18; }
+.dashboard-sidebar nav button[aria-current] { border-left:0; padding-left:16px; box-shadow:inset 0 0 0 1px #ffffff0a; }
+.dashboard-sidebar nav button[aria-current]::before { content:""; position:absolute; left:0; top:10px; bottom:10px; width:4px; border-radius:0 4px 4px 0; background:var(--testify-profit); box-shadow:0 0 12px #ffcd8730; transform-origin:left center; animation:nav-marker-turn 480ms cubic-bezier(.16,1,.3,1) both; pointer-events:none; }
+@keyframes nav-marker-turn { 0% { transform:perspective(120px) translateY(-10px) rotateY(-100deg) scaleY(.55); opacity:0; } 50% { opacity:1; } 100% { transform:perspective(120px) translateY(0) rotateY(0) scaleY(1); opacity:1; } }
+@media(prefers-reduced-motion:reduce) { .dashboard-sidebar nav button[aria-current]::before { animation:none; }.dashboard-sidebar nav button { transition:none; } }
+@media(max-width:560px) { .dashboard-sidebar nav button[aria-current] { padding-left:10px; } }
