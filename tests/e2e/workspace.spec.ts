@@ -41,10 +41,11 @@ test("CSV data import validates files and runs the real worker on stored candles
   await page.getByRole("button",{name:"Details →",exact:true}).click();
   await expect(page.getByText("BTC-USD · 120 candles, sorted timestamps and valid prices.",{exact:true})).toBeVisible();
   await page.getByRole("button",{name:"Backtests",exact:true}).click();
-  await page.getByLabel("Market / dataset",{exact:true}).selectOption({label:"BTC-USD · history.csv"});
+  await page.getByRole("combobox",{name:"Market / dataset",exact:true}).click();
+  await page.getByRole("option",{name:"BTC-USD · history.csv",exact:true}).click();
   await page.reload();
-  await expect(page.getByLabel("Market / dataset",{exact:true})).toHaveValue(/.+/);
-  await expect(page.getByLabel("Market / dataset",{exact:true})).not.toHaveValue("online");
+  await expect(page.getByRole("combobox",{name:"Market / dataset",exact:true})).toContainText("history.csv");
+
   await page.getByRole("button",{name:"Run backtest",exact:true}).click();
   await expect(page.locator(".backtest-result")).toBeVisible();
   await expect(page.locator(".banner.success")).toContainText("1 backtest saved");

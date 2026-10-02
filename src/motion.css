@@ -25,3 +25,6 @@
 }
 @keyframes landing-glare { from { left: -70%; } to { left: 140%; } }
 @keyframes testify-pop { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+/* Secondary actions share the landing page's gentle brightness response. */
+.landing .landing-secondary,.dashboard-shell .dashboard-button:not(.testify-primary),.workspace-shell .button:is(.subtle,.ghost),.workspace-shell .workspace-tabs button { transform:none; transition:filter 220ms ease; }
+.landing .landing-secondary:hover:not(:disabled),.dashboard-shell .dashboard-button:not(.testify-primary):hover:not(:disabled),.workspace-shell .button:is(.subtle,.ghost):hover:not(:disabled),.workspace-shell .workspace-tabs button:hover:not(:disabled) { transform:none; filter:brightness(1.1); }
