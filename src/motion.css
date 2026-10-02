@@ -1,0 +1,27 @@
+/* Shared motion for the landing page and workspace. */
+.landing .landing-primary.testify-primary,
+.dashboard-shell .dashboard-primary.testify-primary {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transform: scale(1);
+  transition: transform 220ms ease, filter 220ms ease;
+}
+.testify-primary::after {
+  content: "";
+  position: absolute;
+  inset: -50% auto -50% -70%;
+  width: 45%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .42), transparent);
+  transform: skewX(-20deg);
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .landing .testify-primary:hover,
+  .dashboard-shell .testify-primary:hover {
+    transform: scale(1.025);
+  }
+  .testify-primary:hover::after { animation: landing-glare 650ms ease-out; }
+}
+@keyframes landing-glare { from { left: -70%; } to { left: 140%; } }
+@keyframes testify-pop { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }

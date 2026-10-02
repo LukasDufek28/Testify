@@ -82,3 +82,42 @@ test("landing card tilt stays subtle and resets when the cursor leaves", async (
   expect(await card.evaluate(e => (e as HTMLElement).style.getPropertyValue("--tilt-x"))).toBe("0deg");
   expect(await card.evaluate(e => (e as HTMLElement).style.getPropertyValue("--tilt-y"))).toBe("0deg");
 });
+
+test("primary buttons share the same hover motion on landing and dashboard", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const styles = [];
+  for (const [url, name] of [["/", "Start for free"], ["/#/app/overview", "Create with AI"]]) {
+    await page.goto(url);
+    const button = page.getByRole(url === "/" ? "link" : "button", { name, exact: true }).first();
+    await button.hover();
+    await expect.poll(() => button.evaluate(e => {
+      return Number(getComputedStyle(e).transform.match(/matrix\(([^,]+)/)?.[1]);
+    })).toBe(1.025);
+    styles.push(await button.evaluate(e => ({
+      transition: getComputedStyle(e).transition,
+      glare: getComputedStyle(e, "::after").backgroundImage,
+      animation: getComputedStyle(e, "::after").animationName,
+      duration: getComputedStyle(e, "::after").animationDuration,
+    })));
+  }
+  expect(styles[1]).toEqual(styles[0]);
+  expect(styles[1].animation).toBe("landing-glare");
+});
+
+test("landing setup cards use the dashboard's quick staggered popup animation", async ({ page }) => {
+  const timings = [];
+  for (const [url, selector] of [["/", ".landing-steps article"], ["/#/app/overview", ".dashboard-steps article"]]) {
+    await page.goto(url);
+    await page.locator(selector).first().waitFor();
+    timings.push(await page.locator(selector).evaluateAll(elements => elements.map(e => ({
+      name: getComputedStyle(e).animationName,
+      duration: getComputedStyle(e).animationDuration,
+      delay: getComputedStyle(e).animationDelay,
+      easing: getComputedStyle(e).animationTimingFunction,
+    }))));
+  }
+  expect(timings[0]).toEqual(timings[1]);
+  expect(timings[0].map(t => t.delay)).toEqual(["0.14s", "0.24s", "0.34s"]);
+  await page.goto("/");
+  expect(await page.locator(".landing-copy").evaluate(e => getComputedStyle(e).animationName)).toBe("testify-pop");
+});

@@ -1,3 +1,4 @@
+import "./motion.css";
 import { useRef } from "react";
 import "./dashboard.css";
 
@@ -35,7 +36,7 @@ export default function EmptyDashboard({ strategyCount, onNavigate, onImport, on
           <span className="dashboard-kicker">GETTING STARTED</span>
           <h2 id="getting-started-title">What would you like to test?</h2>
           <p>{strategyCount ? `You have ${strategyCount} saved ${strategyCount === 1 ? "strategy" : "strategies"}, ready for a first backtest.` : "You do not have any saved strategies yet."}<br />Gemini can help turn your idea into a strategy you can edit and backtest.</p>
-          <div className="dashboard-actions"><button className="dashboard-button dashboard-primary" onClick={() => onNavigate("studio")}>Create with AI</button><button className="dashboard-button" onClick={() => upload.current?.click()}>Import strategy JSON</button></div>
+          <div className="dashboard-actions"><button className="dashboard-button dashboard-primary testify-primary" onClick={() => onNavigate("studio")}>Create with AI</button><button className="dashboard-button" onClick={() => upload.current?.click()}>Import strategy JSON</button></div>
           <input ref={upload} type="file" accept=".json,application/json" aria-label="Import strategy JSON file" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) void onImport(file); e.target.value = ""; }} />
         </section>
         <section className="dashboard-steps" aria-label="Getting started steps">
@@ -50,7 +51,7 @@ export default function EmptyDashboard({ strategyCount, onNavigate, onImport, on
     </main>
     <dialog ref={settings} className="dashboard-settings" aria-labelledby="workspace-settings-title">
       <h2 id="workspace-settings-title">Workspace settings</h2><p>Your strategies and backtests are saved in this browser. Export a backup to keep a copy.</p><p>Account sign-in is coming soon.</p>
-      <div className="dashboard-actions"><button className="dashboard-button dashboard-primary" onClick={() => void onBackup()}>Export backup</button><button className="dashboard-button" onClick={() => settings.current?.close()}>Close</button></div>
+      <div className="dashboard-actions"><button className="dashboard-button dashboard-primary testify-primary" onClick={() => void onBackup()}>Export backup</button><button className="dashboard-button" onClick={() => settings.current?.close()}>Close</button></div>
     </dialog>
   </div>;
 }

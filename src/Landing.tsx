@@ -1,3 +1,4 @@
+import "./motion.css";
 import { useId, useRef, type PointerEvent } from "react";
 import "./landing.css";
 
@@ -38,7 +39,7 @@ export default function Landing() {
           >
             Sign in
           </button>
-          <a className="landing-button landing-primary" href="#/app/overview">
+          <a className="landing-button landing-primary testify-primary" href="#/app/overview">
             Start for free
           </a>
         </nav>
@@ -62,7 +63,7 @@ export default function Landing() {
               and improve the next version.
             </p>
             <div className="landing-actions">
-              <a className="landing-button landing-primary" href="#/app/overview">
+              <a className="landing-button landing-primary testify-primary" href="#/app/overview">
                 Start for free
               </a>
               <a
@@ -201,7 +202,7 @@ export default function Landing() {
         </p>
         <div>
           <a
-            className="landing-button landing-primary"
+            className="landing-button landing-primary testify-primary"
             href="#/app/overview"
             onClick={() => signIn.current?.close()}
           >
