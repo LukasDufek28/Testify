@@ -218,5 +218,3 @@ test("equity actually progresses over time with the user's system motion setting
   await expect.poll(progress).toBeGreaterThan(0.1);
   await expect.poll(progress).toBe(1);
 });
-
-
