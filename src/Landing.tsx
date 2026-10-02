@@ -1,14 +1,9 @@
-import { useRef } from "react";
+import { useId, useRef } from "react";
 import "./landing.css";
 
 export default function Landing() {
+  const curveClip = useId();
   const signIn = useRef<HTMLDialogElement>(null);
-  const points = [
-    0.92, 0.84, 0.89, 0.68, 0.71, 0.64, 0.73, 0.57, 0.6, 0.39, 0.45, 0.31, 0.35,
-    0.19, 0.23, 0.08,
-  ]
-    .map((v, i) => `${58 + (i * 518) / 15},${64 + v * 107}`)
-    .join(" ");
   return (
     <div className="landing">
       <header className="landing-header">
@@ -39,7 +34,7 @@ export default function Landing() {
           </a>
         </nav>
       </header>
-      <main>
+      <main className="landing-main">
         <section className="landing-hero" aria-labelledby="landing-heading">
           <div className="landing-copy">
             <span className="landing-kicker">FREE AI STRATEGY BUILDER</span>
@@ -51,9 +46,9 @@ export default function Landing() {
               for free.
             </h1>
             <p>
-              Turn an idea into clear trading rules with Gemini.{" "}
+              Turn an idea into clear trading rules with AI.{" "}
               <br className="landing-desktop-break" />
-              Test it on historical data, understand the results,{" "}
+              Test it on historical data, review the results,{" "}
               <br className="landing-desktop-break" />
               and improve the next version.
             </p>
@@ -69,7 +64,7 @@ export default function Landing() {
               </a>
             </div>
             <div className="landing-flow">
-              Describe → Create → Backtest → Review
+              Describe - Create - Backtest - Review
             </div>
           </div>
           <section
@@ -78,9 +73,7 @@ export default function Landing() {
             aria-labelledby="preview-heading"
           >
             <h2 id="preview-heading">From idea to evidence</h2>
-            <p className="landing-preview-caption">
-              Product preview · example strategy
-            </p>
+            <p className="landing-preview-caption">Product preview</p>
             <span className="landing-strategy">BTC trend crossover · v3</span>
             <div className="landing-metrics">
               {[
@@ -114,7 +107,27 @@ export default function Landing() {
                     </text>
                   </g>
                 ))}
-                <polyline points={points} />
+                <defs>
+                  <clipPath id={curveClip}>
+                    <rect
+                      className="landing-curve-reveal"
+                      x="58"
+                      y="64"
+                      width="520"
+                      height="110"
+                    />
+                  </clipPath>
+                </defs>
+                <g clipPath={`url(#${curveClip})`}>
+                  <image
+                    className="landing-equity-line"
+                    href="/design/equity.svg"
+                    x="58"
+                    y="71.5"
+                    width="518.828"
+                    height="92.2268"
+                  />
+                </g>
                 <text className="landing-chart-month" x="58" y="196">
                   Jan
                 </text>
@@ -137,7 +150,7 @@ export default function Landing() {
             ["01", "Describe your idea", "Explain entry, exit and risk rules."],
             [
               "02",
-              "Build with Gemini",
+              "Build with free AI",
               "Review and save a validated strategy.",
             ],
             [

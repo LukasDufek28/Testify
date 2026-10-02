@@ -10,7 +10,10 @@
     "pretest": "npm run build:engine",
     "test": "node --test tests/*.test.mjs",
     "preview": "vite preview",
-    "predev": "npm run build:engine"
+    "predev": "npm run build:engine",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "check": "npm run build && npm test && npm run test:e2e"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
@@ -22,6 +25,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",

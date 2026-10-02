@@ -6,3 +6,6 @@ dist/
 
 .playwright-cli/
 output/playwright/
+
+playwright-report/
+test-results/
