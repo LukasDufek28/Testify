@@ -1,9 +1,18 @@
-import { useId, useRef } from "react";
+import { useId, useRef, type PointerEvent } from "react";
 import "./landing.css";
 
 export default function Landing() {
   const curveClip = useId();
   const signIn = useRef<HTMLDialogElement>(null);
+  function tiltPreview(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "mouse") return;
+    const card = event.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const x = Math.max(-1, Math.min(1, (event.clientX - rect.left) / rect.width * 2 - 1));
+    const y = Math.max(-1, Math.min(1, (event.clientY - rect.top) / rect.height * 2 - 1));
+    card.style.setProperty("--tilt-x", `${-y * 2}deg`);
+    card.style.setProperty("--tilt-y", `${x * 2}deg`);
+  }
   return (
     <div className="landing">
       <header className="landing-header">
@@ -29,7 +38,7 @@ export default function Landing() {
           >
             Sign in
           </button>
-          <a className="landing-button landing-primary" href="#/app/studio">
+          <a className="landing-button landing-primary" href="#/app/overview">
             Start for free
           </a>
         </nav>
@@ -53,7 +62,7 @@ export default function Landing() {
               and improve the next version.
             </p>
             <div className="landing-actions">
-              <a className="landing-button landing-primary" href="#/app/studio">
+              <a className="landing-button landing-primary" href="#/app/overview">
                 Start for free
               </a>
               <a
@@ -67,6 +76,10 @@ export default function Landing() {
               Describe - Create - Backtest - Review
             </div>
           </div>
+          <div className="landing-preview-tilt" onPointerMove={tiltPreview} onPointerLeave={(e) => {
+            e.currentTarget.style.setProperty("--tilt-x", "0deg");
+            e.currentTarget.style.setProperty("--tilt-y", "0deg");
+          }}>
           <section
             className="landing-preview"
             id="product-preview"
@@ -140,6 +153,7 @@ export default function Landing() {
               </svg>
             </figure>
           </section>
+          </div>
         </section>
         <section
           className="landing-steps"
@@ -188,7 +202,7 @@ export default function Landing() {
         <div>
           <a
             className="landing-button landing-primary"
-            href="#/app/studio"
+            href="#/app/overview"
             onClick={() => signIn.current?.close()}
           >
             Continue for free

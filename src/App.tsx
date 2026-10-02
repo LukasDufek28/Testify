@@ -8,6 +8,7 @@ import { generateStrategy, reviseStrategy, GEMINI_MODEL } from "./gemini";
 import { combinePortfolio } from "./portfolio";
 import { researchWindow, sameResearchWindow, summarizeDevelopmentRun } from "./research";
 import RunPicker from "./RunPicker";
+import EmptyDashboard from "./EmptyDashboard";
 
 type Page = "overview" | "data" | "studio" | "backtests" | "history" | "validation" | "portfolio";
 const menu: { id: Page; label: string; icon: typeof Activity }[] = [
@@ -112,7 +113,8 @@ export default function App({ initialPage = "overview" }: { initialPage?: Page }
   const [datasetId, setDatasetId] = useState("");
   const [strategyId, setStrategyId] = useState(savedTesterOptions.strategyId || "");
   const [runId, setRunId] = useState("");
-  const [source, setSource] = useState("");
+  const [source, setSource] = useState(JSON.stringify(exampleStrategy, null, 2));
+  const [storageLoaded, setStorageLoaded] = useState(false);
   const [markets, setMarkets] = useState<string[]>([]);
   const [market, setMarket] = useState(savedTesterOptions.market || "BTC-USD");
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(savedTesterOptions.selectedMarkets ?? ["BTC-USD"]);
@@ -167,12 +169,12 @@ export default function App({ initialPage = "overview" }: { initialPage?: Page }
   async function refresh() {
     const [ds, ss, rs] = await Promise.all([localStore.datasets(), localStore.strategies(), localStore.runs()]);
     ds.sort((a, b) => b.importedAt - a.importedAt); ss.sort((a, b) => b.updatedAt - a.updatedAt); rs.sort((a, b) => b.createdAt - a.createdAt);
-    setDatasets(ds); setStrategies(ss); setRuns(rs);
+    setDatasets(ds); setStrategies(ss); setRuns(rs); setStorageLoaded(true);
     setDatasetId((current) => ds.some((d) => d.id === current) ? current : ds[0]?.id || "");
     setStrategyId((current) => ss.some((s) => s.id === current) ? current : ss[0]?.id || "");
     setRunId((current) => rs.some((r) => r.id === current) ? current : rs[0]?.id || "");
   }
-  useEffect(() => { void (async () => { try { const ss = await localStore.strategies(); if (!ss.length) await localStore.putStrategy({ id: "sample-sma", name: exampleStrategy.name, source: JSON.stringify(exampleStrategy, null, 2), updatedAt: Date.now() }); await refresh(); } catch (e) { setError(String(e)); } })(); }, []);
+  useEffect(() => { void refresh().catch((e) => { setError(String(e)); setStorageLoaded(true); }); }, []);
   useEffect(() => {
     const options: TesterOptions = { strategyId, market, selectedMarkets, granularity, runName, capital, feeBps, slippageBps, start, end, splitPct };
     try { localStorage.setItem(TESTER_OPTIONS_KEY, JSON.stringify(options)); } catch { /* The form still works when browser storage is unavailable. */ }
@@ -338,6 +340,18 @@ export default function App({ initialPage = "overview" }: { initialPage?: Page }
 
   let developmentEnd = "";
   try { developmentEnd = dateInput(researchWindow(Date.parse(start) / 1000, Date.parse(end) / 1000, splitPct).boundary); } catch { /* Show the date error when the backtest starts. */ }
+
+  if (page === "overview" && !storageLoaded) return <div className="site-loading" role="status">Opening your dashboard…</div>;
+  if (page === "overview" && !runs.length) return <EmptyDashboard strategyCount={strategies.length} error={error} onNavigate={(target) => { setPage(target); setError(""); }} onBackup={exportBackup} onImport={async (file) => {
+    try {
+      const strategy = parseStrategy(await file.text());
+      const id = crypto.randomUUID();
+      const json = JSON.stringify(strategy, null, 2);
+      await localStore.putStrategy({ id, name: strategy.name, source: json, updatedAt: Date.now() });
+      await refresh(); setStrategyId(id); setSource(json); setError(""); setPage("studio");
+      setNotice(`Imported ${strategy.name}.`);
+    } catch (e) { message(e); }
+  }} />;
 
   return <div className="app-shell">
     <aside className="sidebar"><a className="brand" href="#" aria-label="Back to Testify home"><img src="/testify-logo.png" alt="Testify" width="150" height="50"/></a><div className="workspace-tag"><span className="workspace-dot"/> PRIVATE BROWSER WORKSPACE</div><nav><div className="nav-section">WORKSPACE</div>{menu.map(({ id, label, icon: Icon }, i) => <div key={id}>{i === 1 && <div className="nav-section">RESEARCH</div>}<button className={`nav-item ${page === id ? "active" : ""}`} onClick={() => { setPage(id); setError(""); }}><Icon size={16}/><span>{label}</span>{page === id && <ChevronRight size={14}/>}</button></div>)}</nav><div className="sidebar-bottom"><div className="local-note"><ShieldCheck size={17}/><div><strong>Stored on your device</strong><span>No account or server database</span></div></div><small>Testify Web · Research only</small></div></aside>

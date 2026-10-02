@@ -37,8 +37,7 @@ test("approved copy and original local assets load without browser errors", asyn
   await expect(
     page.getByRole("img", { name: "Testify", exact: true }),
   ).toBeVisible();
-  expect(
-    await page
+  await expect.poll(() => page
       .locator(".landing-logo")
       .evaluate(
         (img: HTMLImageElement) => img.complete && img.naturalWidth > 0,
@@ -128,13 +127,15 @@ test("landing links, dialog keyboard handling, and actual workspace navigation w
     .getByRole("link", { name: "Explore the product", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Build. Test. Learn.", exact: true }),
+    page.getByRole("heading", { name: "Your first strategy starts here", exact: true }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Back to Testify home" }).click();
   await page
     .getByRole("link", { name: "Start for free", exact: true })
     .first()
     .click();
+  await expect(page.getByRole("heading", { name: "Your first strategy starts here", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Create with AI", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Strategy creation", exact: true }),
   ).toBeVisible();

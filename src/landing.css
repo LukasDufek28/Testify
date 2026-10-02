@@ -189,6 +189,12 @@
   margin-top: 18px;
   font-weight: 400;
 }
+.landing-preview-tilt {
+  min-width: 0;
+  width: 100%;
+  transform: perspective(1200px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition: transform 180ms ease-out;
+}
 .landing-preview {
   min-width: 0;
   aspect-ratio: 656/496;
@@ -468,6 +474,7 @@
   }
 }
 @media (max-width: 720px) {
+  .landing-preview-tilt { max-width: 656px; justify-self: center; }
   .landing-hero {
     grid-template-columns: 1fr;
     gap: 36px;
