@@ -39,3 +39,40 @@ test('online run stores original candles for offline trade inspection after relo
 test('failed run returns to configuration and preserves its settings',async({page})=>{
   await page.goto('/#/app/backtests');await page.getByLabel('Run name',{exact:true}).fill('Preserve my test');await page.route('**/api/candles?**',route=>route.fulfill({status:503,json:{error:'Historical data temporarily unavailable'}}));await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.locator('.banner.error')).toContainText('Historical data temporarily unavailable');await expect(page.getByRole('heading',{name:'New backtest',exact:true})).toBeVisible();await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Preserve my test');
 });
+
+test('result numbers visibly count through intermediate values in popup order with reduced motion',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});await page.clock.install();
+ await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
+ const values=page.locator('.result-metric .animated-value');await expect(values).toHaveCount(7);
+ await page.clock.runFor(150);
+ const samples=await values.evaluateAll(elements=>elements.map(el=>({text:el.textContent,final:el.getAttribute('aria-label')})));
+ expect(samples[0].text).not.toBe(samples[0].final);
+ expect(samples[6].text).not.toBe(samples[6].final);
+ await page.clock.runFor(400);expect(await values.first().textContent()).not.toBe(samples[0].text);
+ await page.clock.runFor(1800);
+ for(let index=0;index<samples.length;index++)await expect(values.nth(index)).toHaveText(samples[index].final!);
+});
+
+test('hovering equity retains both visible profit and loss colors and formats tooltip values',async({page})=>{
+ await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
+ const canvas=page.locator('.result-chart-grid canvas').first();await expect(canvas).toBeVisible();
+ const colors=()=>canvas.evaluate(el=>{const c=el as HTMLCanvasElement,pixels=c.getContext('2d')!.getImageData(0,0,c.width,c.height).data;let orange=0,blue=0;for(let i=0;i<pixels.length;i+=4){if(pixels[i]>225&&pixels[i+1]>115&&pixels[i+1]<150&&pixels[i+2]<70)orange++;if(Math.abs(pixels[i]-69)<8&&Math.abs(pixels[i+1]-91)<8&&Math.abs(pixels[i+2]-138)<8)blue++;}return {orange,blue};});
+ await expect.poll(async()=>{const result=await colors();return result.orange>20&&result.blue>20;}).toBe(true);
+ await page.waitForTimeout(700);const before=await colors();const bounds=await canvas.boundingBox();
+ await page.mouse.move(bounds!.x+bounds!.width*.4,bounds!.y+bounds!.height*.5);
+ await expect.poll(async()=>(await colors()).orange).toBeGreaterThan(before.orange*.8);
+ await expect.poll(async()=>(await colors()).blue).toBeGreaterThan(before.blue*.8);
+ await expect(page.locator('.result-chart-grid').first()).toContainText(/\$[\d,.]+/);
+});
+
+test.describe('decimal formatting with a Slovak browser locale',()=>{
+ test.use({locale:'sk-SK',reducedMotion:'reduce'});
+ test('animated and settled result values both keep dot decimals',async({page})=>{
+  await page.clock.install();await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
+  const value=page.locator('.result-metric').filter({hasText:'Return'}).locator('.animated-value');
+  await page.clock.runFor(400);await expect(value).toHaveText(/^[+-]?\d+\.\d{2}%$/);
+  const intermediate=await value.textContent();await page.clock.runFor(2000);
+  await expect(value).toHaveText(/^[+-]?\d+\.\d{2}%$/);await expect(value).toHaveText(await value.getAttribute('aria-label') as string);
+  expect(await value.textContent()).not.toBe(intermediate);
+ });
+});

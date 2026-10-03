@@ -2,23 +2,25 @@ import { sampleCurve } from "./results";
 export const PROFIT_COLOR = "#f2842f";
 export const DRAWDOWN_COLOR = "#455b8a";
 
-export function equityData(points: { time: number; equity: number }[], percent = false) {
-  let peak = percent ? 0 : points[0]?.equity ?? 0;
-  const data = points.map(point => {
-    const positive = point.equity >= peak && point.equity > (percent ? 0 : points[0]?.equity ?? 0);
-    peak = Math.max(peak, point.equity);
-    return [point.time * 1000, point.equity, positive ? 1 : 0];
-  });
-  const byPoint = new Map(points.map((point, index) => [point, data[index]]));
-  return sampleCurve(points).map(point => byPoint.get(point)!);
+export function equityData(points: { time: number; equity: number }[], percent = false, capital?: number) {
+  const baseline = percent ? 0 : capital ?? points[0]?.equity ?? 0;
+  return sampleCurve(points).map(point => [point.time * 1000, point.equity, point.equity > baseline ? 1 : 0]);
 }
-export function equityLines(name: string, points: { time: number; equity: number }[], percent = false, dashed = false) {
-  const data = equityData(points, percent);
-  const common = { name, type: "line", showSymbol: false, connectNulls: false, lineStyle: { width: 2, type: dashed ? "dashed" : "solid" } };
-  return [
-    { ...common, lineStyle: { ...common.lineStyle, width: 3, color: DRAWDOWN_COLOR }, itemStyle: { color: DRAWDOWN_COLOR }, data: data.map(point => point.slice(0, 2)) },
-    { ...common, tooltip: { show: false }, lineStyle: { ...common.lineStyle, color: PROFIT_COLOR }, itemStyle: { color: PROFIT_COLOR }, data: data.map((point, index) => [point[0], point[2] || data[index + 1]?.[2] ? point[1] : null]) },
-  ];
+export function equityLines(name: string, points: { time: number; equity: number }[], percent = false, dashed = false, capital?: number) {
+  const data = equityData(points, percent, capital);
+  const baseline = percent ? 0 : capital ?? points[0]?.equity ?? 0;
+  const low = data.reduce((value, point) => Math.min(value, point[1]), Infinity);
+  const high = data.reduce((value, point) => Math.max(value, point[1]), -Infinity);
+  const threshold = (high - baseline) / (high - low);
+  const color = high === low && high === baseline ? "#ffffff" : low >= baseline ? PROFIT_COLOR : high <= baseline ? DRAWDOWN_COLOR : {
+    type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+    colorStops: [{offset:0,color:PROFIT_COLOR},{offset:threshold,color:PROFIT_COLOR},{offset:threshold,color:DRAWDOWN_COLOR},{offset:1,color:DRAWDOWN_COLOR}],
+  };
+  // A single series keeps hover/legend emphasis from hiding a profit overlay.
+  return [{ name, type: "line", showSymbol: false, emphasis: { disabled: true },
+    lineStyle: { width: 3, type: dashed ? "dashed" : "solid", color },
+    data: data.map(point => point.slice(0, 2)),
+  }];
 }
 
 export function drawdownColors(points: { equity: number }[]) {

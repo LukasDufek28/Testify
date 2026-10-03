@@ -38,13 +38,21 @@ test('backtest progress advances with loaded candles, estimates remaining time a
  release();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible({timeout:20000});await page.reload();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible();
 });
 
-test('sidebar selection has a short turning marker and hover never replaces the active page',async({page})=>{
+test('sidebar hover shows an orange edge and click smoothly fills the button even with reduced motion',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.clock.install();
  await page.goto('/#/app/data');await expect(page.getByRole('heading',{level:1})).toBeVisible();
  const active=page.getByRole('button',{name:'Data',exact:true});
  await expect(active).toHaveAttribute('aria-current','page');
- const marker=await active.locator('.nav-selection-marker').evaluate(el=>{const css=getComputedStyle(el);return {color:css.borderLeftColor,animation:css.animationName,duration:css.animationDuration};});
- expect(marker.color).toBe(orange);expect(marker.animation).toBe('nav-marker-turn');expect(marker.duration).toBe('0.48s');
- await page.getByRole('button',{name:'Backtests',exact:true}).hover();await expect(active).toHaveCSS('background-color',blue);await expect(page.locator('nav [aria-current]')).toHaveCount(1);
- await page.getByRole('button',{name:'Backtests',exact:true}).click();await expect(page.getByRole('button',{name:'Backtests',exact:true})).toHaveAttribute('aria-current','page');await expect(active).not.toHaveAttribute('aria-current','page');
- await expect(page.locator('nav [aria-current] .nav-selection-marker')).toHaveClass(/marker-right/);await expect.poll(()=>page.locator('nav [aria-current] .nav-selection-marker').evaluate(el=>new DOMMatrix(getComputedStyle(el).transform).m11)).toBeCloseTo(-1,3);await page.getByRole('button',{name:'Data',exact:true}).click();await expect(page.locator('nav [aria-current] .nav-selection-marker')).toHaveClass(/marker-left/);await page.emulateMedia({reducedMotion:'reduce'});expect(await page.locator('nav [aria-current] .nav-selection-marker').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+ await expect(active.locator('.nav-selection-marker')).toHaveCSS('border-left-color',orange);
+ const target=page.getByRole('button',{name:'Backtests',exact:true});
+ await target.hover();await expect(target).toHaveCSS('background-color',blue);
+ expect(await target.evaluate(el=>getComputedStyle(el,'::before').borderLeftColor)).toBe(orange);
+ await expect(target.locator('.nav-click-fill')).toHaveCount(0);
+ await target.click();await expect(target).toHaveAttribute('aria-current','page');await expect(active).not.toHaveAttribute('aria-current','page');
+ const fill=target.locator('.nav-click-fill');await expect(fill).toHaveCSS('animation-name','nav-click-fill');
+ await page.clock.runFor(100);
+ const middle=await fill.evaluate(el=>new DOMMatrix(getComputedStyle(el).transform).m11);
+ expect(middle).toBeGreaterThan(0);expect(middle).toBeLessThan(1);
+ await page.clock.runFor(700);await expect(fill).toHaveCSS('transform','matrix(1, 0, 0, 1, 0, 0)');await expect(fill).toHaveCSS('background-color',orange);
 });

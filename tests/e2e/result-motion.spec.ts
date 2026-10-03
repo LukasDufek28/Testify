@@ -1,29 +1,35 @@
 import { test, expect } from '@playwright/test';
 
-test('preview numbers count up to exact formatted values and respect reduced motion', async ({ page }) => {
+test('preview numbers count up to exact formatted values including with system reduced motion', async ({ page }) => {
   await page.clock.install();
   await page.goto('/');
   const values = page.locator('.landing-metrics .animated-value');
   await expect(values).toHaveCount(3);
   const final = await values.first().getAttribute('aria-label');
   expect(await values.first().textContent()).not.toBe(final);
-  await page.clock.runFor(1500);
+  await page.clock.runFor(2200);
   await expect(values.first()).toHaveText(final!);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.reload();
+  expect(await values.first().textContent()).not.toBe(final);
+  await page.clock.runFor(2200);
   await expect(values.first()).toHaveText(final!);
 });
 
-test('equity uses orange at profitable highs and foundation blue during drawdown', async ({ page }) => {
+test('equity uses starting balance rather than previous highs and keeps a single series', async ({ page }) => {
   await page.goto('/');
   const result = await page.evaluate(async () => {
     const { equityData, equityLines } = await import('/src/theme.ts');
-    return { data: equityData([100,110,105,108,110,115,90].map((equity,time)=>({time,equity}))), lines: equityLines("Test", [100,110,105,108,110,115,90].map((equity,time)=>({time,equity}))) };
+    const points = [100,110,105,108,110,115,90].map((equity,time)=>({time,equity}));
+    return { data:equityData(points), lines:equityLines("Test",points), capital:equityData([{time:0,equity:95},{time:1,equity:99},{time:2,equity:105}],false,100) };
   });
-  expect(result.data.map(point=>point[2])).toEqual([0,1,0,0,1,1,0]);
-  expect(result.lines[0].lineStyle.color).toBe('#455b8a');
-  expect(result.lines[1].lineStyle.color).toBe('#f2842f');
-  expect(result.lines[1].data.at(-1)![1]).toBeNull();
+  expect(result.data.map(point=>point[2])).toEqual([0,1,1,1,1,1,0]);
+  expect(result.capital.map(point=>point[2])).toEqual([0,0,1]);
+  expect(result.lines).toHaveLength(1);
+  expect(result.lines[0].emphasis.disabled).toBe(true);
+  const stops = (result.lines[0].lineStyle.color as {colorStops:{offset:number;color:string}[]}).colorStops;
+  expect(stops.map(stop=>stop.color)).toEqual(['#f2842f','#f2842f','#455b8a','#455b8a']);
+  expect(stops[1].offset).toBeCloseTo(.6);
 });
 
 test('drawdown gradient maps zero to orange and deepest loss to foundation blue', async ({ page }) => {
