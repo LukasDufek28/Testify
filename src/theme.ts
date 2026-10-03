@@ -1,2 +1,2 @@
-export const PROFIT_COLOR = "#ffcd87";
-export const DRAWDOWN_COLOR = "#ffa3ae";
+export const PROFIT_COLOR = "#99e1d0";
+export const DRAWDOWN_COLOR = "#f3a6b4";

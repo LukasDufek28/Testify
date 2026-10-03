@@ -39,6 +39,29 @@
 .strategy-menu { position: absolute; top: 100%; right: 0; z-index: 3; padding: 8px; border: 1px solid #455b8a; border-radius: 7px; background: #253c6d; min-width: 150px; }
 .strategy-menu button { display: block; width: 100%; padding: 10px; border: 0; text-align: left; background: transparent; }
 .strategy-menu button:hover { background: #455b8a; }
+.strategy-card { display: flex; flex-direction: column; min-width: 0; }
+.strategy-card-actions { margin-top: auto; padding-top: 22px; }
+.strategy-last-test { margin-bottom: 2px; }
+.strategy-card:has(details[open]) { position: relative; z-index: 4; }
+.strategy-menu { top: calc(100% + 8px); min-width: 180px; box-shadow: 0 8px 24px #14274880; }
+.strategy-menu button { border-radius: 4px; font-size: 13px; }
+.strategy-menu button:focus-visible { outline-offset: -2px; }
+.strategy-card-actions summary { gap: 8px; }
+.strategy-updated { opacity: .8; }
+.strategy-library-count { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; font-size: 12px; }
+.strategy-filters > .custom-control { width: auto; flex: 0 1 182px; }
+.strategy-skeleton-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; margin-top: 20px; }
+.strategy-skeleton-grid > div { height: 150px; border-radius: 8px; background: #455b8a; animation: strategy-loading-pulse 1.4s ease-in-out infinite alternate; }
+@keyframes strategy-loading-pulse { to { opacity: .45; } }
+.strategy-delete-dialog { width: min(480px,calc(100vw - 40px)); max-height: calc(100svh - 40px); overflow: auto; padding: 28px; border: 1px solid #455b8a; border-radius: 12px; background: #30497d; color: white; box-shadow: 0 24px 80px #14274880; }
+.strategy-delete-dialog::backdrop { background: #132441aa; backdrop-filter: blur(4px); }
+.strategy-delete-dialog h2 { margin: 0 0 16px; font-size: 22px; }
+.strategy-delete-dialog p { font-size: 14px; line-height: 1.65; overflow-wrap: anywhere; }
+.strategy-dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.dashboard-shell .strategy-delete-button { background: #f3a6b4; color: #253c6d; }
+.strategy-operation-error { padding: 12px; border: 1px solid #f3a6b4; border-radius: 6px; }
+@media(max-width:560px) { .strategy-skeleton-grid { grid-template-columns: 1fr; } .strategy-dialog-actions > button { flex: 1; } }
+@media(prefers-reduced-motion:reduce) { .strategy-skeleton-grid > div { animation: none; } }
 .workspace-empty { padding: 48px; text-align: center; }
 .workspace-empty .dashboard-button { margin-top: 20px; }
 .workspace-empty-copy { padding: 24px 0; }
@@ -139,10 +162,11 @@
 .workspace-shell .button.primary:hover:not(:disabled),.dashboard-shell .dashboard-primary:hover:not(:disabled) { background:#f2842f; color:white; }
 .workspace-shell .button.subtle:hover:not(:disabled) { background:#455b8a; color:white; }
 .workspace-shell .button.ghost:hover:not(:disabled) { background:#455b8a; color:white; }
-.workspace-shell :is(.positive,.good-result),.workspace-shell .positive strong { color:#f2842f; }
 .workspace-shell .file-dot { background:#f2842f; box-shadow:none; }
-.workspace-shell .banner.success { background:#30497d; color:white; border:1px solid #f2842f; }
-.workspace-shell .banner.success svg,.workspace-shell .run-picker-count { color:#f2842f; }
+.workspace-shell .banner.success { background:#30497d; color:white; border:1px solid var(--testify-profit); }
+.workspace-shell .banner.error { border-color:var(--testify-drawdown); }
+.workspace-shell .banner.success svg { color:var(--testify-profit); }
+.workspace-shell .run-picker-count { color:white; }
 .workspace-shell .strategy-list button:hover { background:#455b8a; color:white; }
 .dashboard-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:24px; }
 .dashboard-summary article { padding:20px; border-radius:8px; background:#30497d; display:grid; gap:12px; animation:testify-pop 450ms cubic-bezier(.16,1,.3,1) both; }
@@ -159,19 +183,17 @@
 @media(max-width:1000px) { .dashboard-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }.dashboard-working { grid-template-columns:1fr; }.dashboard-ready .dashboard-button { margin-top:20px; width:auto; } }
 @media(max-width:560px) { .dashboard-summary article { padding:16px; }.returning-dashboard .workspace-page-heading { flex-wrap:wrap; } }
 
-.workspace-shell .market-picker-head strong span { color:#f2842f; }
+.workspace-shell .market-picker-head strong span { color:#fff; }
 .workspace-shell .muted,.workspace-shell .run-check small { color:white; opacity:.7; }
 .workspace-studio .strategy-panel { z-index:20; }
 
-.workspace-shell .good { color:#f2842f; }
-:root { --testify-profit:#ffcd87; --testify-drawdown:#ffa3ae; }
 .workspace-shell :is(.positive,.good-result,.good),.workspace-shell .positive strong { color:var(--testify-profit); }
 .workspace-shell :is(.negative,.bad) { color:var(--testify-drawdown); }
 /* A small turning marker makes the selected destination distinct from hover. */
 .dashboard-sidebar nav button { position:relative; overflow:hidden; transition:background 180ms ease,box-shadow 220ms ease; }
 .dashboard-sidebar nav button:not([aria-current]):hover { background:#455b8a66; box-shadow:inset 0 0 0 1px #ffffff18; }
 .dashboard-sidebar nav button[aria-current] { border-left:0; padding-left:16px; box-shadow:inset 0 0 0 1px #ffffff0a; }
-.dashboard-sidebar nav button[aria-current]::before { content:""; position:absolute; left:0; top:10px; bottom:10px; width:4px; border-radius:0 4px 4px 0; background:var(--testify-profit); box-shadow:0 0 12px #ffcd8730; transform-origin:left center; animation:nav-marker-turn 480ms cubic-bezier(.16,1,.3,1) both; pointer-events:none; }
+.dashboard-sidebar nav button[aria-current]::before { content:""; position:absolute; left:0; top:10px; bottom:10px; width:4px; border-radius:0 4px 4px 0; background:var(--testify-profit); box-shadow:0 0 12px #99e1d030; transform-origin:left center; animation:nav-marker-turn 480ms cubic-bezier(.16,1,.3,1) both; pointer-events:none; }
 @keyframes nav-marker-turn { 0% { transform:perspective(120px) translateY(-10px) rotateY(-100deg) scaleY(.55); opacity:0; } 50% { opacity:1; } 100% { transform:perspective(120px) translateY(0) rotateY(0) scaleY(1); opacity:1; } }
 @media(prefers-reduced-motion:reduce) { .dashboard-sidebar nav button[aria-current]::before { animation:none; }.dashboard-sidebar nav button { transition:none; } }
 @media(max-width:560px) { .dashboard-sidebar nav button[aria-current] { padding-left:10px; } }

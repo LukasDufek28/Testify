@@ -97,7 +97,7 @@ export default function Landing() {
               ].map(([label, value]) => (
                 <div key={label}>
                   <span>{label}</span>
-                  <strong>{value}</strong>
+                  <strong className={label === "Net return" ? "positive" : label === "Max drawdown" ? "negative" : undefined}>{value}</strong>
                 </div>
               ))}
             </div>

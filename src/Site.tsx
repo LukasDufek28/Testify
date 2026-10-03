@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import Landing from "./Landing";
+import "./theme.css";
 import type { WorkspacePage } from "./WorkspaceShell";
 const App = lazy(() => import("./App"));
 export default function Site() {

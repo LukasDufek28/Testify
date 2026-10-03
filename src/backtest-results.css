@@ -9,4 +9,4 @@
 .result-chart-grid>.workspace-panel,.comparison-layout>.workspace-panel { overflow:hidden; }
 .run-progress-track span { display:block; height:100%; background:#f2842f; animation:none; transform:none; transition:width 450ms cubic-bezier(.2,.7,.3,1); }
 .run-progress-label { display:flex; justify-content:space-between; gap:16px; font-size:13px; margin:12px 0 24px; }
-.run-progress-label strong { color:#f2842f; }
+.run-progress-label strong { color:#fff; }

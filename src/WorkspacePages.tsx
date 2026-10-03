@@ -1,29 +1,10 @@
 import { AnimatedSelect } from "./AnimatedControls";
 import { useRef, useState, type ReactNode } from "react";
-import type { Dataset, Run, SavedStrategy } from "./types";
+import type { Dataset } from "./types";
 import { datasetCoverage } from "./marketData";
 
 const day = (seconds: number) => new Date(seconds * 1000).toLocaleDateString();
 const interval = (seconds: number) => seconds < 3600 ? `${seconds / 60}m` : seconds < 86400 ? `${seconds / 3600}h` : `${seconds / 86400}d`;
-
-export function StrategiesPage({ strategies, runs, onCreate, onOpen, onDuplicate, onDelete, onImport, onExport }: { strategies: SavedStrategy[]; runs: Run[]; onCreate: () => void; onOpen: (id: string) => void; onDuplicate: (strategy: SavedStrategy) => Promise<void>; onDelete: (id: string) => Promise<void>; onImport: (file: File) => Promise<void>; onExport: (ids: string[]) => void }) {
-  const [search, setSearch] = useState("");
-  const [market, setMarket] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
-  const upload = useRef<HTMLInputElement>(null);
-  const filtered = strategies.filter(strategy => {
-    const latest = runs.find(run => run.strategyId === strategy.id);
-    return `${strategy.name} ${latest?.symbol || ""} ${latest?.granularity ? interval(latest.granularity) : ""}`.toLowerCase().includes(search.toLowerCase()) && (!market || latest?.symbol === market);
-  });
-  return <><div className="workspace-page-heading"><div><h1>Strategies</h1><p>Build, organize and improve your trading rules.</p></div><button className="dashboard-button dashboard-primary testify-primary" onClick={onCreate}>Create strategy</button></div>
-    <div className="strategy-filters"><label>Search strategies<input type="search" placeholder="Search by name, market or timeframe" value={search} onChange={e => setSearch(e.target.value)} /></label><AnimatedSelect aria-label="Filter strategies by market" value={market} onChange={e => setMarket(e.target.value)}><option value="">All markets</option>{[...new Set(runs.map(run => run.symbol))].map(symbol => <option key={symbol}>{symbol}</option>)}</AnimatedSelect><button className="dashboard-button" onClick={() => upload.current?.click()}>Import JSON</button><button className="dashboard-button" disabled={!selected.length} onClick={() => onExport(selected)}>Export selected</button><input hidden ref={upload} type="file" accept=".json,application/json" aria-label="Import strategy JSON file" onChange={e => { const file = e.target.files?.[0]; if(file) void onImport(file); e.target.value=""; }} /></div>
-    <div className="strategy-grid">{filtered.map((strategy, index) => {
-      const latest = runs.find(run => run.strategyId === strategy.id);
-      return <article className="workspace-panel strategy-card" key={strategy.id} style={{ animationDelay: `${Math.min(index, 5) * 80}ms` }}><div className="strategy-card-title"><h2>{strategy.name}</h2><input type="checkbox" aria-label={`Select ${strategy.name}`} checked={selected.includes(strategy.id)} onChange={e => setSelected(ids => e.target.checked ? [...ids, strategy.id] : ids.filter(id => id !== strategy.id))} /></div><p>{latest ? `${latest.symbol} · ${latest.granularity ? interval(latest.granularity) : "Historical data"}` : "Market selected when testing"}</p><p>Updated {new Date(strategy.updatedAt).toLocaleDateString()}</p><div className="strategy-last-test"><span>Last test</span><strong>{latest ? `${latest.metrics.netReturnPct >= 0 ? "+" : ""}${latest.metrics.netReturnPct.toFixed(1)}%` : "Not tested"}</strong></div><div className="strategy-card-actions"><button className="dashboard-button" onClick={() => onOpen(strategy.id)}>Open</button><button className="dashboard-button" onClick={() => void onDuplicate(strategy)}>Duplicate</button><details><summary className="dashboard-button">More</summary><div className="strategy-menu"><button onClick={() => onExport([strategy.id])}>Export JSON</button><button onClick={() => void onDelete(strategy.id)}>Delete strategy</button></div></details></div></article>;
-    })}</div>
-    {!filtered.length && <section className="workspace-panel workspace-empty"><h2>{strategies.length ? "No matching strategies" : "Your first strategy starts here"}</h2><p>{strategies.length ? "Try another name or market." : "Create a strategy with AI, or import your rules as JSON."}</p><button className="dashboard-button dashboard-primary testify-primary" onClick={onCreate}>Create strategy</button></section>}
-  </>;
-}
 
 export function DataPage({ datasets, selected, market, setMarket, markets, onImport, onSelect, onRemove, onlineForm, chart }: { datasets: Dataset[]; selected?: Dataset; market: string; setMarket: (market: string) => void; markets: string[]; onImport: (file: File) => Promise<void>; onSelect: (id: string) => void; onRemove: () => Promise<void>; onlineForm: ReactNode; chart: ReactNode }) {
   const upload = useRef<HTMLInputElement>(null);

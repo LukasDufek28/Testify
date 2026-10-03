@@ -1,0 +1,3 @@
+:root { --testify-profit: #99e1d0; --testify-drawdown: #f3a6b4; }
+.landing .positive { color: var(--testify-profit); }
+.landing .negative { color: var(--testify-drawdown); }

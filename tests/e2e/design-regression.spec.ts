@@ -1,14 +1,20 @@
 import {test,expect} from '@playwright/test';
 import {exampleStrategy} from '../../src/types';
-const profit='rgb(255, 205, 135)', drawdown='rgb(255, 163, 174)', orange='rgb(242, 132, 47)', blue='rgb(69, 91, 138)';
+const profit='rgb(153, 225, 208)', drawdown='rgb(243, 166, 180)', orange='rgb(242, 132, 47)', blue='rgb(69, 91, 138)';
 test.beforeEach(async({page})=>{await page.route('**/api/markets',r=>r.fulfill({json:{markets:[{id:'BTC-USD'}]}}));});
+test('landing preview uses mint profits and rose drawdowns while neutral metrics stay white',async({page})=>{
+ await page.goto('/');
+ await expect(page.locator('.landing-metrics .positive')).toHaveCSS('color',profit);
+ await expect(page.locator('.landing-metrics .negative')).toHaveCSS('color',drawdown);
+ await expect(page.locator('.landing-metrics > div').nth(2).locator('strong')).toHaveCSS('color','rgb(255, 255, 255)');
+});
 test('strategy and dashboard hover states retain orange and blue through real hover',async({page})=>{
  await page.goto('/#/app/studio');
  for(const name of ['Save','Generate new draft']) {const button=page.getByRole('button',{name,exact:true});await expect(button).toHaveCSS('background-color',orange);await button.hover();await expect(button).toHaveCSS('background-color',orange);await expect(button).toHaveCSS('color','rgb(255, 255, 255)');}
  const validate=page.getByRole('button',{name:'Validate',exact:true});await validate.hover();await expect(validate).toHaveCSS('background-color',blue);
  await page.getByRole('button',{name:'Save',exact:true}).click();await page.locator('.strategy-panel summary').click();const saved=page.locator('.strategy-list button');await saved.hover();await expect(saved).toHaveCSS('background-color',blue);
 });
-test('returning dashboard matches the design sections and colors actual gains only',async({page})=>{
+test('returning dashboard matches the design sections and uses mint gains and rose drawdowns',async({page})=>{
  await page.goto('/#/app/overview');await expect(page.getByRole('heading',{level:1})).toBeVisible();
  await page.evaluate(async(strategy)=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-local-v1',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction(['runs','strategies'],'readwrite');tx.objectStore('strategies').put({id:'s',name:strategy.name,source:JSON.stringify(strategy),updatedAt:1});for(const [id,value] of [['gain',12],['loss',-2]] as const)tx.objectStore('runs').put({id,name:id,createdAt:id==='gain'?2:1,symbol:'BTC-USD',strategyId:'s',strategyName:strategy.name,granularity:3600,settings:{start:1735689600,end:1735776000},metrics:{netReturnPct:value,maxDrawdownPct:3,tradeCount:2},curve:[],trades:[],warnings:[]});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});},exampleStrategy);
  await page.reload();await expect(page.getByRole('heading',{name:'Dashboard',exact:true})).toBeVisible();await expect(page.locator('.dashboard-summary article')).toHaveCount(4);
