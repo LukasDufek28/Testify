@@ -1,10 +1,10 @@
 # Testify
 
-Testify is an online crypto strategy research service deployed on Vercel. It needs no local program, MT5 terminal, account, or paid database.
+Testify is an online crypto strategy research service deployed on Vercel. It needs no local program, account, or paid database.
 
 ## Research flow
 
-1. Choose a Coinbase Exchange USD or USDT spot market, candle interval, and historical period. Public market data loads in manageable chunks, with no Testify candle-count cap.
+1. Choose a Coinbase Exchange USD or USDT spot market, candle interval, and historical period. Public market data loads in manageable chunks, with no Testify candle-count cap. Manual loads report expected and received candles, missing count and percentage, coverage, gap count and longest gap across the entire requested period. Candle slots use UTC interval boundaries and an exclusive end. Missing candles are never fabricated.
 2. Write a JSON strategy or ask Gemini to draft one. Version 2 supports original indicators built from formula trees; existing version 1 strategies still work. The site owner's shared `GEMINI_API_KEY` stays in Vercel; visitors need no key. To revise a saved strategy, select its development backtests in Strategy Studio. Gemini receives the current strategy JSON and compact development results, including fees and trade counts; the revision remains an unsaved draft until reviewed.
 3. Set the full date range and development share, then backtest one or more markets sequentially. A 70% share runs only the first 70% of the selected **time range**; the later 30% is not downloaded by Backtests. Each result stores the original full range, split boundary, strategy snapshot, and cost settings in browser History. A failed market does not stop the remaining markets. Vercel retrieves candles in batches; the engine runs in a cancellable browser worker. Signals are evaluated at bar close and fill no earlier than the next bar open.
 4. Review saved results on History and Portfolio lab. The combined view adds each selected run's percentage return against one reference capital: a -10% run and a +15% run display +5%. This assumes full starting capital for every run, so exposure rises with the number of selected runs.

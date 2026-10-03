@@ -15,8 +15,8 @@ export default async function handler(req, res) {
     const end = Number(settings.end);
     const bars = await getCandles(product, granularity, start, end);
     if (bars.length < 20) throw new Error("At least 20 candles are needed for a backtest.");
-    const dataset = { id: "server", symbol: product, fileName: "Coinbase Exchange", importedAt: Date.now(), utcOffset: 0, point: 0, bars, skipped: 0 };
-    const run = runBacktest(dataset, strategy, { ...settings, useMt5Spread: false }, String(body.strategyId || ""), String(body.name || "Crypto backtest").slice(0, 100));
+    const dataset = { id: "server", symbol: product, fileName: "Coinbase Exchange", importedAt: Date.now(), bars, skipped: 0 };
+    const run = runBacktest(dataset, strategy, settings, String(body.strategyId || ""), String(body.name || "Crypto backtest").slice(0, 100));
     run.granularity = granularity;
     return res.status(200).json({ run, source: "Coinbase Exchange", bars: bars.length });
   } catch (error) {

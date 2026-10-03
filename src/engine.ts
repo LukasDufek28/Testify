@@ -134,17 +134,16 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
   const series = buildSeries(bars, strategy);
   let cash = settings.capital; let position: Position | null = null; let pending: 0 | 1 | -1 | 2 = 0;
   let totalFees = 0; const curve: EquityPoint[] = []; const trades: Trade[] = []; const warnings: string[] = [];
-  if (!settings.useMt5Spread || bars.every((b) => b.spread === 0)) warnings.push("MT5 spread is unavailable or disabled; only the entered fee and slippage assumptions were charged.");
-  const adverse = (mid: number, bar: Bar, side: 1 | -1, entering: boolean) => {
-    const spread = settings.useMt5Spread ? bar.spread * dataset.point / 2 : 0;
+  warnings.push("Spot candles have no bid/ask spread; only the entered fee and slippage assumptions were charged.");
+  const adverse = (mid: number, side: 1 | -1, entering: boolean) => {
     const slip = mid * settings.slippageBps / 10000;
     const direction = entering ? side : -side;
-    return mid + direction * (spread + slip);
+    return mid + direction * slip;
   };
   const exit = (mid: number, bar: Bar, reason: string, atClose = false) => {
     if (!position) return;
     const p = position as Position;
-    const price = adverse(mid, bar, p.side, false);
+    const price = adverse(mid, p.side, false);
     const fee = Math.abs(p.units * price) * settings.feeBps / 10000;
     const pnl = p.side * p.units * (price - p.entry) - fee;
     cash += pnl; totalFees += fee;
@@ -152,7 +151,7 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
     position = null;
   };
   const enter = (side: 1 | -1, bar: Bar) => {
-    const price = adverse(bar.open, bar, side, true);
+    const price = adverse(bar.open, side, true);
     const equityAtEntry = cash;
     const units = cash * strategy.allocationPct / 100 / price;
     const fee = Math.abs(units * price) * settings.feeBps / 10000;
