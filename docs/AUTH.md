@@ -2,7 +2,13 @@
 
 Testify owns its email/password login. Only accounts, password hashes, revocable sessions and rate-limit counters are stored in PostgreSQL. Candles, strategies, runs and preferences remain in each browser, partitioned by the account's UUID. Browser storage is not a security boundary against someone with access to the same browser profile or developer tools. Accounts do not synchronize trading data between devices.
 
-## Activate on Vercel
+## Connected databases
+
+The Vercel `testify` project now has two Neon Free resources: `testify-accounts` for Production and `testify-accounts-dev` for Preview and Development. Both have the account schema. `DATABASE_URL`, `AUTH_SECRET` and `APP_ORIGINS` are configured in Vercel; local `.env.local` uses the development database. Production and development use different auth secrets.
+
+For a fresh clone, link to the same Vercel project and run `vercel env pull .env.local --environment development --yes`. Keep that file out of Git. `npm run db:init` applies the account schema idempotently to the local environment's database. Start the full app with `vercel dev` so the APIs are served as well.
+
+## Set up another Vercel project
 
 1. Create a Neon PostgreSQL database, or connect a Neon database through the Testify Vercel project's Storage page. Select a plan appropriate to your usage; no paid plan is required by the code.
 2. Run `auth-schema.sql` in the database SQL editor.
@@ -39,4 +45,4 @@ The previous `testify-local-v1` workspace is preserved but is not assigned autom
 
 ## Maintenance
 
-Expired sessions and old rate counters are removed after successful login/registration. The SQL file includes optional maintenance commands. Keep database backups and access credentials under the site owner's control. No database provisioning or live production verification has been performed merely by installing this code.
+Expired sessions and old rate counters are removed after successful login/registration. The SQL file includes optional maintenance commands. Keep database backups and access credentials under the site owner's control. The connected databases were provisioned and their schemas verified. Registration and session checks were tested against the live development database. The auth code remains on `devLukas`; merging into `main` is a separate production release.

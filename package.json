@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "db:init": "node --env-file=.env.local scripts/init-auth-db.mjs",
     "build": "npm run build:engine && tsc -b && vite build",
     "build:engine": "esbuild src/engine.ts src/types.ts src/portfolio.ts src/research.ts src/data-validation.ts src/storage.ts --outdir=lib/shared --format=esm --platform=node",
     "pretest": "npm run build:engine",

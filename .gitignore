@@ -3,3 +3,7 @@ dist/
 .vercel/
 *.tsbuildinfo
 .env*
+
+# Local provider setup installed by Vercel CLI
+.agents/
+skills-lock.json
