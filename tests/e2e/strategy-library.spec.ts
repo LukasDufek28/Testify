@@ -121,15 +121,15 @@ test("deleted selections cannot export and repeated duplicates remain valid", as
   await page.getByRole("button",{name:"Clear filters",exact:true}).click(); await expect(page.locator(".strategy-card")).toHaveCount(2);
 });
 
-test("selected strategy opens setup and its latest run metadata is searchable with neutral result numbers", async ({ page }) => {
+test("selected strategy opens setup and its latest run metadata is searchable with consistent performance colors", async ({ page }) => {
   await page.goto("/#/app/strategies"); await importJson(page, [{...exampleStrategy,name:"First"},{...exampleStrategy,name:"Second"}]);
   await expect(page.locator(".strategy-card")).toHaveCount(2);
   const browserErrors: string[] = []; page.on("pageerror", error => browserErrors.push(error.message));
   await page.evaluate(async () => { await new Promise<void>(resolve=>{const req=indexedDB.open("testify-local-v1",1);req.onsuccess=()=>{const db=req.result;const tx=db.transaction(["strategies","runs"],"readwrite");const read=tx.objectStore("strategies").getAll();read.onsuccess=()=>{for(const s of read.result)tx.objectStore("runs").put({id:s.id+"-run",name:s.name,createdAt:1,symbol:s.name==="First"?"BTC-USD":"ETH-USD",granularity:900,strategyId:s.id,strategyName:s.name,settings:{capital:10000,start:1735689600,end:1735776000,feeBps:2,slippageBps:1,useMt5Spread:false},curve:[],trades:[],warnings:[],metrics:{netReturnPct:s.name==="First"?12:-2,maxDrawdownPct:2,sharpe:null,winRatePct:50,tradeCount:2,totalFees:0}});};tx.oncomplete=()=>{db.close();resolve();};};}); });
   await page.reload();
-  await expect(page.locator(".strategy-last-test strong")).toHaveCount(2);
-  await expect(page.getByRole("article",{name:"First",exact:true}).locator(".strategy-last-test strong")).toHaveCSS("color","rgb(255, 255, 255)");
-  await expect(page.getByRole("article",{name:"Second",exact:true}).locator(".strategy-last-test strong")).toHaveCSS("color","rgb(255, 255, 255)");
+  await expect(page.locator(".strategy-last-test .animated-value")).toHaveCount(2);
+  await expect(page.getByRole("article",{name:"First",exact:true}).locator(".strategy-last-test .animated-value")).toHaveCSS("color","rgb(245, 157, 89)");
+  await expect(page.getByRole("article",{name:"Second",exact:true}).locator(".strategy-last-test .animated-value")).toHaveCSS("color","rgb(249, 200, 161)");
   await page.getByPlaceholder("Search by name, market or timeframe").fill("ETH-USD 15m");
   await expect(page.locator(".strategy-card")).toHaveCount(1);
   await page.locator(".strategy-card summary").click(); await page.getByRole("button",{name:"New backtest",exact:true}).click();

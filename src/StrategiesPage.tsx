@@ -1,3 +1,4 @@
+import { metricTone } from "./theme";
 import AnimatedValue from "./AnimatedValue";
 import { useMemo, useRef, useState } from "react";
 import { AnimatedSelect } from "./AnimatedControls";
@@ -59,7 +60,7 @@ export default function StrategiesPage({ strategies, runs, loading = false, load
           <div className="strategy-card-title"><h2>{strategy.name}</h2><input type="checkbox" aria-label={`Select ${strategy.name}`} checked={selectedIds.includes(strategy.id)} onChange={event => setSelected(ids => event.target.checked ? [...ids, strategy.id] : ids.filter(id => id !== strategy.id))}/></div>
           <p>{run ? `${run.symbol} · ${run.granularity ? interval(run.granularity) : "Historical data"}` : "Market and timeframe selected when testing"}</p>
           <p className="strategy-updated">Updated {new Date(strategy.updatedAt).toLocaleDateString()}</p>
-          <div className="strategy-last-test"><span>Last test</span><strong className={run && run.metrics.netReturnPct > 0 ? "positive" : run && run.metrics.netReturnPct < 0 ? "negative" : ""}><AnimatedValue value={run ? `${run.metrics.netReturnPct >= 0 ? "+" : ""}${run.metrics.netReturnPct.toFixed(1)}%` : "Not tested"}/></strong></div>
+          <div className="strategy-last-test"><span>Last test</span><strong className={run && run.metrics.netReturnPct > 0 ? "positive" : run && run.metrics.netReturnPct < 0 ? "negative" : ""}><AnimatedValue tone={run?metricTone("Return",run.metrics.netReturnPct):undefined} value={run ? `${run.metrics.netReturnPct >= 0 ? "+" : ""}${run.metrics.netReturnPct.toFixed(1)}%` : "Not tested"}/></strong></div>
           <div className="strategy-card-actions">
             <button className="dashboard-button" disabled={!!pending} onClick={() => onOpen(strategy.id)}>Open</button>
             <button className="dashboard-button" disabled={!!pending} onClick={() => void perform(strategy.id, () => onDuplicate(strategy))}>{pending === strategy.id ? "Duplicating…" : "Duplicate"}</button>
