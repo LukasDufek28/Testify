@@ -40,14 +40,16 @@ test('failed run returns to configuration and preserves its settings',async({pag
   await page.goto('/#/app/backtests');await page.getByLabel('Run name',{exact:true}).fill('Preserve my test');await page.route('**/api/candles?**',route=>route.fulfill({status:503,json:{error:'Historical data temporarily unavailable'}}));await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.locator('.banner.error')).toContainText('Historical data temporarily unavailable');await expect(page.getByRole('heading',{name:'New backtest',exact:true})).toBeVisible();await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Preserve my test');
 });
 
-test('result numbers visibly count through intermediate values in popup order with reduced motion',async({page})=>{
+test('only headline profit and return count up while secondary metrics stay still',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});await page.clock.install();
  await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
  const values=page.locator('.result-metric .animated-value');await expect(values).toHaveCount(7);
  await page.clock.runFor(150);
  const samples=await values.evaluateAll(elements=>elements.map(el=>({text:el.textContent,final:el.getAttribute('aria-label')})));
  expect(samples[0].text).not.toBe(samples[0].final);
- expect(samples[6].text).not.toBe(samples[6].final);
+ expect(samples[1].text).not.toBe(samples[1].final);
+ for(let index=2;index<samples.length;index++)expect(samples[index].text).toBe(samples[index].final);
+ await expect(page.locator('.result-metric [data-countup="true"]')).toHaveCount(2);
  await page.clock.runFor(400);expect(await values.first().textContent()).not.toBe(samples[0].text);
  await page.clock.runFor(1800);
  for(let index=0;index<samples.length;index++)await expect(values.nth(index)).toHaveText(samples[index].final!);
@@ -75,4 +77,25 @@ test.describe('decimal formatting with a Slovak browser locale',()=>{
   await expect(value).toHaveText(/^[+-]?\d+\.\d{2}%$/);await expect(value).toHaveText(await value.getAttribute('aria-label') as string);
   expect(await value.textContent()).not.toBe(intermediate);
  });
+});
+
+
+test('dense history, comparison, trade details and settings never count up',async({page})=>{
+ await page.clock.install();
+ await expect(page.locator('[data-countup="true"]')).toHaveCount(0);
+ const historyValues=page.locator('.history-table .animated-value');
+ for(const value of await historyValues.all())await expect(value).toHaveText((await value.getAttribute('aria-label'))!);
+ await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
+ await page.getByRole('tab',{name:'Trades & chart',exact:true}).click();
+ await expect(page.locator('.result-trades tbody tr').first()).toBeVisible();
+ await expect(page.locator('[data-countup="true"]')).toHaveCount(0);
+ for(const value of await page.locator('.result-trades .animated-value, .selected-trade .animated-value').all())await expect(value).toHaveText((await value.getAttribute('aria-label'))!);
+ await page.getByRole('tab',{name:'Settings',exact:true}).click();
+ await expect(page.locator('[data-countup="true"]')).toHaveCount(0);
+ await page.getByRole('button',{name:'Saved backtests',exact:true}).click();
+ await page.getByRole('checkbox',{name:'Select run Run A',exact:true}).check();
+ await page.getByRole('checkbox',{name:'Select run Run B',exact:true}).check();
+ await page.getByRole('button',{name:'Compare selected',exact:true}).click();
+ await expect(page.locator('.comparison-table')).toBeVisible();
+ await expect(page.locator('[data-countup="true"]')).toHaveCount(0);
 });

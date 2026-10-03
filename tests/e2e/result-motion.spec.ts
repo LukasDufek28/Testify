@@ -28,11 +28,11 @@ test('equity uses starting balance rather than previous highs and keeps a single
   expect(result.lines).toHaveLength(1);
   expect(result.lines[0].emphasis.disabled).toBe(true);
   const stops = (result.lines[0].lineStyle.color as {colorStops:{offset:number;color:string}[]}).colorStops;
-  expect(stops.map(stop=>stop.color)).toEqual(['#f2842f','#f2842f','#ffffff','#ffffff']);
+  expect(stops.map(stop=>stop.color)).toEqual(['#ffffff','#ffffff','#f2842f','#f2842f']);
   expect(stops[1].offset).toBeCloseTo(.6);
 });
 
-test('drawdown gradient maps zero to orange and deepest loss to white', async ({ page }) => {
+test('drawdown gradient maps zero to white and deepest loss to orange', async ({ page }) => {
   await page.goto('/');
   const gradient = await page.evaluate(async () => {
     const { drawdownColors } = await import('/src/theme.ts');
@@ -41,7 +41,7 @@ test('drawdown gradient maps zero to orange and deepest loss to white', async ({
   expect(gradient.min).toBe(-12);
   expect(gradient.max).toBe(0);
   expect(gradient.dimension).toBe(1);
-  expect(gradient.inRange.color).toEqual(['#ffffff','#f2842f']);
+  expect(gradient.inRange.color).toEqual(['#f2842f','#ffffff']);
 });
 
 test('metric colors use white and orange endpoints with a neutral midpoint', async ({ page }) => {
@@ -50,5 +50,5 @@ test('metric colors use white and orange endpoints with a neutral midpoint', asy
     const { metricTone, metricColor } = await import('/src/theme.ts');
     return { neutral:metricColor(0), good:metricColor(10), bad:metricColor(-10), win:metricTone('Win rate',50), factor:metricTone('Profit factor',1), trades:metricTone('Trades',5000), loss:metricTone('Return',-10), drawdown:metricTone('Max drawdown',15) };
   });
-  expect(colors).toEqual({neutral:'rgb(249, 194, 151)',good:'rgb(242, 132, 47)',bad:'rgb(255, 255, 255)',win:0,factor:0,trades:0,loss:-.5,drawdown:0});
+  expect(colors).toEqual({neutral:'rgb(249, 194, 151)',good:'rgb(255, 255, 255)',bad:'rgb(242, 132, 47)',win:0,factor:0,trades:0,loss:-.5,drawdown:0});
 });

@@ -1,8 +1,15 @@
 import { metricColor } from "./theme";
 import { useEffect, useRef, useState } from "react";
 
-// Only standalone amounts animate: dates, names, unavailable values and infinity remain intact.
-export default function AnimatedValue({ value, tone }: { value: string; tone?: number }) {
+type ValueProps = { value: string; tone?: number };
+
+// Counting is opt-in: dense tables and secondary metrics need no timers or observers.
+export default function AnimatedValue({ value, tone, animate = false }: ValueProps & { animate?: boolean }) {
+  if (animate) return <CountUpValue value={value} tone={tone}/>;
+  return <span className="animated-value" style={tone === undefined ? undefined : {color:metricColor(tone)}} data-tone={tone} data-countup="false" aria-label={value}><span aria-hidden="true">{value}</span></span>;
+}
+
+function CountUpValue({ value, tone }: ValueProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const [display, setDisplay] = useState(value);
   useEffect(() => {
@@ -41,5 +48,5 @@ export default function AnimatedValue({ value, tone }: { value: string; tone?: n
     observer.observe(element);
     return () => { observer.disconnect(); cancelAnimationFrame(frame); clearTimeout(timer); };
   }, [value]);
-  return <span ref={ref} className="animated-value" style={tone === undefined ? undefined : {color:metricColor(tone)}} data-tone={tone} aria-label={value}><span aria-hidden="true">{display}</span></span>;
+  return <span ref={ref} className="animated-value" style={tone === undefined ? undefined : {color:metricColor(tone)}} data-tone={tone} data-countup="true" aria-label={value}><span aria-hidden="true">{display}</span></span>;
 }

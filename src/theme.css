@@ -1,5 +1,6 @@
-:root { --testify-profit: #ffffff; --testify-drawdown: #ffffff; }
-.landing .positive, .landing .negative { color: #ffffff; }
+:root { --testify-profit: #ffffff; --testify-drawdown: #f2842f; }
+.landing .positive { color: var(--testify-profit); }
+.landing .negative { color: var(--testify-drawdown); }
 .animated-value { font-variant-numeric: tabular-nums; }
 .workspace-shell .animated-value, .workspace-shell .animated-value > span,
 .landing .animated-value, .landing .animated-value > span {

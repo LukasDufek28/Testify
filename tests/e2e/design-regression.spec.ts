@@ -2,10 +2,11 @@ import {test,expect} from '@playwright/test';
 import {exampleStrategy} from '../../src/types';
 const orange='rgb(242, 132, 47)', blue='rgb(69, 91, 138)';
 test.beforeEach(async({page})=>{await page.route('**/api/markets',r=>r.fulfill({json:{markets:[{id:'BTC-USD'}]}}));});
-test('landing preview uses the shared performance scale and keeps trade counts white',async({page})=>{
+test('landing preview uses the shared performance scale and keeps trade counts white',async({page,request})=>{
  await page.goto('/');
- await expect(page.locator('.landing-metrics .positive .animated-value')).toHaveCSS('color','rgb(244, 155, 87)');
- await expect(page.locator('.landing-metrics .negative .animated-value')).toHaveCSS('color','rgb(243, 145, 69)');
+ expect(await (await request.get('/design/equity.svg')).text()).toContain('stroke="#FFFFFF"');
+ await expect(page.locator('.landing-metrics .positive .animated-value')).toHaveCSS('color','rgb(253, 232, 215)');
+ await expect(page.locator('.landing-metrics .negative .animated-value')).toHaveCSS('color','rgb(254, 242, 233)');
  await expect(page.locator('.landing-metrics > div').nth(2).locator('strong')).toHaveCSS('color','rgb(255, 255, 255)');
 });
 test('strategy and dashboard hover states retain orange and blue through real hover',async({page})=>{
@@ -20,9 +21,9 @@ test('returning dashboard uses consistent performance colors and responsive desi
  await page.reload();await expect(page.getByRole('heading',{name:'Dashboard',exact:true})).toBeVisible();await expect(page.locator('.dashboard-summary article')).toHaveCount(4);
  await expect(page.getByText('Saved snapshot',{exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'View results for gain',exact:true})).toBeVisible();
  for(const heading of ['Continue working','Ready to test?','Recent backtests'])await expect(page.getByRole('heading',{name:heading,exact:true})).toBeVisible();
- await expect(page.locator('.dashboard-summary .positive')).toHaveText('+12.0%');await expect(page.locator('.dashboard-summary .positive .animated-value')).toHaveCSS('color','rgb(245, 157, 89)');
- await expect(page.getByRole('cell',{name:'-2.0%',exact:true}).locator('.animated-value')).toHaveCSS('color','rgb(249, 200, 161)');
- await expect(page.locator('.dashboard-summary article').nth(3).locator('.animated-value')).toHaveCSS('color','rgb(243, 144, 68)');
+ await expect(page.locator('.dashboard-summary .positive')).toHaveText('+12.0%');await expect(page.locator('.dashboard-summary .positive .animated-value')).toHaveCSS('color','rgb(252, 230, 213)');
+ await expect(page.getByRole('cell',{name:'-2.0%',exact:true}).locator('.animated-value')).toHaveCSS('color','rgb(248, 187, 141)');
+ await expect(page.locator('.dashboard-summary article').nth(3).locator('.animated-value')).toHaveCSS('color','rgb(254, 243, 234)');
  expect(await page.locator('.hero').count()).toBe(0);
  for(const width of [390,1024,1366,1920]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);}
  await page.getByRole('button',{name:'Create strategy',exact:true}).hover();await expect(page.getByRole('button',{name:'Create strategy',exact:true})).toHaveCSS('background-color',orange);

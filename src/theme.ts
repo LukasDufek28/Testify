@@ -1,6 +1,6 @@
 import { sampleCurve } from "./results";
-export const PROFIT_COLOR = "#f2842f";
-export const DRAWDOWN_COLOR = "#ffffff";
+export const PROFIT_COLOR = "#ffffff";
+export const DRAWDOWN_COLOR = "#f2842f";
 
 export function equityData(points: { time: number; equity: number }[], percent = false, capital?: number) {
   const baseline = percent ? 0 : capital ?? points[0]?.equity ?? 0;
@@ -43,14 +43,14 @@ export function metricTone(label: string, value: number): number {
 export function metricColor(tone: number) {
   const amount = (Math.max(-1, Math.min(1, tone)) + 1) / 2;
   const orange = [242, 132, 47];
-  return `rgb(${orange.map(channel => Math.round(255 + (channel - 255) * amount)).join(", ")})`;
+  return `rgb(${orange.map(channel => Math.round(channel + (255 - channel) * amount)).join(", ")})`;
 }
 
 export const metricScaleHint: Record<string, string> = {
-  "Net profit": "Return-based color range: white at −20%, midpoint at 0%, orange at +20%.",
-  "Return": "Color range: white at −20%, midpoint at 0%, orange at +20%.",
-  "Win rate": "Color range: white at 0%, midpoint at 50%, orange at 100%.",
-  "Profit factor": "Color range: white at 0, midpoint at 1, orange at 3.",
-  "Average R": "Color range: white at −1R, midpoint at 0R, orange at +1R.",
-  "Max drawdown": "Color range: orange at 0%, midpoint at 15%, white at 30% drawdown.",
+  "Net profit": "Return-based color range: orange at −20%, midpoint at 0%, white at +20%.",
+  "Return": "Color range: orange at −20%, midpoint at 0%, white at +20%.",
+  "Win rate": "Color range: orange at 0%, midpoint at 50%, white at 100%.",
+  "Profit factor": "Color range: orange at 0, midpoint at 1, white at 3.",
+  "Average R": "Color range: orange at −1R, midpoint at 0R, white at +1R.",
+  "Max drawdown": "Color range: white at 0%, midpoint at 15%, orange at 30% drawdown.",
 };

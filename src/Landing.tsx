@@ -99,7 +99,7 @@ export default function Landing() {
               ].map(([label, value]) => (
                 <div key={label}>
                   <span>{label}</span>
-                  <strong className={label === "Net return" ? "positive" : label === "Max drawdown" ? "negative" : undefined}><AnimatedValue tone={label==="Net return"?metricTone("Return",parseFloat(value)):label==="Max drawdown"?metricTone("Max drawdown",parseFloat(value)):undefined} value={value}/></strong>
+                  <strong className={label === "Net return" ? "positive" : label === "Max drawdown" ? "negative" : undefined}><AnimatedValue animate={label === "Net return"} tone={label==="Net return"?metricTone("Return",parseFloat(value)):label==="Max drawdown"?metricTone("Max drawdown",parseFloat(value)):undefined} value={value}/></strong>
                 </div>
               ))}
             </div>

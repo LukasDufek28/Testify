@@ -19,7 +19,7 @@ function Metric({label,value,hint,tone}:{label:string;value:string;hint?:string;
  const amount=Number(value.replace(/[^\d.]/g,''));
  const gain=value.startsWith('+')&&amount>0||label==='Profit factor'&&(value==='∞'||Number(value.replace(',', '.'))>1);
  const loss=/^[−-]/.test(value)&&amount>0||label==='Max drawdown'&&amount>0;
- return <article className="result-metric" title={[hint,metricScaleHint[label]].filter(Boolean).join(" ") || undefined}><span>{label}</span><strong style={{color:tone===undefined?'#ffffff':metricColor(tone)}} data-tone={tone} className={gain?'positive':loss?'negative':''}><AnimatedValue value={value}/></strong></article>;
+ return <article className="result-metric" title={[hint,metricScaleHint[label]].filter(Boolean).join(" ") || undefined}><span>{label}</span><strong style={{color:tone===undefined?'#ffffff':metricColor(tone)}} data-tone={tone} className={gain?'positive':loss?'negative':''}><AnimatedValue animate={label === "Net profit" || label === "Return"} value={value}/></strong></article>;
 }
 export function EquityChart({curves,percent=false,drawdown=false}:{curves:{name:string;points:{time:number;equity:number}[];capital?:number}[];percent?:boolean;drawdown?:boolean}) {
   if(!curves.some(curve=>curve.points.length))return <div className="result-chart-empty">No chart points were saved for this run.</div>;
