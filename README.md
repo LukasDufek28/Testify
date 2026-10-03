@@ -1,6 +1,6 @@
 # Testify
 
-Testify is an online crypto strategy research service deployed on Vercel. It needs no local program, account, or paid database.
+Testify is an online crypto strategy research service deployed on Vercel. Trading research data stays in the browser. A small PostgreSQL database stores only custom email/password accounts, sessions and abuse-prevention counters. See [account setup](docs/AUTH.md).
 
 ## Research flow
 
@@ -37,4 +37,4 @@ npm.cmd test
 npx.cmd vercel --prod
 ```
 
-There is no server database. Browser data can be lost if site storage is cleared; use Export backup.
+Trading data is not stored in the account database. Browser data can be lost if site storage is cleared; use Export backup.

@@ -1,11 +1,8 @@
+import { requireUser } from "../lib/auth.js";
 import { parseStrategy } from "../lib/shared/types.js";
 
 const MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
 const MAX_IDEA_LENGTH = 3000;
-const WINDOW_MS = 60_000;
-const MAX_REQUESTS_PER_WINDOW = 5;
-const attempts = new Map();
-
 const instructions = `Create one executable Testify strategy as JSON only. Use version 2. Honor the user's requested logic and parameters where the format supports them; do not silently substitute a different indicator. The top-level fields are version, name, description, side (long/short/both), indicators, entryLong, entryShort, exitLong, exitShort, stopLossPct, takeProfitPct, allocationPct.
 You may define up to 16 original named indicators in indicators: [{"name":"Momentum","formula":{...}}]. Names use letters, digits and underscores, start with a letter, and are unique. Formulas are expression trees with an op:
 - source: {"op":"source","field":"close"}; fields open/high/low/close/volume.
@@ -29,9 +26,12 @@ async function generate(model, apiKey, prompt) {
   return { upstream, result, text: result.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") };
 }
 
-export default async function handler(request, response) {
+export function createGenerationHandler(authorize = requireUser) {
+return async function handler(request, response) {
   response.setHeader("Cache-Control", "no-store");
   if (request.method !== "POST") return response.status(405).json({ error: "Use POST." });
+  const user = await authorize(request, response, "gemini", 5);
+  if (!user) return;
   const origin = request.headers.origin;
   if (origin) {
     let sameOrigin = false;
@@ -58,14 +58,6 @@ export default async function handler(request, response) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return response.status(503).json({ error: "Gemini is not configured yet. The site owner must add GEMINI_API_KEY in Vercel." });
 
-  // Best-effort limit for warm instances. The Google project's quota remains the spend ceiling.
-  const ip = String(request.headers["x-forwarded-for"] || request.socket?.remoteAddress || "unknown").split(",")[0].trim();
-  const now = Date.now();
-  const recent = (attempts.get(ip) || []).filter((time) => now - time < WINDOW_MS);
-  if (recent.length >= MAX_REQUESTS_PER_WINDOW) return response.status(429).json({ error: "Please wait a minute before generating another strategy." });
-  recent.push(now); attempts.set(ip, recent);
-  if (attempts.size > 2000) for (const [key, times] of attempts) if (times.every((time) => now - time >= WINDOW_MS)) attempts.delete(key);
-
   let validationError = null;
   for (const model of MODELS) {
     try {
@@ -75,6 +67,7 @@ export default async function handler(request, response) {
         const detail = String(result.error?.message || "").replaceAll(apiKey, "[redacted]").slice(0, 500);
         console.warn("Gemini upstream error", model, upstream.status, result.error?.status || "unknown", detail);
         if ([404, 500, 502, 503, 504].includes(upstream.status)) continue;
+        if (upstream.status === 429) response.setHeader("Retry-After", "60");
         return response.status(upstream.status === 429 ? 429 : 502).json({ error: upstream.status === 429 ? "Gemini quota reached. Please try again later." : "Gemini could not generate a strategy right now." });
       }
       if (!text) { validationError = "Gemini returned an empty strategy."; continue; }
@@ -92,3 +85,6 @@ export default async function handler(request, response) {
   }
   return response.status(validationError ? 502 : 503).json({ error: validationError || "Gemini is temporarily busy. Please try again shortly." });
 }
+
+}
+export default createGenerationHandler();

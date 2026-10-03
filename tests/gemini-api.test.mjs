@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import handler from "../api/generate-strategy.js";
+import { createGenerationHandler } from "../api/generate-strategy.js";
+const handler = createGenerationHandler(async () => ({ id: "test-user" }));
 
 function reply() {
   return { statusCode: 200, headers: {}, body: null, setHeader(key, value) { this.headers[key] = value; return this; }, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; return this; } };

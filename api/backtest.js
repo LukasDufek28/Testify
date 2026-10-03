@@ -1,9 +1,12 @@
+import { requireUser } from "../lib/auth.js";
 import { runBacktest } from "../lib/shared/engine.js";
 import { parseStrategy } from "../lib/shared/types.js";
 import { getCandles } from "../lib/crypto-data.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed." });
+  const user = await requireUser(req, res, "backtest", 10);
+  if (!user) return;
   try {
     const body = req.body || {};
     const product = String(body.product || "");
