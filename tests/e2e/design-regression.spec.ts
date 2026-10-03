@@ -45,7 +45,7 @@ test('sidebar permanently shows a border and orange edge and click smoothly fill
  await page.goto('/#/app/data');await expect(page.getByRole('heading',{level:1})).toBeVisible();
  const active=page.getByRole('button',{name:'Data',exact:true});
  await expect(active).toHaveAttribute('aria-current','page');
- for (const button of await page.locator('.dashboard-sidebar nav button').all()) { await expect(button).toHaveCSS('border-top-color',blue); expect(await button.evaluate(el=>getComputedStyle(el,'::before').borderLeftColor)).toBe(orange); await expect(button).toHaveCSS('background-color','rgba(0, 0, 0, 0)'); }
+ for (const button of await page.locator('.dashboard-sidebar nav button').all()) { const selected=await button.getAttribute('aria-current'); await expect(button).toHaveCSS('border-top-color',selected?orange:blue); expect(await button.evaluate(el=>getComputedStyle(el,'::before').borderLeftColor)).toBe(orange); await expect(button).toHaveCSS('background-color',selected?orange:'rgba(0, 0, 0, 0)'); }
  const target=page.getByRole('button',{name:'Backtests',exact:true});
  await target.hover();await expect(target).toHaveCSS('filter','brightness(1.08)');
  expect(await target.evaluate(el=>getComputedStyle(el,'::before').borderLeftColor)).toBe(orange);
@@ -55,7 +55,7 @@ test('sidebar permanently shows a border and orange edge and click smoothly fill
  await page.clock.runFor(100);
  const middle=await fill.evaluate(el=>new DOMMatrix(getComputedStyle(el).transform).m11);
  expect(middle).toBeGreaterThan(0);expect(middle).toBeLessThan(1);
- await page.clock.runFor(700);await expect(fill).toHaveCount(0);
+ await page.clock.runFor(700);await expect(fill).toHaveCount(0);await expect(target).toHaveCSS('background-color',orange);await page.mouse.move(700,100);await expect(target).toHaveCSS('background-color',orange);await page.reload();await expect(target).toHaveAttribute('aria-current','page');await expect(target).toHaveCSS('background-color',orange);
  await page.getByRole('button',{name:'Settings',exact:true}).click(); await expect(page.getByRole('dialog',{name:'Workspace settings'})).toBeVisible(); await expect(page.locator('.dashboard-sidebar nav button').last().locator('.nav-click-fill')).toHaveCSS('animation-name','nav-click-fill');
 });
 

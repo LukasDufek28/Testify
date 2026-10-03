@@ -152,3 +152,18 @@ test("loading and failed library reads show separate states and retry recovers",
   await page.getByRole("button",{name:"Try again",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Your first strategy starts here"})).toBeVisible();
 });
+
+test('selection uses foundation checkboxes and never shifts strategy cards',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/#/app/strategies');await importJson(page,[exampleStrategy,{...exampleStrategy,name:'Second'}]);
+ await expect(page.locator('.strategy-card')).toHaveCount(2);await page.waitForTimeout(700);
+ for(const width of [390,1440]){
+  await page.setViewportSize({width,height:900});
+  const card=page.locator('.strategy-card').first(),checkbox=card.getByRole('checkbox');
+  const before=await card.boundingBox();await checkbox.check();
+  await expect(checkbox).toHaveCSS('appearance','none');await expect(checkbox).toHaveCSS('background-color','rgb(242, 132, 47)');expect(await checkbox.evaluate(el=>getComputedStyle(el,'::after').borderBottomColor)).toBe('rgb(255, 255, 255)');
+  const clear=page.getByRole('button',{name:'Clear selection (1)',exact:true});await expect(clear).toBeVisible();await expect(clear).toHaveCSS('border-top-color','rgb(69, 91, 138)');
+  const after=await card.boundingBox();expect(after!.y).toBeCloseTo(before!.y,1);expect(after!.x).toBeCloseTo(before!.x,1);
+  await clear.click();await expect(checkbox).not.toBeChecked();await expect(page.getByRole('button',{name:'Clear selection (0)',exact:true})).toHaveCount(0);
+  expect((await card.boundingBox())!.y).toBeCloseTo(before!.y,1);expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+ }
+});

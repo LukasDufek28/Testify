@@ -213,3 +213,18 @@
 .strategy-grid { gap:14px; }
 .dashboard-main footer { padding:16px 24px; opacity:.75; }
 @media(max-width:560px) { .workspace-shell .workspace-content { padding:20px 16px; } .dashboard-sidebar > a { min-height:44px; } }
+/* A selected destination stays orange, including after reload; other items stay quiet. */
+.dashboard-sidebar nav button[aria-current],.dashboard-sidebar nav button[aria-current]:hover { background:#f2842f; border-color:#f2842f; }
+.dashboard-sidebar nav button[aria-current]:has(.nav-click-fill) { background:transparent; }
+.workspace-shell input[type=checkbox] { appearance:none; padding:0; margin:0; width:20px; height:20px; border:1px solid #455b8a; border-radius:5px; background:#253c6d; display:inline-grid; place-content:center; cursor:pointer; transition:background 150ms,border-color 150ms; }
+.workspace-shell input[type=checkbox]::after { content:""; width:6px; height:10px; border:solid white; border-width:0 2px 2px 0; transform:rotate(45deg) scale(0); transition:transform 150ms; }
+.workspace-shell input[type=checkbox]:checked { background:#f2842f; border-color:#f2842f; }
+.workspace-shell input[type=checkbox]:checked::after { transform:rotate(45deg) scale(1); }
+.workspace-shell input[type=checkbox]:hover { border-color:white; }
+.workspace-shell input[type=checkbox]:focus-visible { outline:2px solid white; outline-offset:3px; }
+.strategy-library-count { min-height:36px; gap:16px; }
+.dashboard-shell .strategy-clear-selection { min-height:32px; padding:6px 12px; font-size:12px; font-weight:500; border:1px solid #455b8a; background:transparent; }
+.dashboard-shell .strategy-clear-selection:hover { background:#455b8a; }
+@media(prefers-reduced-motion:reduce) { .workspace-shell input[type=checkbox],.workspace-shell input[type=checkbox]::after { transition:none; } }
+@media(forced-colors:active) { .workspace-shell input[type=checkbox] { appearance:auto; } .workspace-shell input[type=checkbox]::after { content:none; } }
+.dashboard-shell .strategy-clear-selection { width:160px; flex:none; white-space:nowrap; }
