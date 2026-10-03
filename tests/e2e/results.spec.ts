@@ -127,3 +127,19 @@ test('equity stays dominant and drawdown remains readable as chart canvases resi
  }
  expect(sizes[3]).toBeGreaterThan(sizes[0]*2);
 });
+
+test('summary cards animate, allocate space to their content and fill ultrawide workspaces',async({page})=>{
+ await page.clock.install();await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
+ const strip=page.locator('.result-metrics');await expect(strip).toHaveCSS('animation-name','testify-pop');await page.clock.runFor(100);
+ expect(await strip.evaluate(el=>{const animation=el.getAnimations()[0];animation.pause();animation.currentTime=100;return Number(getComputedStyle(el).opacity);})).toBeLessThan(1);await strip.evaluate(el=>el.getAnimations().forEach(animation=>animation.finish()));
+ await page.clock.runFor(1800);await expect(strip).toHaveCSS('opacity','1');
+ let desktopSize=0;
+ for(const width of [390,1440,2560,3440]){
+  await page.setViewportSize({width,height:1440});await page.clock.runFor(300);
+  const geometry=await page.locator('.results-page').evaluate(el=>{const main=el.closest('.dashboard-main')!.getBoundingClientRect(),bar=el.querySelector('.result-metrics')!.getBoundingClientRect(),cards=[...el.querySelectorAll('.result-metric')];return {mainWidth:main.width,barWidth:bar.width,left:bar.left-main.left,profitWidth:cards[0].getBoundingClientRect().width,tradesWidth:cards[3].getBoundingClientRect().width,font:parseFloat(getComputedStyle(cards[0].querySelector('strong')!).fontSize)};});
+  if(width>=1440){expect(geometry.barWidth/geometry.mainWidth).toBeGreaterThan(.9);expect(geometry.left).toBeLessThanOrEqual(50);expect(geometry.profitWidth).toBeGreaterThan(geometry.tradesWidth);}
+  if(width===1440)desktopSize=geometry.font;
+  if(width===3440)expect(geometry.font).toBeGreaterThan(desktopSize*1.4);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+ }
+});

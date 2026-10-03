@@ -12,10 +12,11 @@ export function equityLines(name: string, points: { time: number; equity: number
   const low = data.reduce((value, point) => Math.min(value, point[1]), Infinity);
   const high = data.reduce((value, point) => Math.max(value, point[1]), -Infinity);
   const threshold = (high - baseline) / (high - low);
+  const lossFloor = percent ? -20 : baseline > 0 ? baseline * .8 : baseline - 20;
   const lossColor = metricColor(baseline > 0 ? (low / baseline - 1) * 5 : low / 20);
   const color = low >= baseline ? PROFIT_COLOR : high === low ? lossColor : {
     type: "linear", x: 0, y: 0, x2: 0, y2: 1,
-    colorStops: [{offset:0,color:high >= baseline ? PROFIT_COLOR : metricColor(baseline > 0 ? (high / baseline - 1) * 5 : high / 20)},...(high > baseline ? [{offset:threshold,color:PROFIT_COLOR}] : []),{offset:1,color:lossColor}],
+    colorStops: [{offset:0,color:high >= baseline ? PROFIT_COLOR : metricColor(baseline > 0 ? (high / baseline - 1) * 5 : high / 20)},...(high > baseline ? [{offset:threshold,color:PROFIT_COLOR}] : []),...(high > lossFloor && low < lossFloor ? [{offset:(high-lossFloor)/(high-low),color:DRAWDOWN_COLOR}] : []),{offset:1,color:lossColor}],
   };
   // A single series keeps hover/legend emphasis from hiding a profit overlay.
   return [{ name, type: "line", showSymbol: false, emphasis: { disabled: true },

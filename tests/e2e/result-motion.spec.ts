@@ -61,3 +61,9 @@ test('equity fades below balance and entirely losing curves never regain white',
  expect(mixed.colorStops.map(stop=>stop.color)).toEqual(['#ffffff','#ffffff',colors.severe]);expect(mixed.colorStops[1].offset).toBeCloseTo(1/3);
  expect(loss.colorStops).toHaveLength(2);expect(loss.colorStops.every(stop=>stop.color!=='#ffffff')).toBe(true);
 });
+
+test('deep equity losses reach orange at the same twenty percent threshold as drawdown',async({page})=>{
+ await page.goto('/');const gradient=await page.evaluate(async()=>{const {equityLines}=await import('/src/theme.ts');return equityLines('Deep loss',[100,110,90,70].map((equity,time)=>({equity,time})),false,false,100)[0].lineStyle.color;});
+ const stops=(gradient as {colorStops:{offset:number;color:string}[]}).colorStops;
+ expect(stops).toHaveLength(4);expect(stops[2].offset).toBeCloseTo(.75);expect(stops[2].color).toBe('#f2842f');expect(stops[3].color).toBe('rgb(242, 132, 47)');
+});
