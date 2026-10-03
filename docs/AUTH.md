@@ -1,10 +1,10 @@
 # Testify accounts
 
-Testify owns its email/password login. Only accounts, password hashes, revocable sessions and rate-limit counters are stored in PostgreSQL. Candles, strategies, runs and preferences remain in each browser, partitioned by the account's UUID. Browser storage is not a security boundary against someone with access to the same browser profile or developer tools. Accounts do not synchronize trading data between devices.
+Testify owns its email/password login. Accounts, password hashes, revocable sessions, rate-limit counters and strategies with revision history are stored in PostgreSQL. Candles, runs and preferences remain in each browser, partitioned by the account's UUID. Browser storage is not a security boundary against someone with access to the same browser profile or developer tools. Strategies synchronize between devices; candles and backtest results do not.
 
 ## Connected databases
 
-The Vercel `testify` project now has two Neon Free resources: `testify-accounts` for Production and `testify-accounts-dev` for Preview and Development. Both have the account schema. `DATABASE_URL`, `AUTH_SECRET` and `APP_ORIGINS` are configured in Vercel; local `.env.local` uses the development database. Production and development use different auth secrets.
+The Vercel `testify` project now has two Neon Free resources: `testify-accounts` for Production and `testify-accounts-dev` for Preview and Development. Both have the account and strategy schema. `DATABASE_URL`, `AUTH_SECRET` and `APP_ORIGINS` are configured in Vercel; local `.env.local` uses the development database. Production and development use different auth secrets.
 
 For a fresh clone, link to the same Vercel project and run `vercel env pull .env.local --environment development --yes`. Keep that file out of Git. `npm run db:init` applies the account schema idempotently to the local environment's database. Start the full app with `vercel dev` so the APIs are served as well.
 
@@ -33,7 +33,7 @@ For local use, put those variables in a gitignored `.env.local` and run Vercel d
 
 Registration and login set an opaque HttpOnly cookie and return the user above. Logout revokes that exact session and clears its cookie. Session lifetime is seven days. Passwords require 12â€“128 characters and are stored as salted scrypt hashes. Email comparison is case-insensitive. This release does not include email verification or password reset; do not present either feature in the frontend.
 
-All four research APIs (`markets`, `candles`, `backtest`, `generate-strategy`) require that session cookie. Requests from the app also send `X-Testify-Session` with the current session ID, preventing an old tab from acting under an account signed in elsewhere in the same browser. This ID is not a credential. Only the opaque cookie authenticates a request.
+All research APIs (`markets`, `candles`, `backtest`, `generate-strategy`, `strategies`) require that session cookie. Requests from the app also send `X-Testify-Session` with the current session ID, preventing an old tab from acting under an account signed in elsewhere in the same browser. This ID is not a credential. Only the opaque cookie authenticates a request.
 
 Mutating requests must send an allowed `Origin`. Responses contain no session token, password hash or database details. Protected responses are private and not cached by the CDN. Auth errors use 401, invalid input 400, origin violations 403, and unconfigured or unavailable account services 503.
 
@@ -46,3 +46,12 @@ The previous `testify-local-v1` workspace is preserved but is not assigned autom
 ## Maintenance
 
 Expired sessions and old rate counters are removed after successful login/registration. The SQL file includes optional maintenance commands. Keep database backups and access credentials under the site owner's control. The connected databases were provisioned and their schemas verified. Registration and session checks were tested against the live development database. The auth code remains on `devLukas`; merging into `main` is a separate production release.
+
+
+## Strategy API
+
+`GET /api/strategies` returns the signed-in user’s strategy library. `PUT /api/strategies` accepts `{ id, source, expectedRevision }` and returns `{ strategy }`. Use revision 0 for a new strategy, or the revision originally loaded into the editor for an update. A successful save records a new immutable revision. Stale updates return 409 and preserve the draft. `DELETE /api/strategies` accepts `{ id, expectedRevision }` and removes that user’s strategy and its versions. `GET /api/strategies?id=...&versions=1` returns historical revisions belonging to that user. The backend derives ownership from the session, never from a submitted user ID.
+
+The app migrates existing account-scoped local strategies on the first load and keeps browser backup copies. It does not import the unowned workspace automatically. Duplicate cloud content is reused and local run references are updated. Backup export includes the cloud library; explicit backup restore saves strategies to the current account.
+
+Gemini create and modify are separate actions. Modify always receives the editor’s selected strategy JSON and instructions; development summaries are optional, and validation results are rejected. Neither action saves automatically.

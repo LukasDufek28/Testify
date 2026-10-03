@@ -100,3 +100,23 @@ test("Gemini revision receives the selected strategy and development summaries",
     assert.equal(invalid.statusCode, 400);
   } finally { globalThis.fetch = oldFetch; if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey; }
 });
+
+
+test("Gemini can modify an existing strategy without backtest context", async () => {
+  const oldKey = process.env.GEMINI_API_KEY, oldFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = "test-secret";
+  const strategy = { version: 1, name: "Existing strategy", description: "Test", side: "long", entryLong: [{ left: { kind: "close" }, op: "gt", right: 1 }], entryShort: [], exitLong: [], exitShort: [], stopLossPct: 1, takeProfitPct: 2, allocationPct: 50 };
+  let prompt = "";
+  globalThis.fetch = async (_url, options) => { prompt = JSON.parse(options.body).contents[0].parts[0].text; return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(strategy) }] } }] }) }; };
+  try {
+    const req = request(); req.body = { mode: "revise", idea: "Add an RSI filter", strategy };
+    const res = reply(); await handler(req, res);
+    assert.equal(res.statusCode, 200);
+    assert.match(prompt, /Add an RSI filter/);
+    assert.match(prompt, /Existing strategy/);
+    assert.match(prompt, /do not invent performance evidence/);
+    assert.match(prompt, /optional context/);
+    req.body.results = []; const empty = reply(); await handler(req, empty); assert.equal(empty.statusCode, 200);
+    req.body.results = {}; const invalid = reply(); await handler(req, invalid); assert.equal(invalid.statusCode, 400);
+  } finally { globalThis.fetch = oldFetch; if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey; }
+});

@@ -17,7 +17,6 @@ export async function generateStrategy(idea: string, apiFetch: ApiFetch): Promis
 }
 
 export async function reviseStrategy(apiFetch: ApiFetch, strategy: Strategy, results: unknown[], guidance: string): Promise<{ strategy: Strategy; model: string }> {
-  if (!results.length) throw new Error("Select at least one development backtest.");
   const response = await apiFetch("/api/generate-strategy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

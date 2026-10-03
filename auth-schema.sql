@@ -16,6 +16,24 @@ CREATE TABLE IF NOT EXISTS testify_auth_limits (
   bucket bigint NOT NULL,
   count integer NOT NULL
 );
+CREATE TABLE IF NOT EXISTS testify_strategies (
+  user_id uuid NOT NULL REFERENCES testify_accounts(id) ON DELETE CASCADE,
+  id text NOT NULL,
+  name text NOT NULL,
+  source text NOT NULL,
+  revision integer NOT NULL DEFAULT 1,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, id)
+);
+CREATE TABLE IF NOT EXISTS testify_strategy_versions (
+  user_id uuid NOT NULL,
+  strategy_id text NOT NULL,
+  revision integer NOT NULL,
+  source text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, strategy_id, revision),
+  FOREIGN KEY (user_id, strategy_id) REFERENCES testify_strategies(user_id, id) ON DELETE CASCADE
+);
 -- Periodic maintenance; no trading data is stored in these tables.
 -- DELETE FROM testify_sessions WHERE expires_at < now();
 -- DELETE FROM testify_auth_limits WHERE bucket < floor(extract(epoch FROM now()) / 60) - 1440;

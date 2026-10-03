@@ -25,7 +25,7 @@ export type Strategy = {
   takeProfitPct: number;
   allocationPct: number;
 };
-export type SavedStrategy = { id: string; name: string; source: string; updatedAt: number };
+export type SavedStrategy = { id: string; name: string; source: string; updatedAt: number; revision?: number };
 export type Bar = { time: number; open: number; high: number; low: number; close: number; spread: number; volume: number };
 export type Dataset = { id: string; symbol: string; fileName: string; importedAt: number; bars: Bar[]; skipped: number; validation?: import("./data-validation").DataValidation };
 export type Trade = { entryTime: number; exitTime: number; side: 1 | -1; entry: number; exit: number; pnl: number; returnPct: number; reason: string };
