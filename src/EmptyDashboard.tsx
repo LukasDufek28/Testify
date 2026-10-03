@@ -1,3 +1,5 @@
+import WorkspaceNavigation from "./WorkspaceNavigation";
+import WorkspaceBrand from "./WorkspaceBrand";
 import "./motion.css";
 import { useRef } from "react";
 import "./dashboard.css";
@@ -15,15 +17,8 @@ export default function EmptyDashboard({ strategyCount, onNavigate, onImport, on
   const settings = useRef<HTMLDialogElement>(null);
   return <div className="dashboard-shell">
     <aside className="dashboard-sidebar">
-      <a href="#" aria-label="Back to Testify home"><img src="/testify-logo.png" alt="Testify" width="150" height="50" /></a>
-      <span className="dashboard-brand-caption">BACKTESTING WORKSPACE</span>
-      <nav aria-label="Workspace navigation">
-        <button aria-current="page">Dashboard</button>
-        <button onClick={() => onNavigate("strategies")}>Strategies</button>
-        <button onClick={() => onNavigate("backtests")}>Backtests</button>
-        <button onClick={() => onNavigate("data")}>Data</button>
-        <button onClick={() => settings.current?.showModal()}>Settings</button>
-      </nav>
+      <WorkspaceBrand/>
+      <WorkspaceNavigation active="overview" onNavigate={page => { if(page !== "overview") onNavigate(page); }} onSettings={() => settings.current?.showModal()}/>
       <div className="dashboard-sidebar-bottom"><strong>Free workspace</strong><p>Help &amp; getting started</p><button onClick={() => settings.current?.showModal()}>Account</button></div>
     </aside>
     <main className="dashboard-main">

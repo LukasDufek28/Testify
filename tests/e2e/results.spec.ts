@@ -14,7 +14,7 @@ test.beforeEach(async({page})=>{
   await page.evaluate(async({dataset,a,b,strategy})=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-local-v1',1);req.onsuccess=()=>{const db=req.result;const tx=db.transaction(['runs','datasets','strategies'],'readwrite');tx.objectStore('runs').put(a);tx.objectStore('runs').put(b);tx.objectStore('datasets').put(dataset);tx.objectStore('strategies').put({id:'s',name:strategy.name,source:JSON.stringify(strategy),updatedAt:Date.now()});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};req.onerror=()=>reject(req.error);});},{dataset,a,b,strategy});await page.reload();
 });
 test('saved results show real metrics, charts, snapshot settings and full trade exports',async({page})=>{
-  await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible();await expect(page.locator('.result-metric')).toHaveCount(7);expect(await page.locator('.result-metric').evaluateAll(elements=>elements.map(el=>getComputedStyle(el).animationDelay))).toEqual(['0s','0.045s','0.09s','0.135s','0.18s','0.225s','0.27s']);expect(await page.locator('.result-metric strong .animated-value > span').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(17);await expect(page.locator('.result-metrics')).toContainText(String(a.metrics.tradeCount));await expect(page.locator('.result-metric').filter({hasText:'Max drawdown'}).locator('strong')).toHaveAttribute('data-tone',String(1-2*a.metrics.maxDrawdownPct/30));await expect(page.locator('.result-metric').filter({hasText:'Trades'}).locator('strong')).toHaveCSS('color','rgb(255, 255, 255)');await expect(page.locator('.result-chart-grid canvas')).toHaveCount(2);
+  await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible();await expect(page.locator('.result-metric')).toHaveCount(7);expect(await page.locator('.result-metric').evaluateAll(elements=>elements.map(el=>getComputedStyle(el).animationDelay))).toEqual(['0s','0.045s','0.09s','0.135s','0.18s','0.225s','0.27s']);expect(await page.locator('.result-metric strong .animated-value > span').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(17);await expect(page.locator('.result-metrics')).toContainText(String(a.metrics.tradeCount));await expect(page.locator('.result-metric').filter({hasText:'Max drawdown'}).locator('strong')).toHaveAttribute('data-tone',String(-a.metrics.maxDrawdownPct/20));await expect(page.locator('.result-metric').filter({hasText:'Trades'}).locator('strong')).toHaveCSS('color','rgb(255, 255, 255)');await expect(page.locator('.result-chart-grid canvas')).toHaveCount(2);
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();const file=await download;expect(file.suggestedFilename()).toBe('Run-A-trades.csv');const content=await (await import('node:fs/promises')).readFile((await file.path())!,'utf8');expect(content.split('\r\n')).toHaveLength(a.trades.length+1);
   await page.getByRole('tab',{name:'Settings',exact:true}).click();await expect(page.locator('.saved-settings').first()).toContainText('10,000');await page.getByRole('button',{name:'Use these settings',exact:true}).click();await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Run A copy');await expect(page.getByLabel('Starting capital',{exact:true})).toHaveValue('10000');await expect(page.getByRole('combobox',{name:'Market / dataset',exact:true})).toContainText(dataset.fileName);
   await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await page.reload();await expect(page.locator('.workspace-page-heading')).toContainText('Result strategy');await page.getByRole('button',{name:'Improve strategy',exact:true}).click();await expect(page.getByRole('heading',{name:'Strategy creation',exact:true})).toBeVisible();
@@ -58,7 +58,7 @@ test('only headline profit and return count up while secondary metrics stay stil
 test('hovering equity retains both visible profit and loss colors and formats tooltip values',async({page})=>{
  await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
  const canvas=page.locator('.result-chart-grid canvas').first();await expect(canvas).toBeVisible();
- const colors=()=>canvas.evaluate(el=>{const c=el as HTMLCanvasElement,pixels=c.getContext('2d')!.getImageData(0,0,c.width,c.height).data;let orange=0,blue=0;for(let i=0;i<pixels.length;i+=4){if(pixels[i]>225&&pixels[i+1]>115&&pixels[i+1]<150&&pixels[i+2]<70)orange++;if(pixels[i]>247&&pixels[i+1]>247&&pixels[i+2]>247)blue++;}return {orange,blue};});
+ const colors=()=>canvas.evaluate(el=>{const c=el as HTMLCanvasElement,pixels=c.getContext('2d')!.getImageData(0,0,c.width,c.height).data;let orange=0,blue=0;for(let i=0;i<pixels.length;i+=4){if(pixels[i]>225&&pixels[i+1]>115&&pixels[i+1]<250&&pixels[i+2]<pixels[i+1]-4)orange++;if(pixels[i]>247&&pixels[i+1]>247&&pixels[i+2]>247)blue++;}return {orange,blue};});
  await expect.poll(async()=>{const result=await colors();return result.orange>20&&result.blue>20;}).toBe(true);
  await page.waitForTimeout(700);const before=await colors();const bounds=await canvas.boundingBox();
  await page.mouse.move(bounds!.x+bounds!.width*.4,bounds!.y+bounds!.height*.5);
@@ -98,4 +98,32 @@ test('dense history, comparison, trade details and settings never count up',asyn
  await page.getByRole('button',{name:'Compare selected',exact:true}).click();
  await expect(page.locator('.comparison-table')).toBeVisible();
  await expect(page.locator('[data-countup="true"]')).toHaveCount(0);
+});
+
+test('long monthly histories fill each row and keep positive and zero returns white',async({page})=>{
+ const curve=Array.from({length:10},(_,i)=>({time:Date.UTC(2025,i,1)/1000,equity:10000+[0,266,104,200,-100,100,-400,-800,-800,-600][i]}));
+ await page.evaluate(async curve=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-local-v1',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction('runs','readwrite'),store=tx.objectStore('runs'),read=store.get('result-a');read.onsuccess=()=>store.put({...read.result,curve});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});},curve);
+ await page.reload();await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
+ await expect(page.locator('.monthly-returns article')).toHaveCount(10);
+ for(const width of [390,768,1024,1440]){
+  await page.setViewportSize({width,height:900});
+  const geometry=await page.locator('.monthly-returns').evaluate(el=>{const parent=el.getBoundingClientRect();const rows=new Map<number,{left:number;right:number}>();for(const child of el.children){const box=child.getBoundingClientRect();const row=rows.get(box.top);rows.set(box.top,{left:Math.min(row?.left??Infinity,box.left),right:Math.max(row?.right??0,box.right)});}return {left:parent.left,right:parent.right,rows:[...rows.values()]};});
+  for(const row of geometry.rows){expect(Math.abs(row.left-geometry.left)).toBeLessThan(2);expect(Math.abs(row.right-geometry.right)).toBeLessThan(2);}
+ }
+ const values=await page.locator('.monthly-returns .animated-value').evaluateAll(elements=>elements.map(el=>({value:el.getAttribute('aria-label')!,color:getComputedStyle(el).color})));
+ for(const value of values){if(value.value.startsWith('+'))expect(value.color).toBe('rgb(255, 255, 255)');else expect(value.color).not.toBe('rgb(255, 255, 255)');}
+});
+
+test('equity stays dominant and drawdown remains readable as chart canvases resize',async({page})=>{
+ await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
+ const charts=page.locator('.result-equity-panel .echarts-for-react');await expect(charts).toHaveCount(2);
+ const sizes:number[]=[];
+ for(const width of [390,768,1440,1920]){
+  await page.setViewportSize({width,height:900});
+  await expect.poll(async()=>charts.evaluateAll(elements=>elements.every(el=>{const canvas=el.querySelector('canvas');return !!canvas&&Math.abs(canvas.getBoundingClientRect().width-el.getBoundingClientRect().width)<2&&Math.abs(canvas.getBoundingClientRect().height-el.getBoundingClientRect().height)<2;}))).toBe(true);
+  const boxes=await charts.evaluateAll(elements=>elements.map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height})));
+  expect(boxes[0].height).toBeGreaterThan(boxes[1].height*1.4);expect(boxes[1].height).toBeGreaterThanOrEqual(179);sizes.push(boxes[0].width);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+ }
+ expect(sizes[3]).toBeGreaterThan(sizes[0]*2);
 });

@@ -2,10 +2,10 @@
 .dashboard-shell button { font: inherit; color: inherit; cursor: pointer; }
 .dashboard-shell :is(a, button):focus-visible { outline: 2px solid white; outline-offset: 4px; }
 .dashboard-sidebar { background: #30497d; padding: 20px; display: flex; flex-direction: column; min-width: 0; }
-.dashboard-sidebar > a { display: block; }
+.dashboard-sidebar > a { display: flex; justify-content: center; align-items: center; min-height:64px; }
 .dashboard-sidebar img { width: 150px; max-width: 100%; height: auto; display: block; }
 .dashboard-brand-caption { font-size: 9px; letter-spacing: .12em; font-weight: 700; margin-top: 4px; }
-.dashboard-sidebar nav { display: grid; gap: 12px; margin-top: 40px; }
+.dashboard-sidebar nav { display: grid; gap: 8px; margin-top: 24px; }
 .dashboard-sidebar nav button { text-align: left; border: 0; background: transparent; padding: 12px 16px; border-radius: 7px; font-size: 14px; min-height: 42px; transition: background 180ms; }
 .dashboard-sidebar nav button:hover { background: #455b8a; }
 .dashboard-sidebar nav [aria-current] { background: #455b8a; border-left: 3px solid #f2842f; padding-left: 13px; font-weight: 700; }

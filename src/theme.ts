@@ -12,9 +12,10 @@ export function equityLines(name: string, points: { time: number; equity: number
   const low = data.reduce((value, point) => Math.min(value, point[1]), Infinity);
   const high = data.reduce((value, point) => Math.max(value, point[1]), -Infinity);
   const threshold = (high - baseline) / (high - low);
-  const color = high === low && high === baseline ? "#ffffff" : low >= baseline ? PROFIT_COLOR : high <= baseline ? DRAWDOWN_COLOR : {
+  const lossColor = metricColor(baseline > 0 ? (low / baseline - 1) * 5 : low / 20);
+  const color = low >= baseline ? PROFIT_COLOR : high === low ? lossColor : {
     type: "linear", x: 0, y: 0, x2: 0, y2: 1,
-    colorStops: [{offset:0,color:PROFIT_COLOR},{offset:threshold,color:PROFIT_COLOR},{offset:threshold,color:DRAWDOWN_COLOR},{offset:1,color:DRAWDOWN_COLOR}],
+    colorStops: [{offset:0,color:high >= baseline ? PROFIT_COLOR : metricColor(baseline > 0 ? (high / baseline - 1) * 5 : high / 20)},...(high > baseline ? [{offset:threshold,color:PROFIT_COLOR}] : []),{offset:1,color:lossColor}],
   };
   // A single series keeps hover/legend emphasis from hiding a profit overlay.
   return [{ name, type: "line", showSymbol: false, emphasis: { disabled: true },
@@ -23,9 +24,8 @@ export function equityLines(name: string, points: { time: number; equity: number
   }];
 }
 
-export function drawdownColors(points: { equity: number }[]) {
-  const deepest = points.reduce((lowest, point) => Math.min(lowest, point.equity), 0);
-  return { type: "continuous", show: false, dimension: 1, min: Math.min(-1, deepest), max: 0, inRange: { color: [DRAWDOWN_COLOR, PROFIT_COLOR] } };
+export function drawdownColors(_points: { equity: number }[]) {
+  return { type: "continuous", show: false, dimension: 1, min: -20, max: 0, inRange: { color: [DRAWDOWN_COLOR, PROFIT_COLOR] } };
 }
 
 // Fixed scales keep the same value the same color across saved runs.
@@ -36,21 +36,21 @@ export function metricTone(label: string, value: number): number {
     case "Win rate": return (value - 50) / 50;
     case "Profit factor": return value >= 1 ? (value - 1) / 2 : value - 1;
     case "Average R": return value;
-    case "Max drawdown": return 1 - 2 * Math.abs(value) / 30;
+    case "Max drawdown": return -Math.abs(value) / 20;
     default: return 0;
   }
 }
 export function metricColor(tone: number) {
-  const amount = (Math.max(-1, Math.min(1, tone)) + 1) / 2;
+  const amount = 1 + Math.max(-1, Math.min(0, tone));
   const orange = [242, 132, 47];
   return `rgb(${orange.map(channel => Math.round(channel + (255 - channel) * amount)).join(", ")})`;
 }
 
 export const metricScaleHint: Record<string, string> = {
-  "Net profit": "Return-based color range: orange at −20%, midpoint at 0%, white at +20%.",
-  "Return": "Color range: orange at −20%, midpoint at 0%, white at +20%.",
-  "Win rate": "Color range: orange at 0%, midpoint at 50%, white at 100%.",
-  "Profit factor": "Color range: orange at 0, midpoint at 1, white at 3.",
-  "Average R": "Color range: orange at −1R, midpoint at 0R, white at +1R.",
-  "Max drawdown": "Color range: white at 0%, midpoint at 15%, orange at 30% drawdown.",
+  "Net profit": "White at zero or positive return; losses fade to orange at −20%.",
+  "Return": "White at zero or positive return; losses fade to orange at −20%.",
+  "Win rate": "White at 50% or above; lower win rates fade to orange at 0%.",
+  "Profit factor": "White at 1 or above; lower factors fade to orange at 0.",
+  "Average R": "White at zero or above; losses fade to orange at −1R.",
+  "Max drawdown": "White at 0%; deeper drawdown fades to orange at 20%.",
 };

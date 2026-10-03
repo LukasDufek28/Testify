@@ -128,8 +128,8 @@ test("selected strategy opens setup and its latest run metadata is searchable wi
   await page.evaluate(async () => { await new Promise<void>(resolve=>{const req=indexedDB.open("testify-local-v1",1);req.onsuccess=()=>{const db=req.result;const tx=db.transaction(["strategies","runs"],"readwrite");const read=tx.objectStore("strategies").getAll();read.onsuccess=()=>{for(const s of read.result)tx.objectStore("runs").put({id:s.id+"-run",name:s.name,createdAt:1,symbol:s.name==="First"?"BTC-USD":"ETH-USD",granularity:900,strategyId:s.id,strategyName:s.name,settings:{capital:10000,start:1735689600,end:1735776000,feeBps:2,slippageBps:1,useMt5Spread:false},curve:[],trades:[],warnings:[],metrics:{netReturnPct:s.name==="First"?12:-2,maxDrawdownPct:2,sharpe:null,winRatePct:50,tradeCount:2,totalFees:0}});};tx.oncomplete=()=>{db.close();resolve();};};}); });
   await page.reload();
   await expect(page.locator(".strategy-last-test .animated-value")).toHaveCount(2);
-  await expect(page.getByRole("article",{name:"First",exact:true}).locator(".strategy-last-test .animated-value")).toHaveCSS("color","rgb(252, 230, 213)");
-  await expect(page.getByRole("article",{name:"Second",exact:true}).locator(".strategy-last-test .animated-value")).toHaveCSS("color","rgb(248, 187, 141)");
+  await expect(page.getByRole("article",{name:"First",exact:true}).locator(".strategy-last-test .animated-value")).toHaveCSS("color","rgb(255, 255, 255)");
+  await expect(page.getByRole("article",{name:"Second",exact:true}).locator(".strategy-last-test .animated-value")).toHaveCSS("color","rgb(254, 243, 234)");
   await page.getByPlaceholder("Search by name, market or timeframe").fill("ETH-USD 15m");
   await expect(page.locator(".strategy-card")).toHaveCount(1);
   await page.locator(".strategy-card summary").click(); await page.getByRole("button",{name:"New backtest",exact:true}).click();

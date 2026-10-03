@@ -19,3 +19,29 @@
 .result-metric:nth-child(5) { animation-delay: 180ms; }
 .result-metric:nth-child(6) { animation-delay: 225ms; }
 .result-metric:nth-child(7) { animation-delay: 270ms; }
+/* Keep the overview focused on the chart, with a single compact summary strip. */
+.result-metrics { gap:0; background:#30497d; border-radius:9px; overflow:hidden; margin-bottom:16px; }
+.result-metric { background:transparent; border-radius:0; padding:16px; border-right:1px solid #455b8a; }
+.result-metric:last-child { border-right:0; }
+.result-metric span { margin-bottom:8px; }
+.result-metric strong { font-size:clamp(18px,1.65vw,26px); }
+.result-toolbar { margin-bottom:16px; gap:12px; }
+.result-tabs button { border-radius:0; padding:10px 16px; border-bottom:2px solid transparent; }
+.result-tabs button[aria-selected=true] { background:transparent; border-bottom-color:#f2842f; }
+.result-tabs button:hover { background:#455b8a; }
+.result-overview-grid { gap:16px; }
+.result-equity-panel { grid-column:1/-1; }
+.result-chart-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
+.result-chart-heading h2 { margin:0; }
+.result-chart-heading span { font-size:12px; opacity:.8; }
+.result-equity-panel h3 { font-size:12px; font-weight:500; margin:0 0 4px; }
+.monthly-returns { display:flex; flex-wrap:wrap; gap:8px; }
+.monthly-returns article { flex:1 0 96px; padding:12px 8px; }
+.monthly-returns span { margin-bottom:6px; }
+.saved-result { display:flex; flex-direction:column; justify-content:center; }
+.saved-result .dashboard-button { margin-top:12px; }
+@media(max-width:1250px) { .result-metrics { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media(max-width:560px) { .result-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:0; } .result-metric { padding:14px; } .result-equity-panel { padding:12px; } }
+.result-equity-panel { container-type:inline-size; }
+.result-equity-panel h3 { font-size:13px; font-weight:600; margin-bottom:8px; }
+.result-equity-panel h3:not(:first-of-type) { border-top:1px solid #455b8a; margin-top:16px; padding-top:16px; }

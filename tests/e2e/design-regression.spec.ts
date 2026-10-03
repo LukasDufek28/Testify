@@ -5,8 +5,8 @@ test.beforeEach(async({page})=>{await page.route('**/api/markets',r=>r.fulfill({
 test('landing preview uses the shared performance scale and keeps trade counts white',async({page,request})=>{
  await page.goto('/');
  expect(await (await request.get('/design/equity.svg')).text()).toContain('stroke="#FFFFFF"');
- await expect(page.locator('.landing-metrics .positive .animated-value')).toHaveCSS('color','rgb(253, 232, 215)');
- await expect(page.locator('.landing-metrics .negative .animated-value')).toHaveCSS('color','rgb(254, 242, 233)');
+ await expect(page.locator('.landing-metrics .positive .animated-value')).toHaveCSS('color','rgb(255, 255, 255)');
+ await expect(page.locator('.landing-metrics .negative .animated-value')).toHaveCSS('color','rgb(253, 235, 222)');
  await expect(page.locator('.landing-metrics > div').nth(2).locator('strong')).toHaveCSS('color','rgb(255, 255, 255)');
 });
 test('strategy and dashboard hover states retain orange and blue through real hover',async({page})=>{
@@ -21,9 +21,9 @@ test('returning dashboard uses consistent performance colors and responsive desi
  await page.reload();await expect(page.getByRole('heading',{name:'Dashboard',exact:true})).toBeVisible();await expect(page.locator('.dashboard-summary article')).toHaveCount(4);
  await expect(page.getByText('Saved snapshot',{exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'View results for gain',exact:true})).toBeVisible();
  for(const heading of ['Continue working','Ready to test?','Recent backtests'])await expect(page.getByRole('heading',{name:heading,exact:true})).toBeVisible();
- await expect(page.locator('.dashboard-summary .positive')).toHaveText('+12.0%');await expect(page.locator('.dashboard-summary .positive .animated-value')).toHaveCSS('color','rgb(252, 230, 213)');
- await expect(page.getByRole('cell',{name:'-2.0%',exact:true}).locator('.animated-value')).toHaveCSS('color','rgb(248, 187, 141)');
- await expect(page.locator('.dashboard-summary article').nth(3).locator('.animated-value')).toHaveCSS('color','rgb(254, 243, 234)');
+ await expect(page.locator('.dashboard-summary .positive')).toHaveText('+12.0%');await expect(page.locator('.dashboard-summary .positive .animated-value')).toHaveCSS('color','rgb(255, 255, 255)');
+ await expect(page.getByRole('cell',{name:'-2.0%',exact:true}).locator('.animated-value')).toHaveCSS('color','rgb(254, 243, 234)');
+ await expect(page.locator('.dashboard-summary article').nth(3).locator('.animated-value')).toHaveCSS('color','rgb(253, 237, 224)');
  expect(await page.locator('.hero').count()).toBe(0);
  for(const width of [390,1024,1366,1920]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);}
  await page.getByRole('button',{name:'Create strategy',exact:true}).hover();await expect(page.getByRole('button',{name:'Create strategy',exact:true})).toHaveCSS('background-color',orange);
@@ -45,7 +45,7 @@ test('sidebar permanently shows a border and orange edge and click smoothly fill
  await page.goto('/#/app/data');await expect(page.getByRole('heading',{level:1})).toBeVisible();
  const active=page.getByRole('button',{name:'Data',exact:true});
  await expect(active).toHaveAttribute('aria-current','page');
- for (const button of await page.locator('.dashboard-sidebar nav button').all()) { await expect(button).toHaveCSS('border-top-color',blue); expect(await button.evaluate(el=>getComputedStyle(el,'::before').borderLeftColor)).toBe(orange); await expect(button).toHaveCSS('background-color',blue); }
+ for (const button of await page.locator('.dashboard-sidebar nav button').all()) { await expect(button).toHaveCSS('border-top-color',blue); expect(await button.evaluate(el=>getComputedStyle(el,'::before').borderLeftColor)).toBe(orange); await expect(button).toHaveCSS('background-color','rgba(0, 0, 0, 0)'); }
  const target=page.getByRole('button',{name:'Backtests',exact:true});
  await target.hover();await expect(target).toHaveCSS('filter','brightness(1.08)');
  expect(await target.evaluate(el=>getComputedStyle(el,'::before').borderLeftColor)).toBe(orange);
@@ -55,6 +55,14 @@ test('sidebar permanently shows a border and orange edge and click smoothly fill
  await page.clock.runFor(100);
  const middle=await fill.evaluate(el=>new DOMMatrix(getComputedStyle(el).transform).m11);
  expect(middle).toBeGreaterThan(0);expect(middle).toBeLessThan(1);
- await page.clock.runFor(700);await expect(fill).toHaveCSS('transform','matrix(1, 0, 0, 1, 0, 0)');await expect(fill).toHaveCSS('background-color',orange);
+ await page.clock.runFor(700);await expect(fill).toHaveCount(0);
  await page.getByRole('button',{name:'Settings',exact:true}).click(); await expect(page.getByRole('dialog',{name:'Workspace settings'})).toBeVisible(); await expect(page.locator('.dashboard-sidebar nav button').last().locator('.nav-click-fill')).toHaveCSS('animation-name','nav-click-fill');
+});
+
+test('shared logo is centered without a caption on every workspace page',async({page})=>{
+ for(const route of ['overview','strategies','backtests','data','history']){
+  await page.goto(`/#/app/${route}`);await expect(page.getByRole('heading',{level:1})).toBeVisible();
+  await expect(page.getByText('BACKTESTING WORKSPACE',{exact:true})).toHaveCount(0);
+  const alignment=await page.locator('.workspace-brand').evaluate(el=>{const link=el.getBoundingClientRect(),img=el.querySelector('img')!.getBoundingClientRect();return Math.abs(link.left+link.width/2-img.left-img.width/2);});expect(alignment).toBeLessThan(1);
+ }
 });
