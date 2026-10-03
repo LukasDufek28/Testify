@@ -129,7 +129,7 @@ test("selected strategy opens setup and its latest run metadata is searchable wi
   await page.reload();
   await expect(page.locator(".strategy-last-test .animated-value")).toHaveCount(2);
   await expect(page.getByRole("article",{name:"First",exact:true}).locator(".strategy-last-test .animated-value")).toHaveCSS("color","rgb(255, 255, 255)");
-  await expect(page.getByRole("article",{name:"Second",exact:true}).locator(".strategy-last-test .animated-value")).toHaveCSS("color","rgb(254, 243, 234)");
+  await expect(page.getByRole("article",{name:"Second",exact:true}).locator(".strategy-last-test .animated-value")).toHaveCSS("color","rgb(252, 230, 213)");
   await page.getByPlaceholder("Search by name, market or timeframe").fill("ETH-USD 15m");
   await expect(page.locator(".strategy-card")).toHaveCount(1);
   await page.locator(".strategy-card summary").click(); await page.getByRole("button",{name:"New backtest",exact:true}).click();

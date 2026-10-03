@@ -1,6 +1,7 @@
 import { sampleCurve } from "./results";
 export const PROFIT_COLOR = "#ffffff";
 export const DRAWDOWN_COLOR = "#f2842f";
+const LOSS_PERCENT_SCALE = 10;
 
 export function equityData(points: { time: number; equity: number }[], percent = false, capital?: number) {
   const baseline = percent ? 0 : capital ?? points[0]?.equity ?? 0;
@@ -12,11 +13,11 @@ export function equityLines(name: string, points: { time: number; equity: number
   const low = data.reduce((value, point) => Math.min(value, point[1]), Infinity);
   const high = data.reduce((value, point) => Math.max(value, point[1]), -Infinity);
   const threshold = (high - baseline) / (high - low);
-  const lossFloor = percent ? -20 : baseline > 0 ? baseline * .8 : baseline - 20;
-  const lossColor = metricColor(baseline > 0 ? (low / baseline - 1) * 5 : low / 20);
+  const lossFloor = percent ? -LOSS_PERCENT_SCALE : baseline > 0 ? baseline * (1 - LOSS_PERCENT_SCALE / 100) : baseline - LOSS_PERCENT_SCALE;
+  const lossColor = metricColor(baseline > 0 ? (low / baseline - 1) * 100 / LOSS_PERCENT_SCALE : low / LOSS_PERCENT_SCALE);
   const color = low >= baseline ? PROFIT_COLOR : high === low ? lossColor : {
     type: "linear", x: 0, y: 0, x2: 0, y2: 1,
-    colorStops: [{offset:0,color:high >= baseline ? PROFIT_COLOR : metricColor(baseline > 0 ? (high / baseline - 1) * 5 : high / 20)},...(high > baseline ? [{offset:threshold,color:PROFIT_COLOR}] : []),...(high > lossFloor && low < lossFloor ? [{offset:(high-lossFloor)/(high-low),color:DRAWDOWN_COLOR}] : []),{offset:1,color:lossColor}],
+    colorStops: [{offset:0,color:high >= baseline ? PROFIT_COLOR : metricColor(baseline > 0 ? (high / baseline - 1) * 100 / LOSS_PERCENT_SCALE : high / LOSS_PERCENT_SCALE)},...(high > baseline ? [{offset:threshold,color:PROFIT_COLOR}] : []),...(high > lossFloor && low < lossFloor ? [{offset:(high-lossFloor)/(high-low),color:DRAWDOWN_COLOR}] : []),{offset:1,color:lossColor}],
   };
   // A single series keeps hover/legend emphasis from hiding a profit overlay.
   return [{ name, type: "line", showSymbol: false, emphasis: { disabled: true },
@@ -26,18 +27,18 @@ export function equityLines(name: string, points: { time: number; equity: number
 }
 
 export function drawdownColors(_points: { equity: number }[]) {
-  return { type: "continuous", show: false, dimension: 1, min: -20, max: 0, inRange: { color: [DRAWDOWN_COLOR, PROFIT_COLOR] } };
+  return { type: "continuous", show: false, dimension: 1, min: -LOSS_PERCENT_SCALE, max: 0, inRange: { color: [DRAWDOWN_COLOR, PROFIT_COLOR] } };
 }
 
 // Fixed scales keep the same value the same color across saved runs.
 export function metricTone(label: string, value: number): number {
   if (!Number.isFinite(value)) return value === Infinity && label === "Profit factor" ? 1 : 0;
   switch (label) {
-    case "Return": case "Net profit": return value / 20;
-    case "Win rate": return (value - 50) / 50;
-    case "Profit factor": return value >= 1 ? (value - 1) / 2 : value - 1;
-    case "Average R": return value;
-    case "Max drawdown": return -Math.abs(value) / 20;
+    case "Return": case "Net profit": return value / LOSS_PERCENT_SCALE;
+    case "Win rate": return (value - 50) / 25;
+    case "Profit factor": return value >= 1 ? (value - 1) / 2 : (value - 1) * 2;
+    case "Average R": return value * 2;
+    case "Max drawdown": return -Math.abs(value) / LOSS_PERCENT_SCALE;
     default: return 0;
   }
 }
@@ -48,10 +49,10 @@ export function metricColor(tone: number) {
 }
 
 export const metricScaleHint: Record<string, string> = {
-  "Net profit": "White at zero or positive return; losses fade to orange at −20%.",
-  "Return": "White at zero or positive return; losses fade to orange at −20%.",
-  "Win rate": "White at 50% or above; lower win rates fade to orange at 0%.",
-  "Profit factor": "White at 1 or above; lower factors fade to orange at 0.",
-  "Average R": "White at zero or above; losses fade to orange at −1R.",
-  "Max drawdown": "White at 0%; deeper drawdown fades to orange at 20%.",
+  "Net profit": "White at zero or positive return; losses fade to orange at −10%.",
+  "Return": "White at zero or positive return; losses fade to orange at −10%.",
+  "Win rate": "White at 50% or above; lower win rates fade to orange at 25%.",
+  "Profit factor": "White at 1 or above; lower factors fade to orange at 0.5.",
+  "Average R": "White at zero or above; losses fade to orange at −0.5R.",
+  "Max drawdown": "White at 0%; deeper drawdown fades to orange at 10%.",
 };
