@@ -1,8 +1,8 @@
 import {test,expect} from "@playwright/test";
 test.beforeEach(async({page})=>{await page.route('**/api/markets',r=>r.fulfill({json:{markets:Array.from({length:12},(_,i)=>({id:i===0?'BTC-USD':`COIN${i}-USD`}))}}));});
-test('secondary buttons match landing brightness without lifting',async({page})=>{
-  await page.goto('/');const landing=page.getByRole('link',{name:'Explore the product',exact:true});await landing.hover();await page.waitForTimeout(250);const reference=await landing.evaluate(e=>({filter:getComputedStyle(e).filter,transform:getComputedStyle(e).transform}));
-  await page.goto('/#/app/backtests');const secondary=page.getByRole('button',{name:'Saved backtests',exact:true});await secondary.hover();await page.waitForTimeout(250);expect(await secondary.evaluate(e=>({filter:getComputedStyle(e).filter,transform:getComputedStyle(e).transform}))).toEqual(reference);
+test('landing and workspace secondary buttons brighten without lifting',async({page})=>{
+  await page.goto('/');const landing=page.getByRole('link',{name:'Explore',exact:true});await landing.hover();await page.waitForTimeout(250);const reference=await landing.evaluate(e=>({filter:getComputedStyle(e).filter,transform:getComputedStyle(e).transform}));
+  await page.goto('/#/app/backtests');const secondary=page.getByRole('button',{name:'Saved backtests',exact:true});await secondary.hover();await page.waitForTimeout(250);expect(await secondary.evaluate(e=>({filter:getComputedStyle(e).filter,transform:getComputedStyle(e).transform}))).toEqual({filter:'brightness(1.1)',transform:'none'});expect(reference).toEqual({filter:'brightness(1.12)',transform:'none'});
 });
 test('animated selects support keyboard, search, dismissal and disabled controls',async({page})=>{
   await page.goto('/#/app/backtests');const frame=page.getByRole('combobox',{name:'Timeframe',exact:true});await frame.focus();await frame.press('ArrowDown');await expect(page.getByRole('listbox')).toBeVisible();expect(await page.locator('.control-popup').evaluate(e=>getComputedStyle(e).animationName)).toBe('control-open');await frame.press('ArrowDown');await frame.press('Enter');await expect(frame).toContainText('6 hours');

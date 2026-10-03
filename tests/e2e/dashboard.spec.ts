@@ -68,56 +68,18 @@ test("completed backtests select the returning-user dashboard after storage load
   await expect(page.locator(".dashboard-welcome")).toHaveCount(0);
 });
 
-test("landing card tilt stays subtle and resets when the cursor leaves", async ({ page }) => {
-  await page.goto("/");
-  const card = page.locator(".landing-preview-tilt");
-  const box = (await card.boundingBox())!;
-  await page.mouse.move(box.x + box.width * .95, box.y + box.height * .1);
-  const tilt = await card.evaluate(e => ({ x: parseFloat((e as HTMLElement).style.getPropertyValue("--tilt-x")), y: parseFloat((e as HTMLElement).style.getPropertyValue("--tilt-y")) }));
-  expect(tilt.x).toBeGreaterThan(0);
-  expect(tilt.y).toBeGreaterThan(0);
-  expect(Math.abs(tilt.x)).toBeLessThanOrEqual(2);
-  expect(Math.abs(tilt.y)).toBeLessThanOrEqual(2);
-  await page.mouse.move(0, 0);
-  expect(await card.evaluate(e => (e as HTMLElement).style.getPropertyValue("--tilt-x"))).toBe("0deg");
-  expect(await card.evaluate(e => (e as HTMLElement).style.getPropertyValue("--tilt-y"))).toBe("0deg");
-});
-
-test("primary buttons share the same hover motion on landing and dashboard", async ({ page }) => {
+test("dashboard primary buttons retain their approved hover motion", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  const styles = [];
-  for (const [url, name] of [["/", "Start for free"], ["/#/app/overview", "Create with AI"]]) {
-    await page.goto(url);
-    const button = page.getByRole(url === "/" ? "link" : "button", { name, exact: true }).first();
-    await button.hover();
-    await expect.poll(() => button.evaluate(e => {
-      return Number(getComputedStyle(e).transform.match(/matrix\(([^,]+)/)?.[1]);
-    })).toBe(1.025);
-    styles.push(await button.evaluate(e => ({
-      transition: getComputedStyle(e).transition,
-      glare: getComputedStyle(e, "::after").backgroundImage,
-      animation: getComputedStyle(e, "::after").animationName,
-      duration: getComputedStyle(e, "::after").animationDuration,
-    })));
-  }
-  expect(styles[1]).toEqual(styles[0]);
-  expect(styles[1].animation).toBe("landing-glare");
+  await page.goto("/#/app/overview");
+  const button = page.getByRole("button", {name:"Create with AI",exact:true});
+  await button.hover();
+  await expect.poll(() => button.evaluate(e => Number(getComputedStyle(e).transform.match(/matrix\(([^,]+)/)?.[1]))).toBe(1.025);
+  expect(await button.evaluate(e => getComputedStyle(e, "::after").animationName)).toBe("landing-glare");
 });
 
-test("landing setup cards use the dashboard's quick staggered popup animation", async ({ page }) => {
-  const timings = [];
-  for (const [url, selector] of [["/", ".landing-steps article"], ["/#/app/overview", ".dashboard-steps article"]]) {
-    await page.goto(url);
-    await page.locator(selector).first().waitFor();
-    timings.push(await page.locator(selector).evaluateAll(elements => elements.map(e => ({
-      name: getComputedStyle(e).animationName,
-      duration: getComputedStyle(e).animationDuration,
-      delay: getComputedStyle(e).animationDelay,
-      easing: getComputedStyle(e).animationTimingFunction,
-    }))));
-  }
-  expect(timings[0]).toEqual(timings[1]);
-  expect(timings[0].map(t => t.delay)).toEqual(["0.14s", "0.24s", "0.34s"]);
-  await page.goto("/");
-  expect(await page.locator(".landing-copy").evaluate(e => getComputedStyle(e).animationName)).toBe("testify-pop");
+test("dashboard onboarding keeps its quick staggered popup animation", async ({ page }) => {
+  await page.goto("/#/app/overview");
+  await page.locator(".dashboard-steps article").first().waitFor();
+  const timings = await page.locator(".dashboard-steps article").evaluateAll(elements => elements.map(e => ({name:getComputedStyle(e).animationName, delay:getComputedStyle(e).animationDelay})));
+  expect(timings.map(t => t.delay)).toEqual(["0.14s", "0.24s", "0.34s"]);
 });

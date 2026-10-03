@@ -1,223 +1,90 @@
-import { metricTone } from "./theme";
-import AnimatedValue from "./AnimatedValue";
-import "./motion.css";
-import { useId, useRef, type PointerEvent } from "react";
+import { useEffect, useRef } from "react";
 import "./landing.css";
+import EquityDemo from "./EquityDemo";
+
+const steps = [
+  ["01", "Describe your idea", "Explain your entry, exit,", "and risk rules."],
+  ["02", "Build with free AI", "Review the rules and save", "your strategy version."],
+  ["03", "Test and improve", "Compare historical outcomes", "and refine the next run."],
+];
 
 export default function Landing() {
-  const curveClip = useId();
-  const signIn = useRef<HTMLDialogElement>(null);
-  function tiltPreview(event: PointerEvent<HTMLDivElement>) {
-    if (event.pointerType !== "mouse") return;
-    const card = event.currentTarget;
-    const rect = card.getBoundingClientRect();
-    const x = Math.max(-1, Math.min(1, (event.clientX - rect.left) / rect.width * 2 - 1));
-    const y = Math.max(-1, Math.min(1, (event.clientY - rect.top) / rect.height * 2 - 1));
-    card.style.setProperty("--tilt-x", `${-y * 2}deg`);
-    card.style.setProperty("--tilt-y", `${x * 2}deg`);
-  }
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const elements = root.current?.querySelectorAll<HTMLElement>("[data-reveal]");
+    if (!elements) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !window.IntersectionObserver) {
+      elements.forEach((element) => element.classList.add("is-visible"));
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      }
+    }, { threshold: 0.08 });
+    elements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="landing">
+    <div className="landing" ref={root}>
       <header className="landing-header">
-        <a href="#" aria-label="Testify home">
-          <img
-            className="landing-logo"
-            src="/testify-logo.png"
-            alt="Testify"
-            width="150"
-            height="50"
-          />
-        </a>
+        <a className="landing-logo silver-text" href="#" aria-label="Testify home">TESTIFY</a>
         <nav aria-label="Main navigation">
-          <a className="landing-nav-link" href="#how-it-works">
-            How it works
-          </a>
-          <a className="landing-nav-link" href="#product-preview">
-            Product preview
-          </a>
-          <button
-            className="landing-button landing-secondary"
-            onClick={() => signIn.current?.showModal()}
-          >
-            Sign in
-          </button>
-          <a className="landing-button landing-primary testify-primary" href="#/app/overview">
-            Start for free
-          </a>
+          <a className="landing-nav-link" href="#how-it-works">How it works</a>
+          <a className="landing-nav-link" href="#product-preview">Product</a>
+          <a className="landing-button landing-primary" href="#/app/overview">Start for free</a>
         </nav>
       </header>
       <main className="landing-main">
         <section className="landing-hero" aria-labelledby="landing-heading">
           <div className="landing-copy">
             <span className="landing-kicker">FREE AI STRATEGY BUILDER</span>
-            <h1 id="landing-heading">
-              Create and backtest
-              <br />
-              trading strategies
-              <br />
-              for free.
+            <h1 id="landing-heading" className="silver-text">
+              <span>An idea is <br className="landing-mobile-break" />a start.</span>
+              <span>Evidence is <br className="landing-mobile-break" />an edge.</span>
             </h1>
-            <p>
-              Turn an idea into clear trading rules with AI.{" "}
-              <br className="landing-desktop-break" />
-              Test it on historical data, review the results,{" "}
-              <br className="landing-desktop-break" />
-              and improve the next version.
-            </p>
+            <p className="landing-intro">Create and backtest trading strategies for free.</p>
+            <p className="landing-description">Turn your idea into clear rules. Test, review, and improve.</p>
             <div className="landing-actions">
-              <a className="landing-button landing-primary testify-primary" href="#/app/overview">
-                Start for free
-              </a>
-              <a
-                className="landing-button landing-secondary"
-                href="#/app/overview"
-              >
-                Explore the product
-              </a>
+              <a className="landing-button landing-primary" href="#/app/overview">Start for free</a>
+              <a className="landing-button landing-secondary" href="#product-preview">Explore</a>
             </div>
-            <div className="landing-flow">
-              Describe - Create - Backtest - Review
-            </div>
-          </div>
-          <div className="landing-preview-tilt" onPointerMove={tiltPreview} onPointerLeave={(e) => {
-            e.currentTarget.style.setProperty("--tilt-x", "0deg");
-            e.currentTarget.style.setProperty("--tilt-y", "0deg");
-          }}>
-          <section
-            className="landing-preview"
-            id="product-preview"
-            aria-labelledby="preview-heading"
-          >
-            <h2 id="preview-heading">From idea to evidence</h2>
-            <p className="landing-preview-caption">Product preview</p>
-            <span className="landing-strategy">BTC trend crossover · v3</span>
-            <div className="landing-metrics">
-              {[
-                ["Net return", "+12.4%"],
-                ["Max drawdown", "-3.2%"],
-                ["Trades", "84"],
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <span>{label}</span>
-                  <strong className={label === "Net return" ? "positive" : label === "Max drawdown" ? "negative" : undefined}><AnimatedValue animate={label === "Net return"} tone={label==="Net return"?metricTone("Return",parseFloat(value)):label==="Max drawdown"?metricTone("Max drawdown",parseFloat(value)):undefined} value={value}/></strong>
-                </div>
-              ))}
-            </div>
-            <figure className="landing-chart">
-              <figcaption>Equity · example result</figcaption>
-              <svg
-                viewBox="0 0 608 212"
-                role="img"
-                aria-label="Example equity curve rising from about ten thousand to eleven thousand dollars between January and June"
-              >
-                {[0, 1, 2, 3].map((i) => (
-                  <g key={i}>
-                    <line
-                      x1="58"
-                      x2="576"
-                      y1={64 + (i * 107) / 3}
-                      y2={64 + (i * 107) / 3}
-                    />
-                    <text x="12" y={69 + (i * 107) / 3}>
-                      {["$11.2k", "$10.8k", "$10.4k", "$10.0k"][i]}
-                    </text>
-                  </g>
-                ))}
-                <defs>
-                  <clipPath id={curveClip}>
-                    <rect
-                      className="landing-curve-reveal"
-                      x="58"
-                      y="64"
-                      width="520"
-                      height="110"
-                    />
-                  </clipPath>
-                </defs>
-                <g clipPath={`url(#${curveClip})`}>
-                  <image
-                    className="landing-equity-line"
-                    href="/design/equity.svg"
-                    x="58"
-                    y="71.5"
-                    width="518.828"
-                    height="92.2268"
-                  />
-                </g>
-                <text className="landing-chart-month" x="58" y="196">
-                  Jan
-                </text>
-                <text className="landing-chart-month" x="317" y="196">
-                  Apr
-                </text>
-                <text className="landing-chart-month" x="554" y="196">
-                  Jun
-                </text>
-              </svg>
-            </figure>
-          </section>
+            <a className="landing-scroll" href="#product-preview">SCROLL TO EXPLORE</a>
           </div>
         </section>
-        <section
-          className="landing-steps"
-          id="how-it-works"
-          aria-label="How it works"
-        >
-          {[
-            ["01", "Describe your idea", "Explain entry, exit and risk rules."],
-            [
-              "02",
-              "Build with free AI",
-              "Review and save a validated strategy.",
-            ],
-            [
-              "03",
-              "Test and improve",
-              "Compare outcomes and refine the rules.",
-            ],
-          ].map(([number, title, description]) => (
-            <article key={number}>
-              <h2>
-                {number} {title}
-              </h2>
-              <p>{description}</p>
-            </article>
-          ))}
+        <section className="landing-preview" id="product-preview" aria-labelledby="preview-heading" data-reveal>
+          <h2 id="preview-heading" className="silver-text">Your strategy. A clearer picture.</h2>
+          <p className="landing-preview-caption">Historical results and every trade with the assumptions behind them.</p>
+          <figure className="landing-chart" aria-label="Illustrative strategy and benchmark equity chart">
+            <EquityDemo />
+          </figure>
+        </section>
+        <section className="landing-process" id="how-it-works" aria-labelledby="process-heading" data-reveal>
+          <h2 id="process-heading" className="silver-text">Less friction. More clarity.</h2>
+          <div className="landing-steps">
+            {steps.map(([number, title, first, second]) => (
+              <article key={number}>
+                <span className="landing-step-number">{number}</span>
+                <h3>{title}</h3>
+                <p>{first}<br />{second}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+        <section className="landing-final" aria-labelledby="final-heading" data-reveal>
+          <h2 id="final-heading" className="silver-text">Start with an idea. Make it testable.</h2>
+          <a className="landing-button landing-primary" href="#/app/overview">Open free workspace</a>
         </section>
       </main>
-      <footer>
-        Backtesting shows historical outcomes. Results are examples, not
-        forecasts.
+      <footer className="landing-footer">
+        <a className="landing-footer-logo silver-text" href="#" aria-label="Testify home">TESTIFY</a>
+        <p>Backtesting shows historical outcomes. Examples are not forecasts.</p>
+        <span>© Testify</span>
       </footer>
-      <dialog
-        ref={signIn}
-        className="landing-dialog"
-        aria-labelledby="sign-in-title"
-        onClick={(e) => {
-          if (e.target === signIn.current) signIn.current.close();
-        }}
-      >
-        <h2 id="sign-in-title">Start your research</h2>
-        <p>
-          Account sign-in is coming soon. You can use the free workspace now;
-          your strategies and results are saved in this browser.
-        </p>
-        <div>
-          <a
-            className="landing-button landing-primary testify-primary"
-            href="#/app/overview"
-            onClick={() => signIn.current?.close()}
-          >
-            Continue for free
-          </a>
-          <button
-            className="landing-button landing-secondary"
-            onClick={() => signIn.current?.close()}
-          >
-            Close
-          </button>
-        </div>
-      </dialog>
     </div>
   );
 }

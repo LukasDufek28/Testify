@@ -1,19 +1,11 @@
 import { test, expect } from '@playwright/test';
 
-test('preview numbers count up to exact formatted values including with system reduced motion', async ({ page }) => {
-  await page.clock.install();
+test('landing example stays still and uses the approved chart on every viewport', async ({ page }) => {
   await page.goto('/');
-  const values = page.locator('.landing-metrics .animated-value');
-  await expect(values).toHaveCount(3);
-  const final = await values.first().getAttribute('aria-label');
-  expect(await values.first().textContent()).not.toBe(final);
-  await page.clock.runFor(2200);
-  await expect(values.first()).toHaveText(final!);
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.reload();
-  expect(await values.first().textContent()).not.toBe(final);
-  await page.clock.runFor(2200);
-  await expect(values.first()).toHaveText(final!);
+  await expect(page.locator('.landing .animated-value')).toHaveCount(0);
+  await expect(page.locator('.landing-chart-image')).toHaveAttribute('viewBox', '472 366 1072 458');
+  await page.setViewportSize({width:390,height:844});
+  await expect(page.locator('.landing-chart-image')).toHaveAttribute('viewBox', '472 366 1072 458');
 });
 
 test('equity uses starting balance rather than previous highs and keeps a single series', async ({ page }) => {

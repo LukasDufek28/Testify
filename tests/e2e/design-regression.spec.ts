@@ -2,13 +2,6 @@ import {test,expect} from '@playwright/test';
 import {exampleStrategy} from '../../src/types';
 const orange='rgb(242, 132, 47)', blue='rgb(69, 91, 138)';
 test.beforeEach(async({page})=>{await page.route('**/api/markets',r=>r.fulfill({json:{markets:[{id:'BTC-USD'}]}}));});
-test('landing preview uses the shared performance scale and keeps trade counts white',async({page,request})=>{
- await page.goto('/');
- expect(await (await request.get('/design/equity.svg')).text()).toContain('stroke="#FFFFFF"');
- await expect(page.locator('.landing-metrics .positive .animated-value')).toHaveCSS('color','rgb(255, 255, 255)');
- await expect(page.locator('.landing-metrics .negative .animated-value')).toHaveCSS('color','rgb(251, 216, 188)');
- await expect(page.locator('.landing-metrics > div').nth(2).locator('strong')).toHaveCSS('color','rgb(255, 255, 255)');
-});
 test('strategy and dashboard hover states retain orange and blue through real hover',async({page})=>{
  await page.goto('/#/app/studio');
  for(const name of ['Save','Generate new draft']) {const button=page.getByRole('button',{name,exact:true});await expect(button).toHaveCSS('background-color',orange);await button.hover();await expect(button).toHaveCSS('background-color',orange);await expect(button).toHaveCSS('color','rgb(255, 255, 255)');}
