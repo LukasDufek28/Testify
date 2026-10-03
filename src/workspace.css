@@ -58,8 +58,8 @@
 .strategy-delete-dialog h2 { margin: 0 0 16px; font-size: 22px; }
 .strategy-delete-dialog p { font-size: 14px; line-height: 1.65; overflow-wrap: anywhere; }
 .strategy-dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
-.dashboard-shell .strategy-delete-button { background: #f3a6b4; color: #253c6d; }
-.strategy-operation-error { padding: 12px; border: 1px solid #f3a6b4; border-radius: 6px; }
+.dashboard-shell .strategy-delete-button { background: #ffffff; color: #253c6d; }
+.strategy-operation-error { padding: 12px; border: 1px solid #ffffff; border-radius: 6px; }
 @media(max-width:560px) { .strategy-skeleton-grid { grid-template-columns: 1fr; } .strategy-dialog-actions > button { flex: 1; } }
 @media(prefers-reduced-motion:reduce) { .strategy-skeleton-grid > div { animation: none; } }
 .workspace-empty { padding: 48px; text-align: center; }
@@ -193,7 +193,9 @@
 .dashboard-sidebar nav button { position:relative; overflow:hidden; transition:background 180ms ease,box-shadow 220ms ease; }
 .dashboard-sidebar nav button:not([aria-current]):hover { background:#455b8a66; box-shadow:inset 0 0 0 1px #ffffff18; }
 .dashboard-sidebar nav button[aria-current] { border-left:0; padding-left:16px; box-shadow:inset 0 0 0 1px #ffffff0a; }
-.dashboard-sidebar nav button[aria-current]::before { content:""; position:absolute; left:0; top:10px; bottom:10px; width:4px; border-radius:0 4px 4px 0; background:var(--testify-profit); box-shadow:0 0 12px #99e1d030; transform-origin:left center; animation:nav-marker-turn 480ms cubic-bezier(.16,1,.3,1) both; pointer-events:none; }
-@keyframes nav-marker-turn { 0% { transform:perspective(120px) translateY(-10px) rotateY(-100deg) scaleY(.55); opacity:0; } 50% { opacity:1; } 100% { transform:perspective(120px) translateY(0) rotateY(0) scaleY(1); opacity:1; } }
-@media(prefers-reduced-motion:reduce) { .dashboard-sidebar nav button[aria-current]::before { animation:none; }.dashboard-sidebar nav button { transition:none; } }
+.nav-selection-marker { position:absolute; inset:0; border-left:4px solid #f2842f; border-radius:7px; transform-origin:center; pointer-events:none; animation:nav-marker-turn 480ms cubic-bezier(.16,1,.3,1) both; --marker-from:180deg; --marker-to:0deg; }
+.nav-selection-marker.marker-right { --marker-from:0deg; --marker-to:180deg; }
+@keyframes nav-marker-turn { from { transform:perspective(500px) rotateY(var(--marker-from)); } to { transform:perspective(500px) rotateY(var(--marker-to)); } }
+@media(prefers-reduced-motion:reduce) { .nav-selection-marker { animation:none; transform:rotateY(var(--marker-to)); }.dashboard-sidebar nav button { transition:none; } }
+.dashboard-shell .table-action { min-height:34px; padding:7px 14px; font-size:13px; white-space:nowrap; }
 @media(max-width:560px) { .dashboard-sidebar nav button[aria-current] { padding-left:10px; } }

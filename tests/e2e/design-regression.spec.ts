@@ -1,8 +1,8 @@
 import {test,expect} from '@playwright/test';
 import {exampleStrategy} from '../../src/types';
-const profit='rgb(153, 225, 208)', drawdown='rgb(243, 166, 180)', orange='rgb(242, 132, 47)', blue='rgb(69, 91, 138)';
+const profit='rgb(255, 255, 255)', drawdown='rgb(255, 255, 255)', orange='rgb(242, 132, 47)', blue='rgb(69, 91, 138)';
 test.beforeEach(async({page})=>{await page.route('**/api/markets',r=>r.fulfill({json:{markets:[{id:'BTC-USD'}]}}));});
-test('landing preview uses mint profits and rose drawdowns while neutral metrics stay white',async({page})=>{
+test('landing preview keeps profits and drawdowns white while neutral metrics stay white',async({page})=>{
  await page.goto('/');
  await expect(page.locator('.landing-metrics .positive')).toHaveCSS('color',profit);
  await expect(page.locator('.landing-metrics .negative')).toHaveCSS('color',drawdown);
@@ -14,10 +14,11 @@ test('strategy and dashboard hover states retain orange and blue through real ho
  const validate=page.getByRole('button',{name:'Validate',exact:true});await validate.hover();await expect(validate).toHaveCSS('background-color',blue);
  await page.getByRole('button',{name:'Save',exact:true}).click();await page.locator('.strategy-panel summary').click();const saved=page.locator('.strategy-list button');await saved.hover();await expect(saved).toHaveCSS('background-color',blue);
 });
-test('returning dashboard matches the design sections and uses mint gains and rose drawdowns',async({page})=>{
+test('returning dashboard matches the design sections and keeps gains and drawdowns white',async({page})=>{
  await page.goto('/#/app/overview');await expect(page.getByRole('heading',{level:1})).toBeVisible();
  await page.evaluate(async(strategy)=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-local-v1',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction(['runs','strategies'],'readwrite');tx.objectStore('strategies').put({id:'s',name:strategy.name,source:JSON.stringify(strategy),updatedAt:1});for(const [id,value] of [['gain',12],['loss',-2]] as const)tx.objectStore('runs').put({id,name:id,createdAt:id==='gain'?2:1,symbol:'BTC-USD',strategyId:'s',strategyName:strategy.name,granularity:3600,settings:{start:1735689600,end:1735776000},metrics:{netReturnPct:value,maxDrawdownPct:3,tradeCount:2},curve:[],trades:[],warnings:[]});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});},exampleStrategy);
  await page.reload();await expect(page.getByRole('heading',{name:'Dashboard',exact:true})).toBeVisible();await expect(page.locator('.dashboard-summary article')).toHaveCount(4);
+ await expect(page.getByText('Saved snapshot',{exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'View results for gain',exact:true})).toBeVisible();
  for(const heading of ['Continue working','Ready to test?','Recent backtests'])await expect(page.getByRole('heading',{name:heading,exact:true})).toBeVisible();
  await expect(page.locator('.dashboard-summary .positive')).toHaveText('+12.0%');await expect(page.locator('.dashboard-summary .positive')).toHaveCSS('color',profit);
  await expect(page.getByRole('cell',{name:'-2.0%',exact:true})).toHaveCSS('color',drawdown);
@@ -41,9 +42,9 @@ test('sidebar selection has a short turning marker and hover never replaces the 
  await page.goto('/#/app/data');await expect(page.getByRole('heading',{level:1})).toBeVisible();
  const active=page.getByRole('button',{name:'Data',exact:true});
  await expect(active).toHaveAttribute('aria-current','page');
- const marker=await active.evaluate(el=>{const css=getComputedStyle(el,'::before');return {color:css.backgroundColor,animation:css.animationName,duration:css.animationDuration};});
- expect(marker.color).toBe(profit);expect(marker.animation).toBe('nav-marker-turn');expect(marker.duration).toBe('0.48s');
+ const marker=await active.locator('.nav-selection-marker').evaluate(el=>{const css=getComputedStyle(el);return {color:css.borderLeftColor,animation:css.animationName,duration:css.animationDuration};});
+ expect(marker.color).toBe(orange);expect(marker.animation).toBe('nav-marker-turn');expect(marker.duration).toBe('0.48s');
  await page.getByRole('button',{name:'Backtests',exact:true}).hover();await expect(active).toHaveCSS('background-color',blue);await expect(page.locator('nav [aria-current]')).toHaveCount(1);
  await page.getByRole('button',{name:'Backtests',exact:true}).click();await expect(page.getByRole('button',{name:'Backtests',exact:true})).toHaveAttribute('aria-current','page');await expect(active).not.toHaveAttribute('aria-current','page');
- await page.emulateMedia({reducedMotion:'reduce'});expect(await page.locator('nav [aria-current]').evaluate(el=>getComputedStyle(el,'::before').animationName)).toBe('none');
+ await expect(page.locator('nav [aria-current] .nav-selection-marker')).toHaveClass(/marker-right/);await expect.poll(()=>page.locator('nav [aria-current] .nav-selection-marker').evaluate(el=>new DOMMatrix(getComputedStyle(el).transform).m11)).toBeCloseTo(-1,3);await page.getByRole('button',{name:'Data',exact:true}).click();await expect(page.locator('nav [aria-current] .nav-selection-marker')).toHaveClass(/marker-left/);await page.emulateMedia({reducedMotion:'reduce'});expect(await page.locator('nav [aria-current] .nav-selection-marker').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
 });

@@ -1,3 +1,4 @@
+import AnimatedValue from "./AnimatedValue";
 import "./motion.css";
 import { useId, useRef, type PointerEvent } from "react";
 import "./landing.css";
@@ -97,7 +98,7 @@ export default function Landing() {
               ].map(([label, value]) => (
                 <div key={label}>
                   <span>{label}</span>
-                  <strong className={label === "Net return" ? "positive" : label === "Max drawdown" ? "negative" : undefined}>{value}</strong>
+                  <strong className={label === "Net return" ? "positive" : label === "Max drawdown" ? "negative" : undefined}><AnimatedValue value={value}/></strong>
                 </div>
               ))}
             </div>
