@@ -10,10 +10,23 @@ export function createAuthHandler(connect = database) {
       const sql = connect();
       if (req.method === "GET") {
         const user = await session(req, sql);
-        return res.status(200).json({ user: user ? { id: user.id, email: user.email, sessionId: user.session_id } : null });
+        return res.status(200).json({ previewGuest: process.env.VERCEL_ENV === "preview", user: user ? { id: user.id, email: user.email, sessionId: user.session_id, guest: user.email.endsWith("@preview.testify.invalid") } : null });
       }
       if (Number(req.headers["content-length"] || 0) > 2048) throw new AuthError("Request is too large.", 413);
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+      if (body?.action === "guest") {
+        if (process.env.VERCEL_ENV !== "preview") throw new AuthError("Guest access is only available on previews.", 403);
+        const current = await session(req, sql);
+        if (current) return res.status(200).json({ user: { id: current.id, email: current.email, sessionId: current.session_id, guest: current.email.endsWith("@preview.testify.invalid") } });
+        const ip = String(req.headers["x-vercel-forwarded-for"] || req.socket?.remoteAddress || "unknown");
+        await limit(sql, "preview-guest-ip", ip, 20);
+        const id = randomUUID(), email = `guest-${id}@preview.testify.invalid`;
+        const hash = await hashPassword(randomUUID() + randomUUID());
+        await sql`INSERT INTO testify_accounts (id, email, password_hash) VALUES (${id}, ${email}, ${hash})`;
+        const created = await newSession(sql, id);
+        setCookie(res, created.token);
+        return res.status(200).json({ user: { id, email, sessionId: created.id, guest: true } });
+      }
       if (body?.action === "logout") {
         const current = await session(req, sql);
         if (current && req.headers["x-testify-session"] && req.headers["x-testify-session"] !== current.session_id) throw new AuthError("Your session changed. Refresh before signing out.");

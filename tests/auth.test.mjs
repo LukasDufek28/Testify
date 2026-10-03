@@ -60,3 +60,27 @@ test("password hashes use unique salts and validate only the original password",
   assert.equal(await verifyPassword("a-long-test-password", a), true);
   assert.equal(await verifyPassword("another-long-password", a), false);
 });
+
+test("guest access is preview-only and gives each browser an isolated persistent session", async () => {
+  const previous = process.env.VERCEL_ENV;
+  process.env.AUTH_SECRET = "test-only-secret-that-is-at-least-32-characters";
+  process.env.APP_ORIGINS = "https://testify.example";
+  const db = new PGlite();
+  await db.exec(await readFile(new URL("../auth-schema.sql", import.meta.url), "utf8"));
+  const sql = async (strings, ...values) => (await db.query(strings.reduce((result, value, i) => result + (i ? `$${i}` : "") + value, ""), values)).rows;
+  const handler = createAuthHandler(() => sql);
+  const call = async (method, cookie, action) => { const res = reply(); await handler({method, headers:{origin:"https://testify.example",cookie},body:{action},socket:{remoteAddress:"127.0.0.1"}},res); return res; };
+  try {
+    process.env.VERCEL_ENV = "production";
+    assert.equal((await call("POST",undefined,"guest")).statusCode,403);
+    assert.equal((await call("GET")).body.previewGuest,false);
+    process.env.VERCEL_ENV = "preview";
+    assert.equal((await call("GET")).body.previewGuest,true);
+    const alice = await call("POST",undefined,"guest"), bob = await call("POST",undefined,"guest");
+    assert.equal(alice.statusCode,200); assert.equal(alice.body.user.guest,true);
+    assert.notEqual(alice.body.user.id,bob.body.user.id);
+    const cookie = alice.headers["Set-Cookie"].split(";")[0];
+    assert.equal((await call("GET",cookie)).body.user.id,alice.body.user.id);
+    assert.equal((await call("POST",cookie,"guest")).body.user.sessionId,alice.body.user.sessionId);
+  } finally { await db.close(); if(previous === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = previous; delete process.env.AUTH_SECRET; delete process.env.APP_ORIGINS; }
+});
