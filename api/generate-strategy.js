@@ -19,11 +19,11 @@ async function generate(model, apiKey, prompt) {
   const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", thinkingConfig: { thinkingLevel: "low" }, maxOutputTokens: 6000 } }),
-    signal: AbortSignal.timeout(45_000),
+    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", thinkingConfig: model.startsWith("gemini-2.5") ? { thinkingBudget: 0 } : { thinkingLevel: "low" }, maxOutputTokens: 6000 } }),
+    signal: AbortSignal.timeout(30_000),
   });
   const result = await upstream.json().catch(() => ({}));
-  return { upstream, result, text: result.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") };
+  return { upstream, result, text: result.candidates?.[0]?.content?.parts?.filter((part) => !part.thought).map((part) => part.text || "").join("") };
 }
 
 export function createGenerationHandler(authorize = requireUser) {
@@ -59,6 +59,7 @@ return async function handler(request, response) {
   if (!apiKey) return response.status(503).json({ error: "Gemini is not configured yet. The site owner must add GEMINI_API_KEY in Vercel." });
 
   let validationError = null;
+  let quotaReached = false;
   for (const model of MODELS) {
     try {
       const prompt = `${instructions}\n\n${mode === "revise" ? revisionContext + "\n\nModification instructions:\n" + idea.trim() : "Strategy request:\n" + idea.trim()}`;
@@ -66,16 +67,20 @@ return async function handler(request, response) {
       if (!upstream.ok) {
         const detail = String(result.error?.message || "").replaceAll(apiKey, "[redacted]").slice(0, 500);
         console.warn("Gemini upstream error", model, upstream.status, result.error?.status || "unknown", detail);
-        if ([404, 500, 502, 503, 504].includes(upstream.status)) continue;
-        if (upstream.status === 429) response.setHeader("Retry-After", "60");
-        return response.status(upstream.status === 429 ? 429 : 502).json({ error: upstream.status === 429 ? "Gemini quota reached. Please try again later." : "Gemini could not generate a strategy right now." });
+        if ([401, 403].includes(upstream.status)) return response.status(502).json({ error: "Gemini access was denied. The site owner must check the API key and its permissions." });
+        if (upstream.status === 429) quotaReached = true;
+        continue;
       }
       if (!text) { validationError = "Gemini returned an empty strategy."; continue; }
       let strategy;
-      try { strategy = JSON.parse(text); } catch { validationError = "Gemini returned invalid JSON. Try again."; continue; }
-      try { strategy = parseStrategy(JSON.stringify(strategy)); } catch (error) {
+      try { strategy = parseStrategy(text); } catch (error) {
         const repair = await generate(model, apiKey, `${prompt}\n\nYour previous JSON was rejected: ${error.message}\nCorrect every invalid formula and rule. Each formula operation must include its required fields exactly as specified above. Return the complete corrected strategy JSON. Previous JSON:\n${text.slice(0, 20000)}`);
-        if (!repair.upstream.ok || !repair.text) { validationError = `Gemini returned a strategy Testify cannot run: ${error.message}`; continue; }
+        if (!repair.upstream.ok) {
+          if ([401, 403].includes(repair.upstream.status)) return response.status(502).json({ error: "Gemini access was denied. The site owner must check the API key and its permissions." });
+          if (repair.upstream.status === 429) quotaReached = true;
+          continue;
+        }
+        if (!repair.text) { validationError = "Gemini returned an empty strategy."; continue; }
         try { strategy = parseStrategy(repair.text); } catch (repairError) { validationError = `Gemini returned a strategy Testify cannot run: ${repairError.message}`; continue; }
       }
       return response.status(200).json({ strategy, model });
@@ -83,7 +88,8 @@ return async function handler(request, response) {
       console.warn("Gemini connection failed", model);
     }
   }
-  return response.status(validationError ? 502 : 503).json({ error: validationError || "Gemini is temporarily busy. Please try again shortly." });
+  if (quotaReached && !validationError) { response.setHeader("Retry-After", "60"); return response.status(429).json({ error: "All available Gemini models were tried, but quota is exhausted. Please wait a minute before trying again." }); }
+  return response.status(validationError ? 502 : 503).json({ error: validationError ? `All Gemini models were tried. ${validationError}` : "All Gemini models were tried and are temporarily unavailable. Please try again shortly." });
 }
 
 }

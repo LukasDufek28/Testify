@@ -1,1 +1,11 @@
-{"version":2,"buildCommand":"npm run build","outputDirectory":"dist","framework":"vite"}
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "functions": {
+    "api/generate-strategy.js": {
+      "maxDuration": 300
+    }
+  }
+}
