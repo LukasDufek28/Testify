@@ -1,5 +1,6 @@
 import type { ApiFetch } from "./api-client";
 import { parseStrategy, type Strategy } from "./types";
+import type { DevelopmentPortfolioSummary } from "./research";
 
 export const GEMINI_MODEL = "gemini-3.8-flash";
 
@@ -16,11 +17,11 @@ export async function generateStrategy(idea: string, apiFetch: ApiFetch): Promis
   return { strategy: parseStrategy(JSON.stringify(body.strategy)), model: body.model || GEMINI_MODEL };
 }
 
-export async function reviseStrategy(apiFetch: ApiFetch, strategy: Strategy, results: unknown[], guidance: string): Promise<{ strategy: Strategy; model: string }> {
+export async function reviseStrategy(apiFetch: ApiFetch, strategy: Strategy, results: unknown[], guidance: string, portfolio?: DevelopmentPortfolioSummary): Promise<{ strategy: Strategy; model: string }> {
   const response = await apiFetch("/api/generate-strategy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode: "revise", strategy, results, idea: guidance.trim() }),
+    body: JSON.stringify({ mode: "revise", strategy, results, portfolio, idea: guidance.trim() }),
   });
   const body = await response.json().catch(() => ({})) as { error?: string; strategy?: unknown; model?: string };
   if (!response.ok) throw new Error(body.error || `Gemini request failed (HTTP ${response.status}).`);
