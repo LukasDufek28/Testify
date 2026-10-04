@@ -1,5 +1,5 @@
 import { requireUser } from "../lib/auth.js";
-import { runBacktest } from "../lib/shared/engine.js";
+import { runServerBacktest } from "../lib/server-execution.js";
 import { parseStrategy } from "../lib/shared/types.js";
 import { getCandles } from "../lib/crypto-data.js";
 
@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     const bars = await getCandles(product, granularity, start, end);
     if (bars.length < 20) throw new Error("At least 20 candles are needed for a backtest.");
     const dataset = { id: "server", symbol: product, fileName: "Coinbase Exchange", importedAt: Date.now(), bars, skipped: 0 };
-    const run = runBacktest(dataset, strategy, settings, String(body.strategyId || ""), String(body.name || "Crypto backtest").slice(0, 100));
+    const run = await runServerBacktest(dataset, strategy, settings, String(body.strategyId || ""), String(body.name || "Crypto backtest").slice(0, 100));
     run.granularity = granularity;
     return res.status(200).json({ run, source: "Coinbase Exchange", bars: bars.length });
   } catch (error) {

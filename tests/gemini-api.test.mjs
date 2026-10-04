@@ -145,3 +145,11 @@ test("exhausted quotas report failure only after every model was tried", async (
   try {const res=reply();await handler(request(),res);assert.equal(calls,4);assert.equal(res.statusCode,429);assert.equal(res.headers["Retry-After"],"60");}
   finally {globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
 });
+
+test("generated custom code is execution checked and repaired before returning", async () => {
+ const oldKey=process.env.GEMINI_API_KEY,oldFetch=globalThis.fetch;process.env.GEMINI_API_KEY='test-secret';let calls=0;
+ const custom={version:3,runtime:'javascript',name:'Custom SMC',description:'Synthetic example',parameters:{riskPct:0.5},code:"let gap=null; function onBar(ctx){if(ctx.index>=2 && ctx.history[ctx.index-2].high<ctx.bar.low) gap={low:ctx.history[ctx.index-2].high,high:ctx.bar.low};if(!ctx.position && gap && ctx.bar.close>gap.high) return {entry:{side:'long',stopPrice:gap.low,riskPct:ctx.parameters.riskPct}};return {}; }"};
+ globalThis.fetch=async(_url,options)=>{calls++;const prompt=JSON.parse(options.body).contents[0].parts[0].text;assert.match(prompt,/SMC\/ICT/);if(calls===2)assert.match(prompt,/Unknown strategy action buy/);return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:JSON.stringify(calls===1?{...custom,code:'function onBar(ctx){return {buy:true};}'}:custom)}]}}]})}};
+ try{const res=reply();await handler(request('Build an SMC gap strategy'),res);assert.equal(res.statusCode,200);assert.equal(res.body.strategy.version,3);assert.equal(calls,2);}
+ finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
+});

@@ -37,3 +37,11 @@ test("Coinbase rate limits retain their status for the API", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test("4H candles contain only complete UTC-aligned hourly groups", async () => {
+  const originalFetch=globalThis.fetch;
+  const start=Math.floor(1700000000/14400)*14400;
+  globalThis.fetch=async (url)=>{assert.match(url,/granularity=3600/);return {ok:true,json:async()=>Array.from({length:8},(_,i)=>[start+i*3600,99,110+i,100+i,101+i,10]).filter((_,i)=>i!==6)}};
+  try {const bars=await getCandles('BTC-USD',14400,start,start+28800);assert.equal(bars.length,1);assert.deepEqual(bars[0],{time:start,open:100,high:113,low:99,close:104,volume:40,spread:0});}
+  finally{globalThis.fetch=originalFetch;}
+});

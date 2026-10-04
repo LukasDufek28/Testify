@@ -7,17 +7,19 @@
     "dev": "vite",
     "db:init": "node --env-file=.env.local scripts/init-auth-db.mjs",
     "build": "npm run build:engine && tsc -b && vite build",
-    "build:engine": "esbuild src/engine.ts src/types.ts src/portfolio.ts src/research.ts src/data-validation.ts src/storage.ts --outdir=lib/shared --format=esm --platform=node",
+    "build:engine": "esbuild src/engine.ts src/programmable-engine.ts src/script-runtime.ts src/strategy-examples.ts src/types.ts src/portfolio.ts src/research.ts src/data-validation.ts src/storage.ts --outdir=lib/shared --format=esm --platform=node",
     "pretest": "npm run build:engine",
     "test": "node --test tests/*.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@jitl/quickjs-singlefile-browser-release-sync": "^0.32.0",
     "@monaco-editor/react": "^4.7.0",
     "@neondatabase/serverless": "^1.2.0",
     "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.5",
     "lucide-react": "^0.468.0",
+    "quickjs-emscripten-core": "^0.32.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

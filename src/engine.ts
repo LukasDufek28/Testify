@@ -1,4 +1,4 @@
-import type { BacktestSettings, Bar, Dataset, EquityPoint, Formula, Indicator, Rule, RuleSet, Run, Strategy, Trade } from "./types";
+import type { BacktestSettings, Bar, Dataset, EquityPoint, Formula, Indicator, Rule, RuleSet, Run, Strategy, RuleStrategy, Trade } from "./types";
 
 const key = (i: Indicator) => i.kind === "custom" ? `custom:${i.name!.toLowerCase()}` : `${i.kind}:${i.period ?? 0}`;
 function rolling(input: number[], op: string, period: number): number[] {
@@ -67,7 +67,7 @@ function indicatorSeries(bars: Bar[], indicator: Indicator): number[] {
   if (kind === "atr") return atrSeries(bars, period);
   return rolling(bars.map((b) => b.close), kind, period);
 }
-function buildSeries(bars: Bar[], strategy: Strategy): Map<string, number[]> {
+function buildSeries(bars: Bar[], strategy: RuleStrategy): Map<string, number[]> {
   const definitions = new Map((strategy.indicators || []).map((item) => [item.name.toLowerCase(), item.formula]));
   const custom = new Map<string, number[]>();
   const expressionCache = new WeakMap<Formula, number[]>();
@@ -123,6 +123,7 @@ const all = (rules: RuleSet, index: number, series: Map<string, number[]>) => ru
 type Position = { side: 1 | -1; entry: number; entryTime: number; units: number; equityAtEntry: number; entryFee: number };
 
 export function runBacktest(dataset: Dataset, strategy: Strategy, settings: BacktestSettings, strategyId: string, name: string): Run {
+  if (strategy.version === 3) throw new Error("Custom strategies must use runStrategyBacktest.");
   if (!(settings.capital > 0) || !Number.isFinite(settings.capital)) throw new Error("Starting capital must be positive.");
   if (settings.feeBps < 0 || settings.slippageBps < 0 || !Number.isFinite(settings.feeBps + settings.slippageBps)) throw new Error("Trading costs must be nonnegative.");
   const bars = dataset.bars.filter((b) => b.time >= settings.start && b.time <= settings.end);

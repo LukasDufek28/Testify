@@ -8,7 +8,7 @@ export async function generateStrategy(idea: string, apiFetch: ApiFetch): Promis
   const response = await apiFetch("/api/generate-strategy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idea: idea.trim().slice(0, 3000) }),
+    body: JSON.stringify({ idea: idea.trim() }),
   });
   const body = await response.json().catch(() => ({})) as { error?: string; strategy?: unknown; model?: string };
   if (!response.ok) throw new Error(body.error || `Gemini request failed (HTTP ${response.status}).`);
@@ -20,7 +20,7 @@ export async function reviseStrategy(apiFetch: ApiFetch, strategy: Strategy, res
   const response = await apiFetch("/api/generate-strategy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode: "revise", strategy, results, idea: guidance.trim().slice(0, 3000) }),
+    body: JSON.stringify({ mode: "revise", strategy, results, idea: guidance.trim() }),
   });
   const body = await response.json().catch(() => ({})) as { error?: string; strategy?: unknown; model?: string };
   if (!response.ok) throw new Error(body.error || `Gemini request failed (HTTP ${response.status}).`);

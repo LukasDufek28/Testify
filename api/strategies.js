@@ -1,5 +1,6 @@
 import { database, requireUser, AuthError, authFailure } from "../lib/auth.js";
 import { parseStrategy } from "../lib/shared/types.js";
+import { validateGeneratedStrategy } from "../lib/server-execution.js";
 const saved = (row) => ({ id: row.id, name: row.name, source: row.source, revision: row.revision, updatedAt: new Date(row.updated_at).getTime() });
 export function createStrategiesHandler(connect = database, authorize = requireUser) {
   return async (req, res) => {
@@ -29,7 +30,7 @@ export function createStrategiesHandler(connect = database, authorize = requireU
       }
       if (typeof body.source !== "string" || body.source.length > 100000) throw new AuthError("Invalid strategy JSON.", 400);
       let parsed;
-      try { parsed = parseStrategy(body.source); } catch (error) { throw new AuthError(error.message, 400); }
+      try { parsed = parseStrategy(body.source); await validateGeneratedStrategy(parsed); } catch (error) { throw new AuthError(error.message, 400); }
       const source = JSON.stringify(parsed, null, 2);
       const rows = await sql`WITH changed AS (
         INSERT INTO testify_strategies (user_id, id, name, source, revision)
