@@ -1,14 +1,14 @@
 # Testify
 
-Testify is an online crypto strategy research service deployed on Vercel. It needs no local program, account, or paid database.
+Testify is an online crypto strategy research service deployed on Vercel. Trading research data stays in the browser. A small PostgreSQL database stores custom email/password accounts, sessions, abuse-prevention counters and user-owned strategies with revision history. See [account setup](docs/AUTH.md).
 
 ## Research flow
 
 1. Choose a Coinbase Exchange USD or USDT spot market, candle interval, and historical period. Public market data loads in manageable chunks, with no Testify candle-count cap. Manual loads report expected and received candles, missing count and percentage, coverage, gap count and longest gap across the entire requested period. Candle slots use UTC interval boundaries and an exclusive end. Missing candles are never fabricated.
-2. Write a JSON strategy or ask Gemini to draft one. Version 2 supports original indicators built from formula trees; existing version 1 strategies still work. The site owner's shared `GEMINI_API_KEY` stays in Vercel; visitors need no key. To revise a saved strategy, select its development backtests in Strategy Studio. Gemini receives the current strategy JSON and compact development results, including fees and trade counts; the revision remains an unsaved draft until reviewed.
+2. Write a JSON strategy or ask Gemini to draft one. Version 2 supports original indicators built from formula trees; existing version 1 strategies still work. The site owner's shared `GEMINI_API_KEY` stays in Vercel; visitors need no key. To revise a saved strategy, use Modify existing strategy in Strategy Studio. Development backtests are optional context. Gemini receives the current strategy JSON and compact development results, including fees and trade counts; the revision remains an unsaved draft until reviewed.
 3. Set the full date range and development share, then backtest one or more markets sequentially. A 70% share runs only the first 70% of the selected **time range**; the later 30% is not downloaded by Backtests. Each result stores the original full range, split boundary, strategy snapshot, and cost settings in browser History. A failed market does not stop the remaining markets. Vercel retrieves candles in batches; the engine runs in a cancellable browser worker. Signals are evaluated at bar close and fill no earlier than the next bar open.
 4. Review saved results on History and Portfolio lab. The combined view adds each selected run's percentage return against one reference capital: a -10% run and a +15% run display +5%. This assumes full starting capital for every run, so exposure rises with the number of selected runs.
-5. In Validation, select compatible development runs. Testify uses each saved strategy version and cost setting on its reserved later period, then combines the holdout results into a portfolio. Validation results can be exported; they are not supplied to Gemini. Runs created before this split workflow cannot be validated as untouched holdouts. Chosen datasets, strategies, and development results are stored in each browser with IndexedDB. Export a backup to move them to another device.
+5. In Validation, select compatible development runs. Testify uses each saved strategy version and cost setting on its reserved later period, then combines the holdout results into a portfolio. Validation results can be exported; they are not supplied to Gemini. Runs created before this split workflow cannot be validated as untouched holdouts. Strategies synchronize through the account database; chosen datasets and development results remain in each browser with IndexedDB. Export a backup to move them to another device.
 
 The research engine models one spot pair and one position per run. It does not place orders. Short trades are hypothetical exposure and do not model borrow costs. Coinbase candles have no bid/ask spread; set fees and slippage to approximate trading costs. Historical buckets can be missing when no trades occurred. The portfolio view compares independent runs, not a combined account.
 
@@ -37,4 +37,4 @@ npm.cmd test
 npx.cmd vercel --prod
 ```
 
-There is no server database. Browser data can be lost if site storage is cleared; use Export backup.
+Candles and backtest results are not stored in the account database. Browser data can be lost if site storage is cleared; use Export backup.
