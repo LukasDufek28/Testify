@@ -1,53 +1,60 @@
 import { sleep } from "workflow";
-// Steps return IDs and progress only, so workflow persistence never contains candles or trade logs.
 async function readJob(id: string) {
   "use step";
-  const { loadJobRecord } = await import("../../../lib/mcp/execution.js");
-  const job = await loadJobRecord(id);
-  return { config: job.config, cancelled: !!job.cancel_requested || !!job.revoked_at || !["queued", "loading", "running", "waiting_retry"].includes(job.status) };
+  const { loadJobRecord,cancelled }=await import("../../../lib/mcp/execution.js");
+  const job=await loadJobRecord(id);
+  return {config:job.config,cancelled:!!cancelled(job),concurrency:Math.min(4,Math.max(1,Math.floor(Number(process.env.MCP_MARKET_CONCURRENCY)||3)))};
 }
-async function slot() {
+async function loadChunk(id:string,market:string,cursor:number) {
   "use step";
-  const { reserveProviderSlot } = await import("../../../lib/mcp/execution.js");
-  return reserveProviderSlot();
-}
-async function page(id: string, market: string, cursor: number) {
-  "use step";
-  const { fetchPage } = await import("../../../lib/mcp/execution.js");
-  return fetchPage(id, market, cursor);
-}
-async function execute(id: string, market: string) {
-  "use step";
-  const { executeMarket } = await import("../../../lib/mcp/execution.js");
-  return executeMarket(id, market);
-}
-async function finish(id: string, errors: {market:string;error:string}[]) {
-  "use step";
-  const { finishJob } = await import("../../../lib/mcp/execution.js");
-  return finishJob(id, errors);
-}
-export async function backtestWorkflow(id: string) {
-  "use workflow";
-  const initial = await readJob(id);
-  const errors: {market:string;error:string}[] = [];
-  if (!initial.cancelled) for (const market of initial.config.markets) {
-    try {
-      const config=initial.config;
-      const interval=config.granularity===1800?900:config.granularity===14400?3600:config.granularity;
-      let cursor=Math.ceil((config.settings.warmupStart ?? config.settings.start)/config.granularity)*config.granularity;
-      const end=Math.floor(config.settings.end/config.granularity)*config.granularity;
-      let retries=0;
-      while(cursor<end) {
-        if ((await readJob(id)).cancelled) break;
-        const wait=await slot(); if(wait>0) await sleep(wait);
-        const result=await page(id,market,cursor);
-        if(result.cancelled) break;
-        if(result.retryAfter) {if(++retries>10) throw new Error("Market provider remained unavailable after ten retries.");await sleep(result.retryAfter*1000);continue;}
-        cursor=result.next!;retries=0;
-      }
-      if ((await readJob(id)).cancelled) break;
-      await execute(id,market);
-    } catch(error) {errors.push({market,error:error instanceof Error?error.message:String(error)});}
+  const {loadJobRecord,cancelled,pagePlan,fetchPage}=await import("../../../lib/mcp/execution.js");
+  const {reserveBudget}=await import("../../../lib/mcp/jobs.js");
+  const {database}=await import("../../../lib/auth.js");
+  const sql=database(),job=await loadJobRecord(id,sql),plan=pagePlan(job.config,market);
+  if(cancelled(job))return {cancelled:true,cursor};
+  await reserveBudget(sql,`events:${new Date().toISOString().slice(0,7)}`,Number(process.env.MCP_MONTHLY_EVENT_BUDGET||40000),20);
+  const deadline=Date.now()+15000;
+  for(let i=0;i<6&&cursor<plan.end&&Date.now()<deadline;i++){
+    const result=await fetchPage(id,market,cursor,sql);
+    if(result.cancelled)return {cancelled:true,cursor};
+    if(result.retryAfter)return {cursor,retryAfter:result.retryAfter};
+    if(result.rateWait)return {cursor,rateWait:result.rateWait};
+    cursor=result.next!;
   }
+  return {cursor,done:cursor>=plan.end};
+}
+async function execute(id:string,market:string) {
+  "use step";
+  const {executeMarket}=await import("../../../lib/mcp/execution.js");return executeMarket(id,market);
+}
+async function failed(id:string,market:string,error:string) {
+  "use step";
+  const {marketProgress}=await import("../../../lib/mcp/execution.js");
+  const {database}=await import("../../../lib/auth.js");await marketProgress(database(),id,market,"failed",{error});
+}
+async function finish(id:string,errors:{market:string;error:string}[]) {
+  "use step";
+  const {finishJob}=await import("../../../lib/mcp/execution.js");return finishJob(id,errors);
+}
+export async function backtestWorkflow(id:string) {
+  "use workflow";
+  const initial=await readJob(id),errors:{market:string;error:string}[]=[];
+  if(initial.cancelled)return finish(id,errors);
+  const lanes=Array.from({length:Math.min(initial.concurrency,initial.config.markets.length)},(_,lane)=>initial.config.markets.filter((_:string,i:number)=>i%initial.concurrency===lane));
+  await Promise.all(lanes.map(async markets=>{
+    for(const market of markets){
+      const c=initial.config;let cursor=Math.ceil((c.settings.warmupStart??c.settings.start)/c.granularity)*c.granularity,retries=0;
+      try{
+        while(true){
+          const result=await loadChunk(id,market,cursor);cursor=result.cursor;
+          if(result.cancelled)return;
+          if(result.retryAfter){if(++retries>10)throw new Error("Market provider remained unavailable after ten retries.");await sleep(result.retryAfter*1000);continue;}
+          if(result.rateWait){await sleep(result.rateWait);continue;}
+          retries=0;if(result.done)break;
+        }
+        const result=await execute(id,market);if(result.cancelled)return;
+      }catch(e){const error=e instanceof Error?e.message:String(e);errors.push({market,error});await failed(id,market,error);}
+    }
+  }));
   return finish(id,errors);
 }

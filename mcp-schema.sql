@@ -60,3 +60,15 @@ CREATE TABLE IF NOT EXISTS testify_mcp_pages (
 CREATE TABLE IF NOT EXISTS testify_mcp_budgets (
  key text PRIMARY KEY, value bigint NOT NULL DEFAULT 0
 );
+ALTER TABLE testify_mcp_jobs ADD COLUMN IF NOT EXISTS progress_revision bigint NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS testify_candle_cache (
+ market text NOT NULL, interval_seconds integer NOT NULL, bucket bigint NOT NULL,
+ payload text NOT NULL, complete boolean NOT NULL, expires_at timestamptz NOT NULL,
+ accessed_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(market,interval_seconds,bucket)
+);
+CREATE INDEX IF NOT EXISTS testify_candle_cache_expiry ON testify_candle_cache(expires_at);
+CREATE TABLE IF NOT EXISTS testify_candle_leases (
+ market text NOT NULL, interval_seconds integer NOT NULL, bucket bigint NOT NULL,
+ owner text NOT NULL, expires_at timestamptz NOT NULL,
+ PRIMARY KEY(market,interval_seconds,bucket)
+);

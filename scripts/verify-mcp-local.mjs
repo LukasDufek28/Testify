@@ -27,7 +27,7 @@ try{
  const start=Date.parse("2026-09-01T00:00:00Z")/1000,end=Date.parse("2026-09-08T00:00:00Z")/1000;
  const job=await tool("start_backtest_batch",{idempotencyKey:randomUUID(),name:"Local MCP verification",markets:["BTC-USD","ETH-USD"],granularity:3600,strategyId:"verify-strategy",strategyRevision:2,settings:{capital:10000,feeBps:2,feePerTrade:1,slippageBps:1,start,end},research:{phase:"development",fullStart:start,boundary:end,fullEnd:end+7*86400,splitPct:50}});console.log("Background job submitted; no browser session is needed from here.");
  let completed;
- for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,2000));const result=await tool("get_job",{id:job.jobId});if(["completed","partial","failed","cancelled"].includes(result.status)){completed=result;break;}}
+ for(let i=0;i<4;i++){const progress=await tool("wait_for_job",{id:job.jobId,until:"completed",waitSeconds:45});console.log(progress.summary);if(["completed","partial","failed","cancelled"].includes(progress.status)){console.log(`Provider requests: ${progress.data.providerRequests}; cached pages: ${progress.data.cachedPages}`);completed=await tool("get_job",{id:job.jobId,detail:"full"});break;}}
  if(!completed)throw Error("Local workflow did not finish within two minutes.");
  if(completed.status!=="completed")throw Error(`Job ${completed.status}: ${JSON.stringify(completed.errors)}`);
  console.log(`Background batch completed: ${completed.runs.length} market summaries`);

@@ -41,6 +41,15 @@ Read workspace info → inspect strategy format → create and validate a strate
 
 Use unique idempotency keys for mutations and reuse the same key when retrying the same operation. If an uncertain action stays pending, check activity/history rather than assigning a new key and duplicating it. Long jobs return an ID immediately. One batch per account runs at a time. Coinbase throttling waits at least a minute; persistent outages terminate the market after ten consecutive retries. Successful markets remain saved if another fails.
 
+### Faster batches and progress
+
+- `MCP_MARKET_CONCURRENCY` defaults to three simultaneous market lanes (maximum four). Each lane loads up to six pages per workflow step, then executes its market; slow markets do not block the other lanes.
+- `MCP_PROVIDER_RPS` defaults to three, capped at three requests per second globally across website and MCP provider calls using the same database. There are no pre-issued future permits that can burst after a delay. 429 and 5xx responses establish a shared cooldown of at least 60 seconds, respecting longer `Retry-After` values.
+- `get_job` returns compact counts and candle-loading statistics by default. `detail=full` retrieves stored run summaries. `wait_for_job` waits up to 45 seconds: use `until=completed` to coalesce intermediate updates, or `afterRevision` to wait for the next revision. This is a bounded wait, not an unsolicited notification or a perpetual connection.
+- Progress percentages weight loaded intervals and execution stages. They are estimates, not exact CPU progress or ETAs; missing candles are reported separately from received candles.
+- Historical Coinbase pages use UTC-aligned reusable buckets, gzip compression and shared download leases. Complete pages expire after seven days; incomplete/empty pages expire after five minutes. Expired incomplete pages retain available candles until cleanup and refresh only missing intervals. Current incomplete candles are never cached as completed data.
+- `MCP_CANDLE_CACHE_BYTES` defaults to 25 MB, separate from the 25 MB temporary job checkpoint budget. Cache admissions are serialized and evict least-recently-used entries. The cache contains public candles only, with no strategies, accounts or trade logs. It is optional: setting the budget to zero disables retention. Future reuse is subject to expiry and eviction.
+
 ## Storage and limitations
 
 - Strategies, OAuth credentials, jobs, exact run metrics, aggregates and daily equity samples are account scoped in Neon.
