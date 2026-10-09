@@ -153,3 +153,21 @@ test("generated custom code is execution checked and repaired before returning",
  try{const res=reply();await handler(request('Build an SMC gap strategy'),res);assert.equal(res.statusCode,200);assert.equal(res.body.strategy.version,3);assert.equal(calls,2);}
  finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
 });
+
+test("Ask returns consultation text with strategy and development context, never a strategy edit", async () => {
+ const oldKey=process.env.GEMINI_API_KEY,oldFetch=globalThis.fetch;
+ process.env.GEMINI_API_KEY="test-secret";
+ globalThis.fetch=async(_url,options)=>{
+  const body=JSON.parse(options.body);
+  assert.equal(body.generationConfig.responseMimeType,"text/plain");
+  assert.match(body.systemInstruction.parts[0].text,/Never change/);
+  assert.match(body.contents[0].parts[0].text,/Question/);
+  assert.match(body.contents[0].parts[0].text,/draft strategy/);
+  return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:"Trade frequency can increase fee drag. Test a stricter entry filter on development data."}]}}]})};
+ };
+ try{
+  const res=reply();await handler({...request(),body:{mode:"ask",idea:"Why does this overtrade?",strategy:{name:"draft strategy",entryLong:[]},results:[],messages:[{role:"user",text:"Explain costs"}]}},res);
+  assert.equal(res.statusCode,200);assert.match(res.body.answer,/fee drag/);assert.equal(res.body.strategy,undefined);
+  const bad=reply();await handler({...request(),body:{mode:"ask",idea:"Explain",strategy:{name:"draft"},results:[{phase:"validation"}]}},bad);assert.equal(bad.statusCode,400);
+ }finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
+});

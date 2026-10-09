@@ -42,6 +42,26 @@
 .composer-attached span { padding: 4px 9px; background: #223945; border-radius: 20px; }
 .composer-attached button { border: 0; background: none; color: #92a8b5; font: inherit; cursor: pointer; }
 .composer-status { padding: 10px 16px; color: #9fb5c0; font-size: 12px; }
-.composer-spinner { animation: composer-spin 1s linear infinite; }
+.composer-spinner { display: inline-flex; align-items: center; justify-content: center; animation: composer-spin .85s linear infinite; transform-origin: center; }
+.composer-send.is-processing:disabled { opacity: 1; cursor: wait; }
 @keyframes composer-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .composer-spinner { animation: none; } }
+
+
+.floating-toast.banner { position: fixed; right: 24px; bottom: 24px; z-index: 1000; margin: 0; width: max-content; max-width: min(480px, calc(100vw - 32px)); box-shadow: 0 12px 40px #0006; border-radius: 14px; opacity: 1; transition: opacity 450ms ease, transform 450ms ease; }
+.floating-toast.banner.error { bottom: 24px; }
+.floating-toast.banner.error + .floating-toast.banner.success { bottom: 110px; }
+@keyframes toast-lifetime { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .floating-toast.banner { animation: none; } }
+
+.rename-run-form { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px; padding: 0 22px 18px; }
+.rename-run-form label { flex: 1; min-width: 180px; }
+.rename-run-form input { width: 100%; }
+.composer-bar .composer-regime { width: 76px; min-height: 34px; padding: 5px; border: 0; background: transparent; color: #b9cbd4; border-radius: 10px; align-self: flex-end; }
+.composer-regime option { background: #202d35; }
+.gemini-conversation { max-height: 460px; overflow: auto; padding: 8px 12px; margin-bottom: 14px; }
+.consultation-message { margin: 12px 0; padding: 12px 16px; border-radius: 14px; background: #12232d; }
+.consultation-message.user { margin-left: 15%; background: #223945; }
+.consultation-message strong { font-size: 12px; color: #7dddc5; }
+.consultation-message p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; color: #c6d5dd; margin: 8px 0 0; }
+
+.floating-toast.banner.toast-leaving { opacity: 0; transform: translateY(8px); pointer-events: none; }

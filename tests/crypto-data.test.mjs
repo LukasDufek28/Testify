@@ -45,3 +45,11 @@ test("4H candles contain only complete UTC-aligned hourly groups", async () => {
   try {const bars=await getCandles('BTC-USD',14400,start,start+28800);assert.equal(bars.length,1);assert.deepEqual(bars[0],{time:start,open:100,high:113,low:99,close:104,volume:40,spread:0});}
   finally{globalThis.fetch=originalFetch;}
 });
+
+test("30M candles aggregate two complete 15-minute candles and omit incomplete groups", async () => {
+ const originalFetch=globalThis.fetch;
+ const start=Math.floor(1700000000/1800)*1800;
+ globalThis.fetch=async(url)=>{assert.match(url,/granularity=900/);return {ok:true,json:async()=>[[start,99,105,100,103,10],[start+900,101,110,103,108,20],[start+1800,106,112,108,110,5]]}};
+ try {const bars=await getCandles('BTC-USD',1800,start,start+3600);assert.deepEqual(bars,[{time:start,open:100,high:110,low:99,close:108,volume:30,spread:0}]);}
+ finally{globalThis.fetch=originalFetch;}
+});
