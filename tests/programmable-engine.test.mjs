@@ -86,3 +86,22 @@ test("Adaptive Trend Breakout template runs with Wilder ATR and exposes editable
   assert.deepEqual(prefix.curve.slice(0,-1),result.curve.slice(0,349));
   await validateScriptStrategy(adaptiveTrendStrategy);
 });
+
+test("fixed round-trip fee is one dollar across partial exits and reconciles P/L", async()=>{
+ const bars=Array.from({length:20},(_,i)=>bar(i));
+ const strategy=script(`function onBar(ctx){if(ctx.index===0)return {entry:{side:'long',allocationPct:100}};if(ctx.index===2)return {exitPct:50};if(ctx.index===4)return {exit:true};return {};}`);
+ const result=await run(strategy,bars,{feePerTrade:1,feeBps:999});
+ assert.equal(result.metrics.totalFees,1);assert.equal(result.trades.length,2);
+ assert.equal(result.curve.at(-1).equity,9999);
+ assert.equal(result.trades.reduce((s,t)=>s+t.pnl,0),-1);
+ assert.ok(result.curve[1].equity<=9999.5);
+});
+test("fixed fees in rule strategies are one dollar per completed trade",async()=>{
+ const bars=Array.from({length:20},(_,i)=>bar(i));
+ const rule={version:1,name:'Fees',description:'Fees',side:'long',entryLong:[{left:{kind:'close'},op:'gt',right:0}],entryShort:[],exitLong:[{left:{kind:'close'},op:'gt',right:0}],exitShort:[],stopLossPct:0,takeProfitPct:0,allocationPct:100};
+ const result=await run(rule,bars,{feePerTrade:1,feeBps:999});
+ assert.equal(result.metrics.totalFees,result.trades.length);
+ assert.equal(result.trades.reduce((s,t)=>s+t.pnl,0),-result.metrics.totalFees);
+ assert.equal(result.curve.at(-1).equity,10000-result.metrics.totalFees);
+ await assert.rejects(run(rule,bars,{feePerTrade:-1}),/Fixed/);
+});

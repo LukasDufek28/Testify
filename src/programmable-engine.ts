@@ -11,8 +11,10 @@ export async function runStrategyBacktest(dataset: Dataset, strategy: Strategy, 
 
 async function runProgrammableBacktest(dataset: Dataset, strategy: ScriptStrategy, settings: BacktestSettings, strategyId: string, name: string, budgetMs = 120000): Promise<Run> {
   if (!Number.isFinite(settings.capital) || settings.capital <= 0 || !Number.isFinite(settings.feeBps) || settings.feeBps < 0 || !Number.isFinite(settings.slippageBps) || settings.slippageBps < 0 || !Number.isFinite(settings.start) || !Number.isFinite(settings.end) || settings.start >= settings.end) throw new Error("Invalid capital, dates or trading costs.");
-  const bars = dataset.bars.filter((bar) => bar.time >= settings.start && bar.time <= settings.end);
-  if (bars.length < 20) throw new Error("The selected date range needs at least 20 bars.");
+  if (settings.feePerTrade !== undefined && (!Number.isFinite(settings.feePerTrade) || settings.feePerTrade < 0 || settings.feePerTrade > 1e9)) throw new Error("Fixed trade fee must be nonnegative and finite.");
+  if (settings.warmupStart !== undefined && (!Number.isFinite(settings.warmupStart) || settings.warmupStart > settings.start)) throw new Error("Invalid warm-up start.");
+  const bars = dataset.bars.filter((bar) => bar.time >= (settings.warmupStart ?? settings.start) && bar.time <= settings.end);
+  if (bars.filter(b => b.time >= settings.start).length < 20) throw new Error("The selected evaluation date range needs at least 20 bars.");
   if (bars.some((b, i) => !Number.isFinite(b.time) || [b.open, b.high, b.low, b.close].some((v) => !Number.isFinite(v) || v <= 0) || !Number.isFinite(b.volume) || b.volume < 0 || b.high < Math.max(b.open, b.close, b.low) || b.low > Math.min(b.open, b.close, b.high) || (i > 0 && b.time <= bars[i - 1].time))) throw new Error("Candles must contain valid OHLCV prices in chronological order without duplicates.");
   const intervals = bars.slice(1).map((b, i) => b.time - bars[i].time).sort((a, b) => a - b);
   const seconds = intervals[Math.floor(intervals.length / 2)];
@@ -32,7 +34,7 @@ async function runProgrammableBacktest(dataset: Dataset, strategy: ScriptStrateg
     const p: Position = position;
     const fraction = pct / 100, units = p.units * fraction;
     const entryFee = p.entryFee * fraction, fundingCost = p.funding * fraction;
-    const price = adverse(mid, p.sideNumber, false), fee = units * price * settings.feeBps / 10000;
+    const price = adverse(mid, p.sideNumber, false), fee = settings.feePerTrade !== undefined ? settings.feePerTrade / 2 * units / p.initialUnits : units * price * settings.feeBps / 10000;
     const gross = p.sideNumber * units * (price - p.entry);
     cash += gross - fee; totalFees += fee;
     const pnl = gross - fee - entryFee - fundingCost;
@@ -49,10 +51,10 @@ async function runProgrammableBacktest(dataset: Dataset, strategy: ScriptStrateg
     if (!Number.isFinite(price) || price <= 0 || (stop !== null && (stop <= 0 || side * (price - stop) <= 0)) || (take !== null && side * (take - price) <= 0)) { warn("An entry was skipped because a gap placed its initial stop or target on the wrong side of the actual fill."); return; }
     const equity = cash, distance = stop === null ? 0 : Math.abs(price - stop);
     // Leave room for the entry commission so notional plus fees cannot exceed equity.
-    const cap = equity * (e.allocationPct ?? 100) / 100 / (price * (1 + settings.feeBps / 10000));
+    const cap = Math.max(0, equity - (settings.feePerTrade ?? 0) / 2) * (e.allocationPct ?? 100) / 100 / (price * (1 + (settings.feePerTrade !== undefined ? 0 : settings.feeBps / 10000)));
     const units = Math.min(cap, e.riskPct === undefined ? cap : equity * e.riskPct / 100 / distance);
     if (!Number.isFinite(units) || units <= 0) return;
-    const fee = units * price * settings.feeBps / 10000;
+    const fee = settings.feePerTrade !== undefined ? settings.feePerTrade / 2 : units * price * settings.feeBps / 10000;
     cash -= fee; totalFees += fee;
     position = { side: e.side, sideNumber: side, entry: price, entryTime: bar.time, units, initialUnits: units, equityAtEntry: equity, entryFee: fee, funding: 0, stopPrice: stop, takeProfitPrice: take, initialRisk: distance * units, highestHigh: price, lowestLow: price, barsHeld: 0 };
   };
@@ -61,6 +63,10 @@ async function runProgrammableBacktest(dataset: Dataset, strategy: ScriptStrateg
     for (let i = 0; i < bars.length; i++) {
       if (Date.now() > deadline) throw new Error("Custom strategy exceeded the execution time budget. Use incremental indicator calculations instead of rescanning all history each candle.");
       const bar = bars[i];
+      if (bar.time < settings.start) {
+        vm.step({ bar, index: i, symbol: dataset.symbol, equity: settings.capital, position: null, parameters: strategy.parameters || {} });
+        continue;
+      }
       // Funding at the open belongs to positions already held before that timestamp.
       while (fundingIndex < funding.length && funding[fundingIndex].time === bar.time) {
         const event = funding[fundingIndex++];

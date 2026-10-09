@@ -11,18 +11,19 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const connecting = new URLSearchParams(window.location.search).has("mcpAuthorize") || new URLSearchParams(window.location.search).has("mcpLogin");
   useEffect(() => {
     const controller = new AbortController();
     void fetch("/api/auth", { credentials: "same-origin", signal: controller.signal }).then(async (response) => {
       let body = await response.json();
       setPreviewGuest(!!body.previewGuest);
-      if (response.ok && body.previewGuest && !body.user) {
+      if (response.ok && body.previewGuest && !body.user && !connecting) {
         const guestResponse = await fetch("/api/auth", { method: "POST", credentials: "same-origin", signal: controller.signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "guest" }) });
         body = await guestResponse.json();
         if (!guestResponse.ok) throw new Error(body.error || "Could not open the guest workspace.");
       }
       if (!response.ok) throw new Error(body.error || "Could not check your session.");
-      setUser(body.user);
+      setUser(connecting && body.user?.guest ? null : body.user);
     }).catch((e) => { if (!controller.signal.aborted) setError(e.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, []);
@@ -61,6 +62,6 @@ export default function Auth() {
   }, [user?.sessionId]);
   if (loading) return <div className="auth-screen"><div className="panel auth-card">Loading your workspace…</div></div>;
   if (user) return <App key={`${user.id}:${user.sessionId}`} userId={user.id} sessionId={user.sessionId} onSessionExpired={() => { setUser(null); setError("Your session changed or expired. Please sign in again."); }} accountControls={<div className="account-controls"><span>{user.guest ? "Guest (Preview)" : user.email}</span>{!previewGuest && <button className="button ghost" disabled={busy} onClick={() => void logout()}>Sign out</button>}{error && <p role="alert">{error}</p>}</div>}/>;
-  if (previewGuest) return <div className="auth-screen"><section className="panel auth-card"><h1>Preview workspace</h1><p role="alert">{error || "Your guest session expired. Reload to continue."}</p><button className="button primary" onClick={() => window.location.reload()}>Open guest workspace</button></section></div>;
+  if (previewGuest && !connecting) return <div className="auth-screen"><section className="panel auth-card"><h1>Preview workspace</h1><p role="alert">{error || "Your guest session expired. Reload to continue."}</p><button className="button primary" onClick={() => window.location.reload()}>Open guest workspace</button></section></div>;
   return <div className="auth-screen"><section className="panel auth-card"><div className="eyebrow">TESTIFY</div><h1>{mode === "login" ? "Welcome back" : "Create your account"}</h1><p>Sign in to your private strategy research workspace. Strategies sync to your account. Candles and backtest results stay in this browser.</p><form className="form-stack" onSubmit={(e) => void submit(e)}><label>Email<input type="email" required maxLength={254} autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}/></label><label>Password<input type="password" required minLength={12} maxLength={128} autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)}/></label><p className="help">Use at least 12 characters. Signing in on another device gives you a separate local workspace.</p>{error && <p className="bad" role="alert">{error}</p>}<button className="button primary full" disabled={busy}>{busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}</button><button type="button" className="button ghost full" disabled={busy} onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); setPassword(""); }}>{mode === "login" ? "Create an account" : "Already have an account? Sign in"}</button></form></section></div>;
 }

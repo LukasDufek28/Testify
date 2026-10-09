@@ -39,9 +39,9 @@ export type Bar = { time: number; open: number; high: number; low: number; close
 export type Dataset = { id: string; symbol: string; fileName: string; importedAt: number; bars: Bar[]; skipped: number; funding?: { time: number; rate: number; markPrice?: number }[]; validation?: import("./data-validation").DataValidation };
 export type Trade = { entryTime: number; exitTime: number; side: 1 | -1; entry: number; exit: number; pnl: number; returnPct: number; reason: string; rMultiple?: number; funding?: number };
 export type EquityPoint = { time: number; equity: number };
-export type BacktestSettings = { capital: number; feeBps: number; slippageBps: number; start: number; end: number };
-export type ResearchWindow = { phase: "development" | "validation"; fullStart: number; fullEnd: number; boundary: number; splitPct: number; parentRunId?: string };
-export type Run = { id: string; name: string; createdAt: number; symbol: string; granularity?: number; strategyId: string; strategyName: string; strategySource?: string; research?: ResearchWindow; settings: BacktestSettings; metrics: { netReturnPct: number; maxDrawdownPct: number; sharpe: number | null; winRatePct: number; tradeCount: number; totalFees: number; profitFactor?: number | null; averageRMultiple?: number | null; totalFunding?: number }; curve: EquityPoint[]; trades: Trade[]; warnings: string[] };
+export type BacktestSettings = { capital: number; feeBps: number; feePerTrade?: number; slippageBps: number; start: number; end: number; warmupStart?: number };
+export type ResearchWindow = { phase: "development" | "validation" | "holdout"; fullStart: number; fullEnd: number; boundary: number; holdoutStart?: number; splitPct: number; parentRunId?: string };
+export type Run = { id: string; name: string; createdAt: number; symbol: string; granularity?: number; strategyId: string; strategyName: string; strategySource?: string; research?: ResearchWindow; settings: BacktestSettings; metrics: { netReturnPct: number; maxDrawdownPct: number; sharpe: number | null; winRatePct: number; tradeCount: number; totalFees: number; profitFactor?: number | null; averageRMultiple?: number | null; totalFunding?: number }; curve: EquityPoint[]; trades: Trade[]; warnings: string[]; summaryOnly?: boolean; cloudLinked?: boolean };
 
 export const exampleStrategy: RuleStrategy = {
   version: 1,

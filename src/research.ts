@@ -51,7 +51,7 @@ export function summarizeDevelopmentPortfolio(runs: Run[]) {
     totalFees: fees, totalFunding: funding,
     feeBpsRange: [Math.min(...runs.map(run => run.settings.feeBps)), Math.max(...runs.map(run => run.settings.feeBps))],
     slippageBpsRange: [Math.min(...runs.map(run => run.settings.slippageBps)), Math.max(...runs.map(run => run.settings.slippageBps))],
-    costNotes: "Fees and slippage are already included in net results. Slippage is embedded in execution prices. Funding is included only where supplied; zero does not establish funding-data availability.",
+    costNotes: `Fixed round-trip fee models: ${[...new Set(runs.map(run => run.settings.feePerTrade === undefined ? "percentage" : run.settings.feePerTrade))].slice(0, 20).join(", ")}. Fees and slippage are already included in net results. Slippage is embedded in execution prices. Funding is included only where supplied; zero does not establish funding-data availability.`,
     exitReasons: Object.entries(reasons).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([reason, count]) => [reason.slice(0, 100), count]),
     bestMarkets: ranked.slice(0, 5).map(([symbol, netReturnPct]) => ({ symbol: symbol.slice(0, 40), netReturnPct })),
     worstMarkets: ranked.slice(-5).reverse().map(([symbol, netReturnPct]) => ({ symbol: symbol.slice(0, 40), netReturnPct })),
@@ -78,5 +78,5 @@ export function summarizeDevelopmentRun(run: Run) {
   const averageTradePnl = trades.length ? netTradePnl / trades.length : 0;
   const lossCount = trades.filter((trade) => trade.pnl < 0).length;
   const reasons = Object.entries(trades.reduce<Record<string, number>>((counts, trade) => { counts[trade.reason] = (counts[trade.reason] || 0) + 1; return counts; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  return { phase: "development" as const, name: run.name.slice(0, 100), symbol: run.symbol, timeframeSeconds: run.granularity || 0, start: run.settings.start, end: run.settings.end, startingCapital: run.settings.capital, feeBps: run.settings.feeBps, slippageBps: run.settings.slippageBps, netReturnPct: run.metrics.netReturnPct, maxDrawdownPct: run.metrics.maxDrawdownPct, sharpe: run.metrics.sharpe, winRatePct: run.metrics.winRatePct, tradeCount: run.metrics.tradeCount, totalFees: run.metrics.totalFees, profitFactor: run.metrics.profitFactor, averageRMultiple: run.metrics.averageRMultiple, totalFunding: run.metrics.totalFunding, averageTradePnl, lossCount, exitReasons: reasons };
+  return { phase: "development" as const, name: run.name.slice(0, 100), symbol: run.symbol, timeframeSeconds: run.granularity || 0, start: run.settings.start, end: run.settings.end, startingCapital: run.settings.capital, feeBps: run.settings.feeBps, feePerTrade: run.settings.feePerTrade, slippageBps: run.settings.slippageBps, netReturnPct: run.metrics.netReturnPct, maxDrawdownPct: run.metrics.maxDrawdownPct, sharpe: run.metrics.sharpe, winRatePct: run.metrics.winRatePct, tradeCount: run.metrics.tradeCount, totalFees: run.metrics.totalFees, profitFactor: run.metrics.profitFactor, averageRMultiple: run.metrics.averageRMultiple, totalFunding: run.metrics.totalFunding, averageTradePnl, lossCount, exitReasons: reasons };
 }

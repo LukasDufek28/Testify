@@ -1,5 +1,5 @@
 import { database, requireUser, AuthError, authFailure } from "../lib/auth.js";
-import { parseStrategy } from "../lib/shared/types.js";
+import { saveStrategy } from "../lib/services/strategies.js";
 import { validateGeneratedStrategy } from "../lib/server-execution.js";
 const saved = (row) => ({ id: row.id, name: row.name, source: row.source, revision: row.revision, updatedAt: new Date(row.updated_at).getTime() });
 export function createStrategiesHandler(connect = database, authorize = requireUser) {
@@ -28,26 +28,7 @@ export function createStrategiesHandler(connect = database, authorize = requireU
         if (!rows.length) throw new AuthError("This strategy changed or was deleted elsewhere. Reload the library and try again.", 409);
         return res.status(200).json({ deleted: body.id });
       }
-      if (typeof body.source !== "string" || body.source.length > 100000) throw new AuthError("Invalid strategy JSON.", 400);
-      let parsed;
-      try { parsed = parseStrategy(body.source); await validateGeneratedStrategy(parsed); } catch (error) { throw new AuthError(error.message, 400); }
-      const source = JSON.stringify(parsed, null, 2);
-      const rows = await sql`WITH changed AS (
-        INSERT INTO testify_strategies (user_id, id, name, source, revision)
-        SELECT ${user.id}, ${body.id}, ${parsed.name}, ${source}, 1 WHERE ${revision} = 0
-        ON CONFLICT (user_id, id) DO UPDATE SET name = EXCLUDED.name, source = EXCLUDED.source, revision = testify_strategies.revision + 1, updated_at = now()
-        WHERE testify_strategies.revision = ${revision}
-        RETURNING id, name, source, revision, updated_at, user_id
-      ), updated AS (
-        UPDATE testify_strategies SET name = ${parsed.name}, source = ${source}, revision = revision + 1, updated_at = now()
-        WHERE user_id = ${user.id} AND id = ${body.id} AND revision = ${revision} AND ${revision} > 0
-        RETURNING id, name, source, revision, updated_at, user_id
-      ), revisions AS (
-        INSERT INTO testify_strategy_versions (user_id, strategy_id, revision, source)
-        SELECT user_id, id, revision, source FROM changed UNION ALL SELECT user_id, id, revision, source FROM updated
-      ) SELECT * FROM changed UNION ALL SELECT * FROM updated`;
-      if (!rows.length) throw new AuthError("This strategy changed or was deleted elsewhere. Reload the library before saving; your draft is still in the editor.", 409);
-      return res.status(200).json({ strategy: saved(rows[0]) });
+      return res.status(200).json({ strategy: await saveStrategy(sql,user.id,body) });
     } catch (error) { return authFailure(res, error); }
   };
 }

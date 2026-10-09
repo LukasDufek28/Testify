@@ -126,8 +126,10 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
   if (strategy.version === 3) throw new Error("Custom strategies must use runStrategyBacktest.");
   if (!(settings.capital > 0) || !Number.isFinite(settings.capital)) throw new Error("Starting capital must be positive.");
   if (settings.feeBps < 0 || settings.slippageBps < 0 || !Number.isFinite(settings.feeBps + settings.slippageBps)) throw new Error("Trading costs must be nonnegative.");
-  const bars = dataset.bars.filter((b) => b.time >= settings.start && b.time <= settings.end);
-  if (bars.length < 20) throw new Error("The selected date range needs at least 20 bars.");
+  if (settings.feePerTrade !== undefined && (!Number.isFinite(settings.feePerTrade) || settings.feePerTrade < 0 || settings.feePerTrade > 1e9)) throw new Error("Fixed trade fee must be nonnegative and finite.");
+  if (settings.warmupStart !== undefined && (!Number.isFinite(settings.warmupStart) || settings.warmupStart > settings.start)) throw new Error("Invalid warm-up start.");
+  const bars = dataset.bars.filter((b) => b.time >= (settings.warmupStart ?? settings.start) && b.time <= settings.end);
+  if (bars.filter(b => b.time >= settings.start).length < 20) throw new Error("The selected evaluation date range needs at least 20 bars.");
   if (bars.some((bar, i) => i > 0 && bar.time <= bars[i - 1].time)) throw new Error("Candles must be in chronological order without duplicate timestamps.");
   const intervals = bars.slice(1).map((b, i) => b.time - bars[i].time).filter((v) => v > 0).sort((a, b) => a - b);
   const coinbaseMinutes = dataset.fileName.match(/^Coinbase · (\d+)m$/)?.[1];
@@ -145,7 +147,7 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
     if (!position) return;
     const p = position as Position;
     const price = adverse(mid, p.side, false);
-    const fee = Math.abs(p.units * price) * settings.feeBps / 10000;
+    const fee = settings.feePerTrade !== undefined ? settings.feePerTrade / 2 : Math.abs(p.units * price) * settings.feeBps / 10000;
     const pnl = p.side * p.units * (price - p.entry) - fee;
     cash += pnl; totalFees += fee;
     trades.push({ entryTime: p.entryTime, exitTime: bar.time + (atClose ? barSeconds : 0), side: p.side, entry: p.entry, exit: price, pnl: pnl - p.entryFee, returnPct: (pnl - p.entryFee) / p.equityAtEntry * 100, reason });
@@ -154,13 +156,15 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
   const enter = (side: 1 | -1, bar: Bar) => {
     const price = adverse(bar.open, side, true);
     const equityAtEntry = cash;
-    const units = cash * strategy.allocationPct / 100 / price;
-    const fee = Math.abs(units * price) * settings.feeBps / 10000;
+    if (settings.feePerTrade !== undefined && cash <= settings.feePerTrade / 2) return;
+    const units = (cash - (settings.feePerTrade ?? 0) / 2) * strategy.allocationPct / 100 / price;
+    const fee = settings.feePerTrade !== undefined ? settings.feePerTrade / 2 : Math.abs(units * price) * settings.feeBps / 10000;
     cash -= fee; totalFees += fee;
     position = { side, entry: price, entryTime: bar.time, units, equityAtEntry, entryFee: fee };
   };
   for (let i = 0; i < bars.length; i++) {
     const bar = bars[i];
+    if (bar.time < settings.start) continue;
     if (pending === 2) exit(bar.open, bar, "Signal");
     else if (pending === 1 || pending === -1) { if (position) exit(bar.open, bar, "Reverse signal"); if (cash > 0) enter(pending, bar); }
     pending = 0;

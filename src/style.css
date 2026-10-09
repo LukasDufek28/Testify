@@ -65,3 +65,11 @@
 .consultation-message p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; color: #c6d5dd; margin: 8px 0 0; }
 
 .floating-toast.banner.toast-leaving { opacity: 0; transform: translateY(8px); pointer-events: none; }
+.auto-slippage { display: flex; align-items: center; gap: 9px; }
+.auto-slippage input { width: auto; }
+.connections-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 18px; }
+.connections-body { padding: 18px 22px; }
+.connection-row { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid #29424f; overflow-wrap: anywhere; }
+.connection-endpoint { display: block; padding: 14px; border-radius: 10px; background: #0b1b24; overflow-wrap: anywhere; user-select: all; }
+.consent-box { margin-top: 18px; padding: 16px; border: 1px solid #42d7b6; border-radius: 12px; }
+.summary-badge { display: inline-block; margin-left: 8px; padding: 2px 6px; font-size: 10px; border: 1px solid #446374; border-radius: 5px; color: #9bbac9; }

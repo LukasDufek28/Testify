@@ -13,6 +13,7 @@ export default async function handler(req, res) {
     const granularity = Number(body.granularity);
     const strategy = parseStrategy(JSON.stringify(body.strategy));
     const settings = body.settings;
+    if (settings?.feePerTrade !== undefined && (!Number.isFinite(settings.feePerTrade) || settings.feePerTrade < 0 || settings.feePerTrade > 1e9)) throw new Error("Invalid fixed trade fee.");
     if (!settings || !Number.isFinite(settings.capital) || settings.capital <= 0 || settings.capital > 1e9 || !Number.isFinite(settings.feeBps) || settings.feeBps < 0 || settings.feeBps > 1000 || !Number.isFinite(settings.slippageBps) || settings.slippageBps < 0 || settings.slippageBps > 1000) throw new Error("Invalid backtest cost settings.");
     const start = Number(settings.start);
     const end = Number(settings.end);
