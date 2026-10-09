@@ -1,8 +1,9 @@
-// Runs against the local website/backend. Uses an isolated disposable account; never prints credentials.
+// Uses an isolated disposable account; never prints credentials. Defaults to local endpoints.
 import { randomUUID,randomBytes,createHash } from "node:crypto";
 import { neon } from "@neondatabase/serverless";
 import { exampleStrategy } from "../lib/shared/types.js";
-const site="http://127.0.0.1:5174",backend="http://127.0.0.1:3001",issuer="http://localhost:3001",sql=neon(process.env.DATABASE_URL);
+import { adaptiveTrendStrategy } from "../lib/shared/strategy-examples.js";
+const site=process.env.TESTIFY_VERIFY_SITE || "http://127.0.0.1:5174",backend=process.env.TESTIFY_VERIFY_BACKEND || "http://127.0.0.1:3001",issuer=process.env.TESTIFY_VERIFY_ISSUER || "http://localhost:3001",sql=neon(process.env.DATABASE_URL);
 let userId,clientId,access,cookie,sessionId;
 async function siteCall(path,body){const response=await fetch(`${site}${path}`,{method:body?"POST":"GET",headers:{Origin:site,"Content-Type":"application/json",...(cookie?{Cookie:cookie,"X-Testify-Session":sessionId}:{})},...(body?{body:JSON.stringify(body)}:{})});const json=await response.json();if(!response.ok)throw Error(`${path}: ${json.error}`);if(response.headers.get("set-cookie"))cookie=response.headers.get("set-cookie").split(";")[0];return json;}
 async function rpc(method,params){const response=await fetch(`${backend}/api/mcp`,{method:"POST",headers:{Authorization:`Bearer ${access}`,"Content-Type":"application/json",Accept:"application/json, text/event-stream","MCP-Protocol-Version":"2025-11-25"},body:JSON.stringify({jsonrpc:"2.0",id:randomUUID(),method,params})});const text=await response.text();if(!response.ok)throw Error(`MCP HTTP ${response.status}: ${text.slice(0,300)}`);let json;if(text.startsWith("event:")||text.startsWith("data:")){const data=text.split("\n").filter(l=>l.startsWith("data:")).map(l=>l.slice(5).trim());json=JSON.parse(data.at(-1));}else json=JSON.parse(text);if(json.error)throw Error(JSON.stringify(json.error));if(json.result?.isError)throw Error(json.result.content[0].text);return json.result;}
@@ -19,7 +20,9 @@ try{
  const init=await rpc("initialize",{protocolVersion:"2025-11-25",capabilities:{},clientInfo:{name:"testify-local-check",version:"1.0"}});console.log(`MCP initialized: ${init.serverInfo.name}`);
  const catalog=await rpc("tools/list",{});console.log(`Tool discovery: ${catalog.tools.length} tools`);
  await tool("workspace_info");
- const saved=await tool("save_strategy",{idempotencyKey:randomUUID(),id:"verify-strategy",source:JSON.stringify(exampleStrategy),expectedRevision:0});console.log(`Strategy save/revision: ${saved.strategy.revision}`);
+ await tool("validate_strategy",{source:JSON.stringify(adaptiveTrendStrategy)});console.log("Custom strategy sandbox validation passed.");
+ const strategy=process.env.TESTIFY_VERIFY_CUSTOM === "true" ? adaptiveTrendStrategy : exampleStrategy;
+ const saved=await tool("save_strategy",{idempotencyKey:randomUUID(),id:"verify-strategy",source:JSON.stringify(strategy),expectedRevision:0});console.log(`Strategy save/revision: ${saved.strategy.revision}`);
  await tool("rename_strategy",{idempotencyKey:randomUUID(),id:"verify-strategy",name:"Verified strategy",expectedRevision:1});
  const start=Date.parse("2026-09-01T00:00:00Z")/1000,end=Date.parse("2026-09-08T00:00:00Z")/1000;
  const job=await tool("start_backtest_batch",{idempotencyKey:randomUUID(),name:"Local MCP verification",markets:["BTC-USD","ETH-USD"],granularity:3600,strategyId:"verify-strategy",strategyRevision:2,settings:{capital:10000,feeBps:2,feePerTrade:1,slippageBps:1,start,end},research:{phase:"development",fullStart:start,boundary:end,fullEnd:end+7*86400,splitPct:50}});console.log("Background job submitted; no browser session is needed from here.");

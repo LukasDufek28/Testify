@@ -2,6 +2,14 @@
 
 This server lets ChatGPT or Codex operate your Testify account. Inference runs in the connected host under that user's subscription and limits. The server does not embed GPT into the website or share the owner's subscription with other users.
 
+## Published connection
+
+- Website: https://testifybacktester.vercel.app
+- MCP Server URL: https://testify-mcp.vercel.app/api/mcp
+- Authentication: **OAuth**, using automatic discovery and dynamic client registration.
+- Sign in with a real Testify account and approve the requested permissions. Disconnect in the website's **Connections** page.
+- Both Vercel projects are linked to `main`; pushes deploy updates automatically.
+
 ## Local setup
 
 1. Install the website dependencies, then run `npm --prefix apps/mcp install`.
