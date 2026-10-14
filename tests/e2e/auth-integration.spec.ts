@@ -2,12 +2,27 @@ import {test,expect} from './fixtures';
 import {exampleStrategy} from '../../src/types';
 test.describe('account entry and workspace isolation',()=>{
  test.use({signedIn:false});
+ test('approved account screens stay centered and usable on desktop and phone',async({page})=>{
+  await page.goto('/#/app/overview');
+  for(const width of [1440,390]) {
+   await page.setViewportSize({width,height:900});
+   for(const mode of ['login','register']) {
+    const title=page.getByRole('heading',{name:mode==='login'?'Welcome back':'Create your account',exact:true});
+    await expect(title).toBeVisible();await expect(title).toHaveCSS('text-align','center');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    const logo=page.getByRole('link',{name:'Testify home'});await expect(logo).toHaveAttribute('href','#');
+    expect((await logo.boundingBox())!.x).toBeLessThanOrEqual(80);
+    expect(await page.getByLabel('Email',{exact:true}).evaluate(el=>getComputedStyle(el,'::placeholder').color)).toBe('rgba(158, 157, 167, 0.65)');
+    await page.getByRole('button',{name:mode==='login'?'Register':'Sign in',exact:true}).click();
+   }
+  }
+ });
  test('landing stays public, registration opens the design, logout and another account isolate strategies',async({page})=>{
   await page.goto('/');await expect(page.getByRole('button',{name:'Sign in',exact:true})).toHaveCount(0);
   await page.goto('/#/app/strategies');await expect(page.getByRole('heading',{name:'Welcome back',exact:true})).toBeVisible();await expect(page.locator('.penpot-workspace')).toHaveCount(0);
-  await page.getByRole('button',{name:'Create an account',exact:true}).click();await page.getByLabel('Email',{exact:true}).fill('adam@example.test');await page.getByLabel('Password',{exact:true}).fill('browser-test-password-only');await page.getByRole('button',{name:'Create account',exact:true}).click();
+  await page.getByRole('button',{name:'Register',exact:true}).click();await page.getByLabel('Email',{exact:true}).fill('adam@example.test');await page.getByLabel('Password',{exact:true}).fill('browser-test-password-only');await page.getByRole('button',{name:'Create account',exact:true}).click();
   await expect(page.locator('.penpot-workspace')).toBeVisible();await page.getByLabel('Import strategy JSON file').setInputFiles({name:'account.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({...exampleStrategy,name:'Adam private strategy'}))});await expect(page.locator('.strategy-card')).toHaveCount(1);await page.reload();await expect(page.locator('.strategy-card')).toHaveCount(1);
-  await page.getByRole('button',{name:'Sign out',exact:true}).filter({visible:true}).click();await expect(page.getByRole('heading',{name:'Welcome back',exact:true})).toBeVisible();await page.getByLabel('Email',{exact:true}).fill('bob@example.test');await page.getByLabel('Password',{exact:true}).fill('browser-test-password-only');await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.locator('.penpot-workspace')).toBeVisible();await expect(page.locator('.strategy-card')).toHaveCount(0);await expect(page.getByText('Adam private strategy',{exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Open account menu',exact:true}).click();await page.getByRole('menuitem',{name:'Sign out',exact:true}).click();await expect(page.getByRole('heading',{name:'Welcome back',exact:true})).toBeVisible();await page.getByLabel('Email',{exact:true}).fill('bob@example.test');await page.getByLabel('Password',{exact:true}).fill('browser-test-password-only');await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.locator('.penpot-workspace')).toBeVisible();await expect(page.locator('.strategy-card')).toHaveCount(0);await expect(page.getByText('Adam private strategy',{exact:true})).toHaveCount(0);
  });
 });
 test('expired API sessions return to sign-in and hide the old workspace',async({page})=>{

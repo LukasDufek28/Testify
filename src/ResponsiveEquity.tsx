@@ -1,3 +1,6 @@
+import { motion, useMotionTemplate, useReducedMotion, useSpring } from "motion/react";
+import GraphNumber from "./GraphNumber";
+import useCardTilt from './useCardTilt';
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Run } from "./types";
 import { sampleCurve } from "./results";
@@ -17,6 +20,7 @@ function pathY(path: SVGPathElement, x: number) {
 }
 
 export default function ResponsiveEquity({ run, className = "" }: { run?: Run; className?: string }) {
+  const tilt=useCardTilt();
   const root = useRef<HTMLDivElement>(null);
   const equityPath = useRef<SVGPathElement>(null);
   const lossPath = useRef<SVGPathElement>(null);
@@ -35,8 +39,11 @@ export default function ResponsiveEquity({ run, className = "" }: { run?: Run; c
     return { points, losses, min: low - padding, max: high + padding, maxLoss: Math.max(10, Math.ceil(Math.max(...losses) / 10) * 10) };
   }, [run]);
   const count = data?.points.length || 12;
-  const index = Math.min(count - 1, selected ?? (data ? Math.floor(count / 2) : 4));
-  const ratio = index / Math.max(1, count - 1);
+  const ratio = selected ?? (data ? Math.floor(count / 2) / Math.max(1,count-1) : 4 / 11);
+  const position = ratio * (count - 1);
+  const index = Math.min(count - 1, Math.floor(position));
+  const next = Math.min(count - 1,index+1), fraction = position-index;
+  const interpolate = (a:number,b:number) => a+(b-a)*fraction;
   const plotX = left + ratio * (right - left);
   const min = data?.min ?? 10000, max = data?.max ?? 25000, maxLoss = data?.maxLoss ?? 40;
   const toY = (value: number) => bottom - (value - min) / (max - min) * (bottom - top);
@@ -54,32 +61,48 @@ export default function ResponsiveEquity({ run, className = "" }: { run?: Run; c
     if (data || !equityPath.current || !lossPath.current) return;
     setPreviewY({ equity: pathY(equityPath.current, plotX), loss: pathY(lossPath.current, plotX) });
   }, [data, plotX]);
-  const balance = data ? data.points[index].equity : index === 4 ? 20037 : max - (previewY.equity - top) / (bottom - top) * (max - min);
-  const loss = data ? data.losses[index] : index === 4 ? 20.6 : Math.max(0, (bottom - previewY.loss) / (bottom - top) * maxLoss);
-  const date = data ? new Date(data.points[index].time * 1000).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : months[index] + " 2026";
+  const balance = data ? interpolate(data.points[index].equity,data.points[next].equity) : selected===null ? 20037 : max - (previewY.equity - top) / (bottom - top) * (max - min);
+  const loss = data ? interpolate(data.losses[index],data.losses[next]) : selected===null ? 20.6 : Math.max(0, (bottom - previewY.loss) / (bottom - top) * maxLoss);
+  const timestamp = data ? interpolate(data.points[index].time,data.points[next].time)*1000 : Date.UTC(2026,0,1)+ratio*(Date.UTC(2026,11,31)-Date.UTC(2026,0,1));
+  const date = !data && selected===null ? 'May 2026' : new Date(timestamp).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
   const gutter = width < 480 ? 34 : 49;
   const rightGutter = width < 480 ? 34 : 15;
   const plotWidth = Math.max(1, width - gutter - rightGutter);
   const height = width < 480 ? 194 : Math.min(320, Math.max(210, width * .27875));
   const svgHeight = height + (width < 480 ? 38 : 26);
   const x = gutter + ratio * plotWidth;
-  const y = data ? toY(data.points[index].equity) : previewY.equity;
-  const dy = data ? lossY(data.losses[index]) : previewY.loss;
+  const y = data ? toY(balance) : previewY.equity;
+  const dy = data ? lossY(loss) : previewY.loss;
   const screenY = (value: number) => (value - top) / (bottom - top) * height;
   const ticks = width < 480 ? 4 : width < 700 ? 7 : 12;
+  const reduced=useReducedMotion();
+  const springOptions={stiffness:440,damping:38,mass:.45};
+  const cursorX=useSpring(x,springOptions),cursorY=useSpring(screenY(y),springOptions),drawdownY=useSpring(screenY(dy),springOptions);
+  const tipTargetX=Math.max(gutter,Math.min(width-129,x+16));
+  const tipTargetY=Math.max(10,Math.min(height-98,screenY(y)+20));
+  const tipX=useSpring(tipTargetX,springOptions),tipY=useSpring(tipTargetY,springOptions);
+  const tipLeft=useMotionTemplate`clamp(0px, ${tipX}px, calc(100% - 119px))`;
+  const previousWidth=useRef(width);
+  useEffect(()=>{
+    const instant=reduced || previousWidth.current!==width;
+    for(const [spring,target] of [[cursorX,x],[cursorY,screenY(y)],[drawdownY,screenY(dy)],[tipX,tipTargetX],[tipY,tipTargetY]] as const) {
+      if(instant)spring.jump(target);else spring.set(target);
+    }
+    previousWidth.current=width;
+  },[x,y,dy,width,height,tipTargetX,tipTargetY,reduced,cursorX,cursorY,drawdownY,tipX,tipY]);
   function select(clientX: number) {
     const box = root.current?.getBoundingClientRect();
-    if (box) setSelected(Math.max(0, Math.min(count - 1, Math.round((clientX - box.left - gutter) / plotWidth * (count - 1)))));
+    if (box) setSelected(Math.max(0, Math.min(1, (clientX - box.left - gutter) / plotWidth)));
   }
-  return <section className={`design-card design-responsive-equity ${data ? "design-live-chart" : ""} ${className}`}>
+  return <motion.section {...tilt} className={`design-card design-responsive-equity ${data ? "design-live-chart" : ""} ${className}`}>
     <header className="responsive-equity-header">
       <div className="design-card-title"><span className="design-icon"><img src="/design/icon-chart.svg" width="15" height="15" alt="" /></span><span>Equity &amp; drawdown</span></div>
       <div className="responsive-equity-legend"><span><i />Equity</span><span><i />Drawdown</span></div>
     </header>
     <div ref={root} className="design-equity landing-chart-demo responsive-equity-plot" role="group" tabIndex={0}
       aria-label={`${data ? "Saved backtest" : "Preview"} equity and drawdown. Use arrow keys to explore.`}
-      onPointerMove={e => select(e.clientX)} onPointerDown={e => select(e.clientX)} onPointerLeave={() => setSelected(null)}
-      onKeyDown={e => { if (["Home", "End", "ArrowLeft", "ArrowRight"].includes(e.key)) { e.preventDefault(); setSelected(e.key === "Home" ? 0 : e.key === "End" ? count - 1 : Math.max(0, Math.min(count - 1, index + (e.key === "ArrowRight" ? 1 : -1)))); } }}>
+      onPointerMove={e => select(e.clientX)} onPointerDown={e => select(e.clientX)}
+      onKeyDown={e => { if (["Home", "End", "ArrowLeft", "ArrowRight"].includes(e.key)) { e.preventDefault(); setSelected(e.key === "Home" ? 0 : e.key === "End" ? 1 : Math.max(0, Math.min(1, ratio + (e.key === "ArrowRight" ? 1 : -1)/Math.max(1,count-1)))); } }}>
       <svg className="landing-chart-image" width="100%" height={svgHeight} viewBox={`0 -8 ${width} ${svgHeight}`} aria-hidden="true">
         <defs>
           <linearGradient id={`${id}-fade`} x1="0" y1="0" x2="0" y2="1"><stop offset=".25" stopColor="white" stopOpacity=".72" /><stop offset="1" stopColor="white" stopOpacity="0" /></linearGradient>
@@ -94,13 +117,14 @@ export default function ResponsiveEquity({ run, className = "" }: { run?: Run; c
           <path ref={lossPath} data-chart="benchmark" d={lossD} fill="none" stroke="#e69a9a" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
           <path ref={equityPath} data-chart="strategy" d={equityD} fill="none" stroke={`url(#${id}-equity)`} strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
         </g>
-        <line x1={x} x2={x} y1="0" y2={height} stroke="#9e9da7" strokeWidth=".8" />
-        <circle cx={x} cy={screenY(y)} r="3" fill="#91f5ab" /><circle cx={x} cy={screenY(dy)} r="3" fill="#e69a9a" />
+        <motion.line x1={cursorX} x2={cursorX} y1="0" y2={height} stroke="#9e9da7" strokeWidth=".8" />
+        <motion.circle data-chart="equity-marker" cx={cursorX} cy={cursorY} r="3" fill="#91f5ab" /><motion.circle cx={cursorX} cy={drawdownY} r="3" fill="#e69a9a" />
+        <motion.circle cx={cursorX} cy={cursorY} initial={false} animate={{r:selected===null?3:7,opacity:selected===null?0:.6}} transition={{duration:reduced?0:.16}} fill="none" stroke="#91f5ab"/>
         {Array.from({ length: ticks }, (_, i) => { const j = Math.round(i / (ticks - 1) * (count - 1)); return <text key={i} x={gutter + i / (ticks - 1) * plotWidth} y={height + 14} textAnchor="middle" fontSize="11" fill="#9e9da7">{data ? new Date(data.points[j].time * 1000).toLocaleDateString("en-GB", { month: "short", day: "numeric", timeZone: "UTC" }) : months[j]}</text>; })}
       </svg>
-      <div className="responsive-equity-tooltip" style={{ left: `clamp(0px, ${Math.max(gutter, Math.min(width - 129, x + 16))}px, calc(100% - 119px))`, top: Math.max(10, Math.min(height - 98, screenY(y) + 20)) }}>
-        <span data-chart="month">{date}</span><div><i /><span data-chart="strategy-value">${Math.round(balance).toLocaleString("en-US")}</span></div><div><i /><span>{loss.toFixed(1)}%</span></div>
-      </div>
+      <motion.div className="responsive-equity-tooltip" data-motion-chart-tooltip style={{left:tipLeft,top:tipY}}>
+        <span data-chart="month">{date}</span><div><i /><span data-chart="strategy-value"><GraphNumber value={balance}/></span></div><div><i /><span><GraphNumber value={loss} percent/></span></div>
+      </motion.div>
     </div>
-  </section>;
+  </motion.section>;
 }

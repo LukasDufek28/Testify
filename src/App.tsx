@@ -1,4 +1,6 @@
 import AnimatedValue from "./AnimatedValue";
+import RunStatusBadge, { type RunState } from "./RunStatusBadge";
+import ResponsiveResultChart from "./ResponsiveResultChart";
 import { equityLines, metricTone } from "./theme";
 import ReturningDashboard from "./ReturningDashboard";
 import PenpotWorkspace, { type RunOptions } from "./PenpotWorkspace";
@@ -65,7 +67,7 @@ function readTesterOptions(userId: string): Partial<TesterOptions> {
 }
 function Chart({ curves }: { curves: { name: string; points: { time: number; equity: number }[]; capital?: number }[] }) {
   if (!curves.length || !curves.some((c) => c.points.length)) return <div className="chart-empty">Run a backtest to see an equity curve.</div>;
-  return <ReactECharts style={{ height: 320 }} option={{ backgroundColor: "transparent", animation: true, animationDuration: 500, animationEasing: "cubicOut", tooltip: { trigger: "axis", backgroundColor: "#30497d", borderColor: "#385863", textStyle: { color: "#e5f4f2" }, valueFormatter: (value: number) => `$${fmt(value)}` }, legend: { top: 0, textStyle: { color: "#9ab2bd" } }, grid: { left: 70, right: 24, top: 48, bottom: 45 }, xAxis: { type: "time", axisLabel: { color: "#ffffff" } }, yAxis: { type: "value", scale: true, splitLine: { lineStyle: { color: "#455b8a" } }, axisLabel: { color: "#ffffff" } }, series: curves.flatMap((c, i) => equityLines(c.name, c.points, false, Boolean(i % 2), c.capital)) }} />;
+  return <ResponsiveResultChart height={320} option={{ backgroundColor: "transparent", animation: true, animationDuration: 500, animationEasing: "cubicOut", tooltip: { trigger: "axis", backgroundColor: "#30497d", borderColor: "#385863", textStyle: { color: "#e5f4f2" }, valueFormatter: (value: number) => `$${fmt(value)}` }, legend: { top: 0, textStyle: { color: "#9ab2bd" } }, grid: { left: 70, right: 24, top: 48, bottom: 45 }, xAxis: { type: "time", axisLabel: { color: "#ffffff" } }, yAxis: { type: "value", scale: true, splitLine: { lineStyle: { color: "#455b8a" } }, axisLabel: { color: "#ffffff" } }, series: curves.flatMap((c, i) => equityLines(c.name, c.points, false, Boolean(i % 2), c.capital)) }} />;
 
 }
 function PriceChart({ dataset }: { dataset: Dataset }) {
@@ -124,7 +126,7 @@ function execute(dataset: Dataset, strategy: ReturnType<typeof parseStrategy>, s
 
 export default function App({ userId, sessionId, onSessionExpired, accountControls, initialPage = "overview" }: { initialPage?: Page; userId: string; sessionId: string; onSessionExpired: () => void; accountControls: ReactNode }) {
   const localStore = useMemo(() => createLocalStore(userId), [userId]);
-  const [sessionController] = useState(() => new AbortController());
+  const sessionController = useMemo(() => new AbortController(), [userId,sessionId]);
   const apiFetch = useMemo(() => createApiClient(sessionId, sessionController.signal, onSessionExpired), [sessionId, sessionController]);
   const strategyStore = createStrategyStore(apiFetch);
   const [savedTesterOptions] = useState(() => readTesterOptions(userId));
@@ -186,6 +188,7 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
   const [portfolioMode, setPortfolioMode] = useState<"overlay" | "combined">("overlay");
   const [runProgress, setRunProgress] = useState("");
   const [runPercent, setRunPercent] = useState(0);
+  const [runState, setRunState] = useState<RunState>('idle');
   const backtestAbort = useRef<AbortController | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -282,7 +285,7 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
     } catch (e) { message(e); } finally { setBusy(""); }
   }
 
-  function message(e: unknown) { setError(e instanceof Error ? e.message : String(e)); setNotice(""); }
+  function message(e: unknown) { if(e instanceof DOMException&&e.name==='AbortError')return; setError(e instanceof Error ? e.message : String(e)); setNotice(""); }
   async function loadCrypto() {
     setBusy("data"); setError("");
     try {
@@ -352,7 +355,7 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
     if (!selectedStrategy) return message("Choose a saved strategy.");
     if (testDatasetId === "online" && !selectedMarkets.length) return message("Check at least one market.");
     setActiveRunContext({name:runName,description:`${selectedStrategy.name} · ${testDatasetId==="online" ? selectedMarkets.join(", ") : datasets.find(dataset=>dataset.id===testDatasetId)?.symbol} · ${timeframeName(granularity)}`});
-    setBusy("backtest"); setError(""); setRunPercent(0);
+    setBusy("backtest"); setRunState('processing'); setError(""); setRunPercent(0);
     const controller = new AbortController();
     backtestAbort.current = controller;
     const completed: Run[] = [];
@@ -409,7 +412,8 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
       }
       if (controller.signal.aborted && !completed.length) setNotice("Backtest cancelled.");
       if (failures.length) setError(failures.slice(0, 5).join(" · "));
-    } catch (e) { if (controller.signal.aborted) setNotice(completed.length ? `${completed.length} completed backtest${completed.length === 1 ? "" : "s"} saved. Remaining markets cancelled.` : "Backtest cancelled."); else message(e); } finally { if (backtestAbort.current === controller) backtestAbort.current = null; setBusy(""); setRunProgress(""); }
+      setRunState(controller.signal.aborted ? 'cancelled' : failures.length ? 'error' : completed.length ? 'success' : 'error');
+    } catch (e) { setRunState(controller.signal.aborted ? 'cancelled' : 'error'); if (controller.signal.aborted) setNotice(completed.length ? `${completed.length} completed backtest${completed.length === 1 ? "" : "s"} saved. Remaining markets cancelled.` : "Backtest cancelled."); else message(e); } finally { if (backtestAbort.current === controller) backtestAbort.current = null; setBusy(""); setRunProgress(""); }
   }
   async function validate() {
     if (!selectedValidationRuns.length) return message("Select at least one development backtest to validate.");
@@ -604,13 +608,14 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
       }
     }} markets={markets} error={error} notice={notice}
     onCreate={createDraft} onOpen={id=>{setStrategyId(id);setSource(strategies.find(s=>s.id===id)!.source);setPage("studio");}}
-    onRun={()=>void runTest()} onCancel={cancelBacktest} running={busy==="backtest"} progress={runPercent} progressText={runProgress}
+    onRun={()=>void runTest()} onCancel={cancelBacktest} running={busy==="backtest"} runState={runState} progress={runPercent} progressText={runProgress}
     onImport={async file=>{try{await importStrategy(file,"strategies");}catch(e){message(e);}}} onExport={ids=>{const selected=strategies.filter(s=>ids.includes(s.id));if(selected.length)download(selected.length===1?`${selected[0].name.replace(/\W+/g,"-")}.json`:"testify-strategies.json",selected.length===1?selected[0].source:JSON.stringify(selected.map(s=>JSON.parse(s.source)),null,2));}}
     onDelete={deleteLibraryStrategy} onDuplicate={duplicateStrategy} onDraft={draft=>{setSource(draft);setStrategyId("");setPage("studio");}}
     onBackup={exportBackup} loadBars={loadTradeBars}
   />;
   if (page === "overview" && !runs.length) return <EmptyDashboard strategyCount={strategies.length} error={error} onNavigate={(target) => { setPage(target); setError(""); }} onBackup={exportBackup} onImport={importStrategy} />;
   return <WorkspaceShell accountControls={accountControls} page={page} onNavigate={(target) => { setPage(target === "backtests" && runs.length ? "history" : target); setError(""); }} onBackup={exportBackup}>
+      {runState !== 'idle' && <RunStatusBadge state={runState} announce/>}
       {error && <div className="banner error" role="alert"><span>{error}</span><button onClick={() => setError("")}>Dismiss</button></div>}{notice && <div className="banner success" role="status"><span>{notice}</span><button onClick={() => setNotice("")}>Dismiss</button></div>}
       {strategyToDelete && <ConfirmStrategyDelete strategy={strategyToDelete} onDelete={deleteLibraryStrategy} onClose={() => setStrategyToDelete(null)} />}
       {page === "overview" && <ReturningDashboard strategies={strategies} runs={runs} onCreate={createDraft} onBacktest={() => setPage("backtests")} onOpenStrategy={id => { setStrategyId(id); setPage("studio"); }} onOpenRun={run => { setRunId(run.id); setPage("results"); }} onBackup={exportBackup} onRestore={importBackup}/>}

@@ -11,6 +11,7 @@ export const test=base.extend<{signedIn:boolean}>({
    await route.fulfill({json:{user,previewGuest:false}});
   });
   await page.route('**/api/research-cloud?*',route=>route.fulfill({json:{runs:[],nextOffset:null}}));
+  await page.route('**/api/markets',route=>route.fulfill({json:{markets:[{id:'BTC-USD',base:'BTC',quote:'USD'}],source:'Coinbase Exchange'}}));
   await page.route('**/api/strategies',async route=>{
    if(!user)return route.fulfill({status:401,json:{error:'Please sign in again.'}});
    if(route.request().headers()['x-testify-session']!==user.sessionId)return route.fulfill({status:401,json:{error:'Session mismatch'}});

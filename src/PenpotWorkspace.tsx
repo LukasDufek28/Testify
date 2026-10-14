@@ -28,6 +28,9 @@ import { savedRules, tradeR, tradesCsv } from "./results";
 import { replayPreview } from "./penpotReplayPreview";
 import ConfirmStrategyDelete from "./ConfirmStrategyDelete";
 import type { WorkspacePage } from "./WorkspaceShell";
+import RunStatusBadge, { type RunState } from "./RunStatusBadge";
+import useWorkspaceMotion from './useWorkspaceMotion';
+import {motion,useReducedMotion} from 'motion/react';
 import type { Bar, Dataset, Run, SavedStrategy, Trade } from "./types";
 
 export type RunOptions = {
@@ -66,6 +69,7 @@ type Props = {
   onRun: () => void;
   onCancel: () => void;
   running: boolean;
+  runState: RunState;
   progress: number;
   progressText: string;
   onImport: (file: File) => Promise<void>;
@@ -701,6 +705,7 @@ const sampleTrades: Trade[] = [
   },
 ];
 function Replay({ p }: { p: Props }) {
+  const reduced=useReducedMotion();
   const trades = p.selectedRun?.trades || sampleTrades;
   const [index, setIndex] = useState(0),
     [bar, setBar] = useState(37),
@@ -1100,7 +1105,7 @@ function Replay({ p }: { p: Props }) {
           </div>
         </DesignCard>
         <DesignCard className="design-trade-detail raised">
-          <h2>Selected trade · #{p.selectedRun ? index + 1 : 24 + index}</h2>
+          <motion.h2 key={index} initial={reduced?false:{opacity:0,y:4}} animate={{opacity:1,y:0}} transition={{duration:reduced?0:.18}}>Selected trade · #{p.selectedRun ? index + 1 : 24 + index}</motion.h2>
           <p>
             {trade
               ? new Date(trade.entryTime * 1000).toLocaleDateString("en-GB", {
@@ -1249,6 +1254,7 @@ function Replay({ p }: { p: Props }) {
   );
 }
 export default function PenpotWorkspace(p: Props) {
+  const {scope,reduced}=useWorkspaceMotion(p.page);
   const [assistant, setAssistant] = useState(false),
     [navOpen, setNavOpen] = useState(false),
     [settings, setSettings] = useState(false),
@@ -1583,15 +1589,15 @@ export default function PenpotWorkspace(p: Props) {
           >
             <img src="/design/ai-wall.svg" alt="" />
           </button>
-          <div className="design-user">
+          {p.accountControls || <div className="design-user">
             <span>A</span>
             <div>
-              {p.accountControls || <>Adam V.<small>adam.xxx@gmail.com</small></>}
+              Adam V.<small>adam.xxx@gmail.com</small>
             </div>
-          </div>
+          </div>}
         </div>
       </aside>
-      <main className="design-main">
+      <main ref={scope} className="design-main" data-motion-page={p.page}>
         <header className="design-topbar">
           <DesignIcon icon={Layers} />
           <input
@@ -1675,12 +1681,12 @@ export default function PenpotWorkspace(p: Props) {
                     <dd>{run?.strategyName || "Trend crossover"}</dd>
                   </div>
                 </dl>
-                <button
+                <motion.button whileTap={reduced?undefined:{scale:.985}} transition={{duration:.12}}
                   className="design-button"
                   onClick={() => nav("backtests")}
                 >
                   View backtest
-                </button>
+                </motion.button>
               </DesignCard>
             </div>
             <div className="design-right-column">
@@ -1782,7 +1788,7 @@ export default function PenpotWorkspace(p: Props) {
                 onClick={p.onRun}
                 disabled={p.running}
               >
-                {p.running ? "Running…" : "Run backtest"}
+                <RunStatusBadge state={p.runState} />
               </button>
               <button
                 className="design-button secondary"
@@ -1806,9 +1812,9 @@ export default function PenpotWorkspace(p: Props) {
                   {timeframe(run?.granularity || 3600)} ·{" "}
                   {run?.strategyName || "SMA crossover"}
                 </p>
-                <button className="design-button" onClick={() => nav("trades")}>
+                <motion.button whileTap={reduced?undefined:{scale:.985}} transition={{duration:.12}} className="design-button" onClick={() => nav("trades")}>
                   View trades
-                </button>
+                </motion.button>
               </DesignCard>
             </div>
           </div>
@@ -1960,7 +1966,7 @@ export default function PenpotWorkspace(p: Props) {
                 disabled={p.running}
                 onClick={p.onRun}
               >
-                Run {p.options.markets.length} backtests
+                {p.runState === 'idle' ? <>Run {p.options.markets.length} backtests</> : <RunStatusBadge state={p.runState} />}
               </button>
             </div>
           </>
@@ -2030,7 +2036,7 @@ export default function PenpotWorkspace(p: Props) {
               >
                 <X size={18} />
               </button>
-              <h2>Workspace settings</h2>{p.accountControls}<button className="design-button secondary" onClick={() => {setSettings(false);nav("connections");}}>Connections</button>
+              <h2>Workspace settings</h2><button className="design-button secondary" onClick={() => {setSettings(false);nav("connections");}}>Connections</button>
               <p>Your strategies and results are saved in this browser.</p>
               <button
                 className="design-button"

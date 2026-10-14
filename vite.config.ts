@@ -77,5 +77,5 @@ export default defineConfig(({ mode }) => {
   if (env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY)
     process.env.GEMINI_API_KEY = env.GEMINI_API_KEY;
   for (const [key, value] of Object.entries(env)) if (!key.startsWith("VITE_") && !process.env[key]) process.env[key] = value;
-  return { worker: {format:"es"}, plugins: [react(), localApi()], build: { target: "es2022" } };
+  return { worker: {format:"es"}, plugins: [react(), localApi()], server:{watch:{ignored:['**/playwright-report/**','**/test-results/**','**/.playwright-cli/**','**/.local/**']}}, build: { target: "es2022" } };
 });

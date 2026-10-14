@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import type { Run } from "./types";
 import ResponsiveEquity from "./ResponsiveEquity";
+import AnimatedValue from './AnimatedValue';
+import useCardTilt from './useCardTilt';
 import { motion, useReducedMotion } from "motion/react";
 import "./penpot.css";
 
@@ -81,7 +83,8 @@ export function DesignCard({
   children: ReactNode;
   className?: string;
 }) {
-  return <section className={"design-card " + className}>{children}</section>;
+  const tilt=useCardTilt(className.includes('floating'));
+  return <motion.section {...tilt} className={"design-card " + className}>{children}</motion.section>;
 }
 export function CardTitle({
   children,
@@ -118,7 +121,7 @@ export function MetricCard({
     >
       <CardTitle icon={icon}>{label}</CardTitle>
       <div className="design-metric-value">
-        <strong>{value}</strong>
+        <strong><AnimatedValue value={value} animate={label==='Net profit'||label==='Balance'}/></strong>
         <small>{percent}</small>
       </div>
       <p>{hint}</p>
@@ -236,6 +239,7 @@ export function StrategyExample({
   trades = "84",
   negative = false,
   onOpen,
+  example = false,
 }: {
   name?: string;
   market?: string;
@@ -244,6 +248,7 @@ export function StrategyExample({
   trades?: string;
   negative?: boolean;
   onOpen?: () => void;
+  example?: boolean;
 }) {
   return (
     <DesignCard
@@ -277,10 +282,10 @@ export function StrategyExample({
         ))}
       </div>
       <footer>
-        <small>Saved version 3</small>
-        <button className="design-button secondary" onClick={onOpen}>
+        <small>{example ? "Illustrative example · not a saved strategy" : "Saved version 3"}</small>
+        {!example && <button className="design-button secondary" onClick={onOpen}>
           Open strategy
-        </button>
+        </button>}
       </footer>
     </DesignCard>
   );

@@ -1,0 +1,20 @@
+.auth-screen.auth-approved { display:block; min-height:100svh; padding:0; background:#18171f; color:#f9f9fa; font-family:Urbanist,sans-serif; }
+.auth-public-header { width:100%; padding-inline:var(--landing-gutter); }
+.auth-main { width:100%; min-width:0; display:flex; align-items:flex-start; justify-content:center; padding:62px 24px 80px; }
+.auth-approved .auth-card { box-sizing:border-box; width:464px; min-width:0; min-height:568px; max-width:100%; margin:0; padding:40px; border:1px solid #36353f; border-radius:24px; background:#222128; }
+.auth-approved .auth-card h1 { margin:0; text-align:center; font-size:34.98px; line-height:50px; letter-spacing:-.015em; font-weight:400; }
+.auth-approved .auth-intro { font-size:14px; line-height:20px; margin:14px 0 38px; color:#9e9da7; }
+.auth-approved .silver-text { background:linear-gradient(180deg,#c0c3ce 0%,#f5f5f9 38%,#9093a2 100%); background-clip:text; -webkit-background-clip:text; color:transparent; -webkit-text-fill-color:transparent; }
+.auth-form { display:flex; flex-direction:column; gap:24px; }
+.auth-form label { display:grid; gap:12px; font-size:16px; line-height:22px; font-weight:400; color:#9e9da7; }
+.auth-approved .auth-form input { width:100%; min-width:0; height:48px; padding:14px 18px; background:#18171f; border:1px solid #36353f; border-radius:14px; font:14px/20px Urbanist,sans-serif; color:#f9f9fa; }
+.auth-form input::placeholder { color:rgba(158,157,167,.65); opacity:1; }
+.auth-form input:focus-visible { outline:1px solid #a394e5; outline-offset:3px; }
+.auth-form .design-button { font:14px/20px Urbanist,sans-serif; cursor:pointer; width:100%; }
+.auth-submit { margin-top:8px; }
+.auth-switch { margin-top:0; }
+.auth-switch p { text-align:center; font-size:12px; line-height:20px; color:#9e9da7; margin:0 0 14px; }
+.auth-error { color:#e69a9a; font-size:13px; line-height:20px; margin:0; overflow-wrap:anywhere; }
+.auth-skeleton > div { height:48px; margin-bottom:30px; border-radius:14px; background:#292832; }
+.auth-skeleton > div:first-child { height:36px; margin:0 15% 55px; }
+@media(max-width:560px) { .auth-main { padding:28px 16px 40px; } .auth-approved .auth-card { padding:28px 24px; min-height:0; } .auth-approved .auth-card h1 { font-size:30px; line-height:40px; } .auth-approved .auth-intro { margin-bottom:30px; } }

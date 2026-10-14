@@ -1,0 +1,14 @@
+.account-menu { width:100%; min-width:0; }
+.account-menu .account-menu-trigger { display:flex; align-items:center; gap:10px; width:100%; min-height:76px; padding:16px; border:0; border-radius:24px; background:#222128; color:#f9f9fa; text-align:left; font:15px/20px Urbanist,sans-serif; cursor:pointer; }
+.account-avatar { display:grid; place-items:center; width:34px; height:34px; flex:none; border-radius:50%; background:#2b2a33; }
+.account-identity { min-width:0; flex:1; }
+.account-identity strong,.account-popup-details strong { display:block; font-weight:400; }
+.account-identity small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#9e9da7; font-size:12px; }
+.account-menu .account-menu-trigger:hover { background:#292832; }
+.account-menu .account-menu-trigger:focus-visible { outline:1px solid #a394e5; outline-offset:3px; }
+.account-popup { position:fixed; z-index:1000; padding:10px; border:1px solid #36353f; border-radius:18px; background:#222128; color:#f9f9fa; box-shadow:0 12px 32px #0003; font:14px/20px Urbanist,sans-serif; transform-origin:bottom left; }
+.account-popup-details { padding:8px 10px 14px; margin-bottom:8px; border-bottom:1px solid #36353f; }
+.account-popup-details small { display:block; color:#9e9da7; overflow-wrap:anywhere; font-size:12px; }
+.account-popup button { display:flex; align-items:center; gap:10px; width:100%; padding:10px; border:0; border-radius:10px; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.account-popup button:hover,.account-popup button:focus-visible { background:#2b2a33; outline:none; }
+.account-popup p { color:#e69a9a; font-size:12px; padding:0 10px; }

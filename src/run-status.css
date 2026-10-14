@@ -1,0 +1,6 @@
+.run-state-badge { display:inline-flex; position:relative; align-items:center; min-height:22px; font:inherit; }
+.run-state-content { display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
+.run-state-icon { display:inline-flex; }
+.run-state-badge[data-run-state=success] { color:#91f5ab; }
+.run-state-badge[data-run-state=error] { color:#e69a9a; }
+.design-button .run-state-badge { color:inherit; }

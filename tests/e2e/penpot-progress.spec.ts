@@ -1,5 +1,6 @@
 import { test, expect } from "./fixtures";
 import { exampleStrategy } from "../../src/types";
+import {mkdir,writeFile} from 'node:fs/promises';
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/markets", (r) =>
     r.fulfill({ json: { markets: [{ id: "BTC-USD" }] } }),
@@ -7,7 +8,8 @@ test.beforeEach(async ({ page }) => {
 });
 test("backtest progress advances with loaded candles, estimates remaining time and saves a real result", async ({
   page,
-}) => {
+},testInfo) => {
+  test.setTimeout(60000);
   await page.goto("/#/app/strategies");
   await page
     .getByLabel("Import strategy JSON file")
@@ -17,7 +19,7 @@ test("backtest progress advances with loaded candles, estimates remaining time a
       buffer: Buffer.from(JSON.stringify(exampleStrategy)),
     });
   await expect(page.locator(".strategy-card")).toHaveCount(1);
-  await page.evaluate(() =>
+  await page.addInitScript(() =>
     localStorage.setItem(
       "testify-tester-options-v1:e2e-user",
       JSON.stringify({
@@ -30,6 +32,8 @@ test("backtest progress advances with loaded candles, estimates remaining time a
   );
   await page.goto("/#/app/backtests");
   await page.reload();
+  await expect(page.getByRole('combobox',{name:'Strategy',exact:true})).not.toHaveValue('');
+  await expect(page.getByRole('textbox',{name:'Start date',exact:true})).toHaveValue('2025-01-01');
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
   let requests = 0;
@@ -59,6 +63,8 @@ test("backtest progress advances with loaded candles, estimates remaining time a
   await page.getByRole("button", { name: "Run backtest", exact: true }).click();
   const bar = page.getByRole("progressbar", { name: "Backtest processing" });
   await expect(bar).toBeVisible();
+  await expect(page.locator('[data-run-state="processing"]').first()).toBeVisible();
+  await expect(page.locator('[data-run-state="success"]')).toHaveCount(0);
   await expect
     .poll(async () => Number(await bar.getAttribute("aria-valuenow")))
     .toBeGreaterThan(0);
@@ -66,10 +72,17 @@ test("backtest progress advances with loaded candles, estimates remaining time a
   expect(value).toBeLessThan(70);
   await expect(page.getByText(/remaining · estimate/)).toBeVisible();
   await expect(bar.locator("span")).toHaveCSS("animation-name", "none");
+  // Report HTML used to make Vite reload the app and discard an active run in CI.
+  const navigation=page.waitForEvent('framenavigated',{timeout:1000});
+  await mkdir(testInfo.outputDir,{recursive:true});
+  await writeFile(testInfo.outputPath('watch-probe.html'),'<!doctype html><title>CI watcher regression</title>');
+  await expect(navigation).rejects.toThrow(/Timeout/);
+  await expect(bar).toBeVisible();
   release();
   await expect(
     page.getByRole("heading", { name: "Backtest results", exact: true }),
   ).toBeVisible({ timeout: 20000 });
+  await expect(page.getByRole('status').filter({hasText:'Done'})).toBeVisible();
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Backtest results", exact: true }),

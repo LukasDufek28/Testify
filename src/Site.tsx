@@ -2,9 +2,15 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import Landing from "./Landing";
 import "./theme.css";
 import type { WorkspacePage } from "./WorkspaceShell";
+import AccountLoading from './AccountLoading';
 const Auth = lazy(() => import("./Auth"));
 export default function Site() {
   const [hash, setHash] = useState(location.hash);
+  useEffect(() => {
+    // Warm the account bundle while the public page is idle, before its CTA is used.
+    const timer=window.setTimeout(()=>{void import('./Auth');},600);
+    return()=>window.clearTimeout(timer);
+  },[]);
   useEffect(() => {
     const update = () => setHash(location.hash);
     addEventListener("hashchange", update);
@@ -36,11 +42,7 @@ export default function Site() {
     : "overview";
   return (
     <Suspense
-      fallback={
-        <div className="site-loading" role="status">
-          Opening your workspace…
-        </div>
-      }
+      fallback={<AccountLoading/>}
     >
       <Auth initialPage={initialPage} />
     </Suspense>

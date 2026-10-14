@@ -99,7 +99,7 @@ test("phone navigation, native chart labels and monthly cards remain usable", as
   await chart.scrollIntoViewIfNeeded();
   await chart.focus();
   await page.keyboard.press('End');
-  await expect(chart.locator('[data-chart="month"]')).toHaveText('Dec 2026');
+  await expect(chart.locator('[data-chart="month"]')).toHaveText('31 Dec 2026');
   expect(await chart.locator('svg text').evaluateAll(texts => texts.every(t => parseFloat(getComputedStyle(t).fontSize) >= 11))).toBe(true);
   expect(await chart.locator('.responsive-equity-tooltip').evaluate(e => e.getBoundingClientRect().right)).toBeLessThanOrEqual(320);
   const monthly = page.locator('.design-monthly');

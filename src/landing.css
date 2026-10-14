@@ -242,7 +242,7 @@
   .landing-actions{margin-top:63px}
   .landing .landing-button{min-height:56px}
   .landing-showcase-row>.design-card{min-height:0}
-  .landing-showcase-row .design-strategy-example{height:auto;overflow:hidden}
+  .landing-showcase-row .design-strategy-example{height:auto}
   .landing-showcase-row .design-strategy-example .design-icon{width:52px;height:52px}
   .landing-showcase-row .design-strategy-example>p{margin:15px 0 22px;line-height:24px}
   .landing-showcase-row .design-strategy-stats small{line-height:23px}
@@ -298,11 +298,15 @@
 @media(max-width:360px){.landing-steps{padding-inline:40px 10px}.landing-steps p{white-space:normal}.landing-steps h3{font-size:21px}.landing-final h2{font-size:23px}}
 
 /* Let content reflow instead of resizing a fixed artboard. */
+.landing { padding-inline:var(--landing-gutter); }
 .landing-hero { min-height:clamp(650px,calc(100svh - 119px),862px); padding-top:clamp(72px,8.55vw,123px); }
 .landing .design-responsive-equity { text-align:left; padding:clamp(16px,2.2vw,32px); }
 .landing .design-responsive-equity .landing-chart-image { height:auto; aspect-ratio:auto; }
 .landing .responsive-equity-header .design-card-title { font-size:clamp(13px,1.3vw,18px); }
 .landing-showcase-row>.design-card { aspect-ratio:auto; min-height:0; }
+.landing-header .landing-button { width:164px; }
+.landing-showcase-row .design-monthly { display:flex; flex-direction:column; }
+.landing-showcase-row .design-monthly-bars { flex-shrink:0; margin-bottom:clamp(30px,3vw,42px); }
 .landing-showcase-row .design-strategy-title { min-width:0; }
 .landing-showcase-row .design-strategy-title h3 { overflow-wrap:anywhere; }
 .landing-steps h3,.landing-steps p { white-space:normal; }
@@ -312,6 +316,7 @@
 }
 @media(max-width:560px) {
  .landing { --landing-gutter:clamp(16px,6.15vw,24px); }
+ .landing-header .landing-button { width:130px; }
  .landing-hero { padding-top:clamp(48px,10svh,87px); padding-bottom:48px; }
  .landing h1 { font-size:clamp(40px,12.4vw,64px); line-height:1.12; }
  .landing h1>span+span { margin-top:24px; }

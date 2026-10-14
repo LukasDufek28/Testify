@@ -16,4 +16,5 @@ skills-lock.json
 .next/
 .workflow-data/
 .swc/
+.local/
 !.env.example

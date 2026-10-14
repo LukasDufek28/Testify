@@ -211,6 +211,9 @@
 }
 .design-main {
   min-width: 0;
+  width:100%;
+  max-width:1142px;
+  justify-self:center;
 }
 .design-topbar {
   height: 55px;
@@ -277,7 +280,7 @@
   border-radius: inherit;
   border: 1px solid transparent;
   background: radial-gradient(
-      ellipse at 0% 45%,
+      ellipse at var(--card-reflection-x, 0%) var(--card-reflection-y, 45%),
       rgba(141, 139, 165, 0.55),
       rgba(98, 96, 114, 0.55) 10%,
       rgba(54, 53, 63, 0.55) 25%
@@ -289,9 +292,33 @@
   mask-composite: exclude;
   pointer-events: none;
   z-index: 2;
+  animation: card-reflection-drift 12s ease-in-out infinite alternate;
 }
 .design-card.raised {
   background: #222128;
+}
+/* Move the existing radial gradient locally, without adding another highlight. */
+@property --card-reflection-x {
+  syntax: '<percentage>';
+  initial-value: 0%;
+  inherits: false;
+}
+@property --card-reflection-y {
+  syntax: '<percentage>';
+  initial-value: 45%;
+  inherits: false;
+}
+.design-card:nth-child(2n)::before { animation-delay: -4s; }
+.design-card:nth-child(3n)::before { animation-delay: -8s; }
+.landing .design-card::before { animation-name: landing-card-reflection-drift; }
+@keyframes card-reflection-drift {
+  to { --card-reflection-x: 4%; --card-reflection-y: 49%; }
+}
+@keyframes landing-card-reflection-drift {
+  to { --card-reflection-x: 8%; --card-reflection-y: 53%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .design-card::before, .landing .design-card::before { animation: none; }
 }
 .profit-glow {
   background-color: #18171f;
@@ -484,9 +511,16 @@
   width: 40px;
   height: 40px;
   border: 0;
+  flex-shrink:0;
 }
-.design-assistant form:has(input:focus) {
-  outline: 1px solid #a394e5;
+.penpot-workspace .design-assistant form input:focus-visible {
+  outline:none;
+  box-shadow:none;
+}
+.penpot-workspace .design-assistant textarea:focus-visible { outline:none; box-shadow:none; }
+.design-assistant form:has(input:focus-visible) {
+  outline:none;
+  box-shadow:none;
 }
 .assistant-response {
   height: 208px;

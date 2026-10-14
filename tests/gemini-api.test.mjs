@@ -131,19 +131,34 @@ test("one click tries quota, incompatible config and network failures before 2.5
     if(seen.length === 1) return {ok:false,status:429,json:async()=>({error:{message:"quota"}})};
     if(seen.length === 2) return {ok:false,status:400,json:async()=>({error:{message:"unsupported option"}})};
     if(seen.length === 3) throw new DOMException("timeout","TimeoutError");
+    if(seen.length === 4) return {ok:false,status:503,json:async()=>({error:{message:"busy"}})};
+    if(seen.length === 5) return {ok:false,status:503,json:async()=>({error:{message:"busy"}})};
     const config = JSON.parse(options.body).generationConfig;
     assert.deepEqual(config.thinkingConfig,{thinkingBudget:0});
     return {ok:true,json:async()=>({candidates:[{content:{parts:[{thought:true,text:"private reasoning"},{text:JSON.stringify(strategy)}]}}]})};
   };
-  try {const res=reply();await handler(request(),res);assert.equal(res.statusCode,200);assert.equal(res.body.model,"gemini-2.5-flash");assert.equal(seen.length,4);}
+  try {const res=reply();await handler(request(),res);assert.equal(res.statusCode,200);assert.equal(res.body.model,"gemini-2.5-flash");assert.equal(seen.length,6);}
   finally {globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
 });
 
 test("exhausted quotas report failure only after every model was tried", async () => {
   const oldKey=process.env.GEMINI_API_KEY,oldFetch=globalThis.fetch;process.env.GEMINI_API_KEY="test-secret";let calls=0;
   globalThis.fetch=async()=>{calls++;return {ok:false,status:429,json:async()=>({error:{message:"quota"}})}};
-  try {const res=reply();await handler(request(),res);assert.equal(calls,4);assert.equal(res.statusCode,429);assert.equal(res.headers["Retry-After"],"60");}
+  try {const res=reply();await handler(request(),res);assert.equal(calls,6);assert.equal(res.statusCode,429);assert.equal(res.headers["Retry-After"],"60");}
   finally {globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
+});
+
+test('a configured supported light model works without unsupported thinking settings',async()=>{
+ const oldKey=process.env.GEMINI_API_KEY,oldModel=process.env.GEMINI_MODEL,oldFetch=globalThis.fetch;
+ process.env.GEMINI_API_KEY='test-secret';process.env.GEMINI_MODEL='gemini-flash-lite-latest';
+ globalThis.fetch=async(url,options)=>{
+  assert.match(url,/gemini-flash-lite-latest:generateContent/);
+  assert.equal(JSON.parse(options.body).generationConfig.thinkingConfig,undefined);
+  const strategy={version:1,name:'Local light model',description:'Test',side:'long',entryLong:[{left:{kind:'close'},op:'gt',right:1}],entryShort:[],exitLong:[],exitShort:[],stopLossPct:1,takeProfitPct:2,allocationPct:50};
+  return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:JSON.stringify(strategy)}]}}]})};
+ };
+ try{const res=reply();await handler(request(),res);assert.equal(res.statusCode,200);assert.equal(res.body.model,'gemini-flash-lite-latest');}
+ finally{globalThis.fetch=oldFetch;for(const [key,value]of Object.entries({GEMINI_API_KEY:oldKey,GEMINI_MODEL:oldModel})){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
 });
 
 test("generated custom code is execution checked and repaired before returning", async () => {

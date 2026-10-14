@@ -1,5 +1,19 @@
 import { test, expect } from "./fixtures";
 
+test('existing card radial gradient drifts locally without an extra orbiting reflection',async({page})=>{
+ await page.goto('/');
+ const card=page.locator('.landing .design-card').first();
+ const state=await card.evaluate(el=>{
+  const animation=el.getAnimations({subtree:true}).find(a=>(a as CSSAnimation).animationName==='landing-card-reflection-drift')!;
+  animation.pause();animation.currentTime=6000;
+  const style=getComputedStyle(el,'::before');
+  return {background:style.backgroundImage,x:parseFloat(style.getPropertyValue('--card-reflection-x')),y:parseFloat(style.getPropertyValue('--card-reflection-y')),extra:getComputedStyle(el,'::after').content};
+ });
+ expect(state.background).toContain('radial-gradient');expect(state.background).not.toContain('conic-gradient');
+ expect(state.x).toBeGreaterThan(0);expect(state.x).toBeLessThanOrEqual(8);expect(state.y).toBeGreaterThanOrEqual(45);expect(state.y).toBeLessThanOrEqual(53);expect(state.extra).toBe('none');
+ await page.emulateMedia({reducedMotion:'reduce'});await expect.poll(()=>card.evaluate(el=>getComputedStyle(el,'::before').animationName)).toBe('none');
+});
+
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/markets", route => route.fulfill({ json: { markets: [{ id: "BTC-USD", base: "BTC", quote: "USD" }], source: "Coinbase Exchange" } }));
 });
@@ -107,17 +121,20 @@ test("approved equity demo responds to hover, touch and keyboard without changin
   await expect(demo.locator('[data-chart="month"]')).not.toHaveText("May 2026");
   await expect(demo.locator('[data-chart="strategy-value"]')).not.toHaveText("$19,040");
   expect(await demo.locator('[data-chart="strategy"], [data-chart="benchmark"]').evaluateAll(paths => paths.map(p => p.getAttribute("d")))).toEqual(curves);
+  const lastDate=await demo.locator('[data-chart="month"]').textContent();
+  const lastValue=await demo.locator('[data-chart="strategy-value"]').textContent();
   await page.mouse.move(0,0);
-  await expect(demo.locator('[data-chart="month"]')).toHaveText("May 2026");
+  await expect(demo.locator('[data-chart="month"]')).toHaveText(lastDate!);
+  await expect(demo.locator('[data-chart="strategy-value"]')).toHaveText(lastValue!);
   await demo.focus();
   await page.keyboard.press("End");
-  await expect(demo.locator('[data-chart="month"]')).toHaveText("Dec 2026");
+  await expect(demo.locator('[data-chart="month"]')).toHaveText("31 Dec 2026");
   await page.keyboard.press("Home");
-  await expect(demo.locator('[data-chart="month"]')).toHaveText("Jan 2026");
+  await expect(demo.locator('[data-chart="month"]')).toHaveText("1 Jan 2026");
   await page.setViewportSize({width:390,height:844});
   await demo.scrollIntoViewIfNeeded();
   await demo.dispatchEvent("pointerdown", {pointerType:"touch",clientX:(await demo.boundingBox())!.x + 200,clientY:(await demo.boundingBox())!.y + 70});
-  await expect(demo.locator('[data-chart="month"]')).not.toHaveText("Jan 2026");
+  await expect(demo.locator('[data-chart="month"]')).not.toHaveText("1 Jan 2026");
   for (const width of [320, 390, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(demo.locator("svg")).toBeVisible();
@@ -128,14 +145,25 @@ test("approved equity demo responds to hover, touch and keyboard without changin
     await page.mouse.wheel(0, -450);
     await demo.focus();
     await page.keyboard.press("End");
-    await expect(demo.locator('[data-chart="month"]')).toHaveText("Dec 2026");
+    await expect(demo.locator('[data-chart="month"]')).toHaveText("31 Dec 2026");
     await expect(demo.locator('[data-chart="strategy-value"]')).toHaveText(/^\$[\d,]+$/);
     await expect(page.getByRole("heading", { level: 1 })).toBeAttached();
   }
   // Tooltip values are independent of the axis text in the DOM.
   await demo.locator("svg text").evaluateAll(texts => texts.forEach(t => t.remove()));
   await page.keyboard.press("Home");
-  await expect(demo.locator('[data-chart="month"]')).toHaveText("Jan 2026");
+  await expect(demo.locator('[data-chart="month"]')).toHaveText("1 Jan 2026");
   await expect(demo.locator('[data-chart="strategy-value"]')).toHaveText(/^\$[\d,]+$/);
   expect(errors).toEqual([]);
+});
+
+
+test("landing strategy is clearly an example with no open action", async ({page}) => {
+  await page.goto("/");
+  const card = page.locator(".landing-showcase-row .design-strategy-example");
+  await expect(card.getByRole("heading", {name:"Your Strategy", exact:true})).toBeVisible();
+  await expect(card).toContainText("Illustrative example");
+  await expect(card.getByRole("button")).toHaveCount(0);
+  await expect(card.getByRole("link")).toHaveCount(0);
+  await expect(card).not.toContainText("BTC trend crossover");
 });

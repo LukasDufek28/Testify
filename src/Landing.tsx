@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import PublicHeader from './PublicHeader';
 import "./landing.css";
 import { DesignEquity, DesignMonthly, StrategyExample } from "./PenpotPrimitives";
 
@@ -31,14 +32,7 @@ export default function Landing() {
 
   return (
     <div className="landing" ref={root}>
-      <header className="landing-header">
-        <a className="landing-logo silver-text" href="#" aria-label="Testify home">TESTIFY</a>
-        <nav aria-label="Main navigation">
-          <a className="landing-nav-link" href="#how-it-works">How it works</a>
-          <a className="landing-nav-link" href="#product-preview">Product</a>
-          <a className="landing-button landing-primary" href="#/app/overview">Start for free</a>
-        </nav>
-      </header>
+      <PublicHeader />
       <main className="landing-main">
         <section className="landing-hero" aria-labelledby="landing-heading">
           <div className="landing-copy">
@@ -62,7 +56,7 @@ export default function Landing() {
           <figure className="landing-chart" aria-label="Illustrative equity and drawdown chart">
             <DesignEquity responsivePreview />
           </figure>
-          <div className="landing-showcase-row"><DesignMonthly/><StrategyExample onOpen={()=>{location.hash="#/app/strategies";}}/></div>
+          <div className="landing-showcase-row"><DesignMonthly/><StrategyExample name="Your Strategy" example/></div>
         </section>
         <section className="landing-process" id="how-it-works" aria-labelledby="process-heading" data-reveal>
           <h2 id="process-heading" className="silver-text">Less friction. More clarity.</h2>

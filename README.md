@@ -26,7 +26,9 @@ Use it in a rule as `{"left":{"kind":"custom","name":"Momentum"},"op":"crosses_a
 
 ## Gemini setup
 
-Set `GEMINI_API_KEY` in the `testify` Vercel project's Production environment variables and redeploy. Never put the key in a `VITE_` variable or browser code. Testify uses Gemini 3.8 Flash with 3.7 and 3.6 Flash fallbacks.
+Set `GEMINI_API_KEY` in the `testify` Vercel project's Production environment variables and redeploy. Never put the key in a `VITE_` variable or browser code. Testify tries Gemini 3.8, 3.7, 3.6, 3.5, Flash-Lite and 2.5 fallbacks. An optional server-only `GEMINI_MODEL` can put one of these supported models first; local testing uses `gemini-flash-lite-latest` when the newer models are overloaded.
+
+For local frontend review, `.env.local` can enable `TESTIFY_LOCAL_DEMO=1` with an `AUTH_SECRET` of at least 32 characters and an `APP_ORIGINS` entry matching the local URL. This uses a persistent PostgreSQL database under the ignored `.local/testify-demo` directory and creates `demo@testify.local` / `Testify-Demo-2026!`. The local database adapter is disabled on Vercel and production builds.
 
 ## Develop and deploy
 
