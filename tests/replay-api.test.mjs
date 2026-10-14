@@ -18,6 +18,7 @@ test('replay API persists atomic cursor/positions, replays retries once, hides f
   let user=alice;const handler=createReplayHandler(async()=>({id:user}),()=>sql);
   async function call(body,query={}){const r=response();await handler({method:body?'POST':'GET',headers:{host:'testify.test',origin:'https://testify.test'},body,query},r);return r;}
   const started=await call({action:'start',requestId:randomUUID(),datasetId:'d',strategyId:'s',settings:{capital:1000,feeBps:0,slippageBps:0,start:1000,end:2440}});assert.equal(started.code,200);assert.equal(started.body.bars.length,1);
+  const invalid=await call({action:'command',requestId:randomUUID(),id:started.body.session.id,expectedRevision:1,command:{type:'order',order:{side:1,type:'market',price:100,stop:101,target:110,riskPct:1}}});assert.equal(invalid.code,400);assert.match(invalid.body.error,/stop/);assert.equal((await call(null,{id:started.body.session.id})).body.session._revision,1);
   let session=started.body.session;const placed=await call({action:'command',requestId:randomUUID(),id:session.id,expectedRevision:session._revision,command:{type:'order',order:{side:1,type:'market',price:100,stop:95,target:110,riskPct:1}}});assert.equal(placed.code,200);session=placed.body.session;
   const command={action:'command',requestId:randomUUID(),id:session.id,expectedRevision:session._revision,command:{type:'step'}};
   const stepped=await call(command);assert.equal(stepped.code,200);assert.equal(stepped.body.bars.length,2);assert.equal(stepped.body.session.position.units,2);
