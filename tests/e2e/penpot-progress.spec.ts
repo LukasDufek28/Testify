@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { exampleStrategy } from "../../src/types";
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/markets", (r) =>
@@ -19,7 +19,7 @@ test("backtest progress advances with loaded candles, estimates remaining time a
   await expect(page.locator(".strategy-card")).toHaveCount(1);
   await page.evaluate(() =>
     localStorage.setItem(
-      "testify-tester-options-v1",
+      "testify-tester-options-v1:e2e-user",
       JSON.stringify({
         start: "2025-01-01T00:00",
         end: "2025-10-01T00:00",
@@ -29,6 +29,7 @@ test("backtest progress advances with loaded candles, estimates remaining time a
     ),
   );
   await page.goto("/#/app/backtests");
+  await page.reload();
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
   let requests = 0;

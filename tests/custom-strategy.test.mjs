@@ -23,13 +23,13 @@ test("custom formulas and OR groups execute in the backtest", () => {
     const price = i < 25 ? 100 : i < 50 ? 110 : 100;
     return { time: 1_700_000_000 + i * 60, open: price, high: price + 1, low: price - 1, close: price, volume: i === 25 ? 20 : 10, spread: 0 };
   });
-  const dataset = { id: "test", symbol: "BTC-USD", fileName: "test", importedAt: 0, utcOffset: 0, point: 0, bars, skipped: 0 };
-  const run = runBacktest(dataset, parsed, { capital: 1000, feeBps: 0, slippageBps: 0, useMt5Spread: false, start: bars[0].time, end: bars.at(-1).time }, "test", "test");
+  const dataset = { id: "test", symbol: "BTC-USD", fileName: "test", importedAt: 0, bars, skipped: 0 };
+  const run = runBacktest(dataset, parsed, { capital: 1000, feeBps: 0, slippageBps: 0, start: bars[0].time, end: bars.at(-1).time }, "test", "test");
   assert.equal(run.trades.length, 1);
   assert.equal(run.trades[0].entryTime, bars[26].time);
   assert.equal(run.trades[0].exitTime, bars[51].time);
   assert.equal(run.curve[25].time, bars[25].time + 60);
-  const partial = runBacktest({ ...dataset, bars: bars.slice(0, 40) }, parsed, { capital: 1000, feeBps: 0, slippageBps: 0, useMt5Spread: false, start: bars[0].time, end: bars[39].time }, "test", "partial");
+  const partial = runBacktest({ ...dataset, bars: bars.slice(0, 40) }, parsed, { capital: 1000, feeBps: 0, slippageBps: 0, start: bars[0].time, end: bars[39].time }, "test", "partial");
   assert.deepEqual(partial.curve.slice(0, -1), run.curve.slice(0, 39));
 });
 
@@ -37,8 +37,8 @@ test("out-of-order candles cannot feed later prices into earlier signals", () =>
   const parsed = parseStrategy(JSON.stringify(strategy));
   const bars = Array.from({ length: 25 }, (_, i) => ({ time: 1_700_000_000 + i * 60, open: 100, high: 101, low: 99, close: 100, volume: 10, spread: 0 }));
   [bars[10], bars[11]] = [bars[11], bars[10]];
-  const dataset = { id: "test", symbol: "BTC-USD", fileName: "test", importedAt: 0, utcOffset: 0, point: 0, bars, skipped: 0 };
-  assert.throws(() => runBacktest(dataset, parsed, { capital: 1000, feeBps: 0, slippageBps: 0, useMt5Spread: false, start: bars[0].time, end: bars.at(-1).time }, "test", "test"), /chronological order/);
+  const dataset = { id: "test", symbol: "BTC-USD", fileName: "test", importedAt: 0, bars, skipped: 0 };
+  assert.throws(() => runBacktest(dataset, parsed, { capital: 1000, feeBps: 0, slippageBps: 0, start: bars[0].time, end: bars.at(-1).time }, "test", "test"), /chronological order/);
 });
 
 test("custom formulas reject lookahead, missing references, and cycles", () => {

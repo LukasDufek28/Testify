@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import Landing from "./Landing";
 import "./theme.css";
 import type { WorkspacePage } from "./WorkspaceShell";
-const App = lazy(() => import("./App"));
+const Auth = lazy(() => import("./Auth"));
 export default function Site() {
   const [hash, setHash] = useState(location.hash);
   useEffect(() => {
@@ -14,7 +14,7 @@ export default function Site() {
     if (!hash || hash === "#" || hash.startsWith("#/app/"))
       window.scrollTo(0, 0);
   }, [hash]);
-  if (!hash.startsWith("#/app/")) return <Landing />;
+  if (!hash.startsWith("#/app/") && !new URLSearchParams(location.search).has("mcpAuthorize") && !new URLSearchParams(location.search).has("mcpLogin")) return <Landing />;
   const route = hash.replace("#/app/", "");
   const initialPage: WorkspacePage = (
     [
@@ -42,7 +42,7 @@ export default function Site() {
         </div>
       }
     >
-      <App key={hash} initialPage={initialPage} />
+      <Auth initialPage={initialPage} />
     </Suspense>
   );
 }

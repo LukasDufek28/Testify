@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import handler from "../api/generate-strategy.js";
+import { createGenerationHandler } from "../api/generate-strategy.js";
+const handler = createGenerationHandler(async () => ({ id: "test-user" }));
 
 function reply() {
   return { statusCode: 200, headers: {}, body: null, setHeader(key, value) { this.headers[key] = value; return this; }, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; return this; } };
@@ -98,4 +99,75 @@ test("Gemini revision receives the selected strategy and development summaries",
     const invalid = reply(); req.headers["x-forwarded-for"] = crypto.randomUUID(); req.body.results = [{ ...result, phase: "validation" }]; await handler(req, invalid);
     assert.equal(invalid.statusCode, 400);
   } finally { globalThis.fetch = oldFetch; if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey; }
+});
+
+
+test("Gemini can modify an existing strategy without backtest context", async () => {
+  const oldKey = process.env.GEMINI_API_KEY, oldFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = "test-secret";
+  const strategy = { version: 1, name: "Existing strategy", description: "Test", side: "long", entryLong: [{ left: { kind: "close" }, op: "gt", right: 1 }], entryShort: [], exitLong: [], exitShort: [], stopLossPct: 1, takeProfitPct: 2, allocationPct: 50 };
+  let prompt = "";
+  globalThis.fetch = async (_url, options) => { prompt = JSON.parse(options.body).contents[0].parts[0].text; return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(strategy) }] } }] }) }; };
+  try {
+    const req = request(); req.body = { mode: "revise", idea: "Add an RSI filter", strategy };
+    const res = reply(); await handler(req, res);
+    assert.equal(res.statusCode, 200);
+    assert.match(prompt, /Add an RSI filter/);
+    assert.match(prompt, /Existing strategy/);
+    assert.match(prompt, /do not invent performance evidence/);
+    assert.match(prompt, /optional context/);
+    req.body.results = []; const empty = reply(); await handler(req, empty); assert.equal(empty.statusCode, 200);
+    req.body.results = {}; const invalid = reply(); await handler(req, invalid); assert.equal(invalid.statusCode, 400);
+  } finally { globalThis.fetch = oldFetch; if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey; }
+});
+
+test("one click tries quota, incompatible config and network failures before 2.5 succeeds", async () => {
+  const oldKey = process.env.GEMINI_API_KEY, oldFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = "test-secret";
+  const seen = [];
+  const strategy = {version:1,name:"Fallback",description:"Test",side:"long",entryLong:[{left:{kind:"close"},op:"gt",right:1}],entryShort:[],exitLong:[],exitShort:[],stopLossPct:1,takeProfitPct:2,allocationPct:50};
+  globalThis.fetch = async (url, options) => {
+    seen.push(url);
+    if(seen.length === 1) return {ok:false,status:429,json:async()=>({error:{message:"quota"}})};
+    if(seen.length === 2) return {ok:false,status:400,json:async()=>({error:{message:"unsupported option"}})};
+    if(seen.length === 3) throw new DOMException("timeout","TimeoutError");
+    const config = JSON.parse(options.body).generationConfig;
+    assert.deepEqual(config.thinkingConfig,{thinkingBudget:0});
+    return {ok:true,json:async()=>({candidates:[{content:{parts:[{thought:true,text:"private reasoning"},{text:JSON.stringify(strategy)}]}}]})};
+  };
+  try {const res=reply();await handler(request(),res);assert.equal(res.statusCode,200);assert.equal(res.body.model,"gemini-2.5-flash");assert.equal(seen.length,4);}
+  finally {globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
+});
+
+test("exhausted quotas report failure only after every model was tried", async () => {
+  const oldKey=process.env.GEMINI_API_KEY,oldFetch=globalThis.fetch;process.env.GEMINI_API_KEY="test-secret";let calls=0;
+  globalThis.fetch=async()=>{calls++;return {ok:false,status:429,json:async()=>({error:{message:"quota"}})}};
+  try {const res=reply();await handler(request(),res);assert.equal(calls,4);assert.equal(res.statusCode,429);assert.equal(res.headers["Retry-After"],"60");}
+  finally {globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
+});
+
+test("generated custom code is execution checked and repaired before returning", async () => {
+ const oldKey=process.env.GEMINI_API_KEY,oldFetch=globalThis.fetch;process.env.GEMINI_API_KEY='test-secret';let calls=0;
+ const custom={version:3,runtime:'javascript',name:'Custom SMC',description:'Synthetic example',parameters:{riskPct:0.5},code:"let gap=null; function onBar(ctx){if(ctx.index>=2 && ctx.history[ctx.index-2].high<ctx.bar.low) gap={low:ctx.history[ctx.index-2].high,high:ctx.bar.low};if(!ctx.position && gap && ctx.bar.close>gap.high) return {entry:{side:'long',stopPrice:gap.low,riskPct:ctx.parameters.riskPct}};return {}; }"};
+ globalThis.fetch=async(_url,options)=>{calls++;const prompt=JSON.parse(options.body).contents[0].parts[0].text;assert.match(prompt,/SMC\/ICT/);if(calls===2)assert.match(prompt,/Unknown strategy action buy/);return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:JSON.stringify(calls===1?{...custom,code:'function onBar(ctx){return {buy:true};}'}:custom)}]}}]})}};
+ try{const res=reply();await handler(request('Build an SMC gap strategy'),res);assert.equal(res.statusCode,200);assert.equal(res.body.strategy.version,3);assert.equal(calls,2);}
+ finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
+});
+
+test("Ask returns consultation text with strategy and development context, never a strategy edit", async () => {
+ const oldKey=process.env.GEMINI_API_KEY,oldFetch=globalThis.fetch;
+ process.env.GEMINI_API_KEY="test-secret";
+ globalThis.fetch=async(_url,options)=>{
+  const body=JSON.parse(options.body);
+  assert.equal(body.generationConfig.responseMimeType,"text/plain");
+  assert.match(body.systemInstruction.parts[0].text,/Never change/);
+  assert.match(body.contents[0].parts[0].text,/Question/);
+  assert.match(body.contents[0].parts[0].text,/draft strategy/);
+  return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:"Trade frequency can increase fee drag. Test a stricter entry filter on development data."}]}}]})};
+ };
+ try{
+  const res=reply();await handler({...request(),body:{mode:"ask",idea:"Why does this overtrade?",strategy:{name:"draft strategy",entryLong:[]},results:[],messages:[{role:"user",text:"Explain costs"}]}},res);
+  assert.equal(res.statusCode,200);assert.match(res.body.answer,/fee drag/);assert.equal(res.body.strategy,undefined);
+  const bad=reply();await handler({...request(),body:{mode:"ask",idea:"Explain",strategy:{name:"draft"},results:[{phase:"validation"}]}},bad);assert.equal(bad.statusCode,400);
+ }finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
 });

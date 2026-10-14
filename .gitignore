@@ -9,3 +9,11 @@ output/playwright/
 
 playwright-report/
 test-results/
+
+# Local provider setup installed by Vercel CLI
+.agents/
+skills-lock.json
+.next/
+.workflow-data/
+.swc/
+!.env.example

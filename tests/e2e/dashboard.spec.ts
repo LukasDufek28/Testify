@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { exampleStrategy } from "../../src/types";
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/markets", (r) =>
@@ -26,7 +26,7 @@ test("approved dashboard geometry, preview data and responsive shell", async ({
   const counts = await page.evaluate(
     () =>
       new Promise<number[]>((resolve) => {
-        const q = indexedDB.open("testify-local-v1", 1);
+        const q = indexedDB.open("testify-user-e2e-user", 1);
         q.onsuccess = () => {
           const db = q.result,
             tx = db.transaction(["strategies", "runs"]),
@@ -93,7 +93,7 @@ test("saved results replace preview metrics and monthly values", async ({
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.evaluate(async () => {
     await new Promise<void>((resolve) => {
-      const q = indexedDB.open("testify-local-v1", 1);
+      const q = indexedDB.open("testify-user-e2e-user", 1);
       q.onsuccess = () => {
         const db = q.result,
           tx = db.transaction("runs", "readwrite");

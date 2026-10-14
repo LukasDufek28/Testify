@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 const widths = [320,390,560,768,960,1024,1280,1440,1920,2560,3440];
 test.beforeEach(async ({ page }) => {

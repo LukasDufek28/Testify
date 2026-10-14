@@ -11,7 +11,7 @@ export type Formula =
   | { op: "lag" | "sma" | "ema" | "rsi" | "highest" | "lowest" | "stdev"; input: Formula; period: number }
   | { op: "atr"; period: number };
 export type CustomIndicator = { name: string; formula: Formula };
-export type Strategy = {
+export type RuleStrategy = {
   version: 1 | 2;
   name: string;
   description: string;
@@ -25,16 +25,26 @@ export type Strategy = {
   takeProfitPct: number;
   allocationPct: number;
 };
-export type SavedStrategy = { id: string; name: string; source: string; updatedAt: number };
+export type ScriptStrategy = {
+  version: 3;
+  name: string;
+  description: string;
+  runtime: "javascript";
+  code: string;
+  parameters?: Record<string, number | string | boolean>;
+};
+export type Strategy = RuleStrategy | ScriptStrategy;
+export type SavedStrategy = { id: string; name: string; source: string; updatedAt: number; revision?: number };
 export type Bar = { time: number; open: number; high: number; low: number; close: number; spread: number; volume: number };
-export type Dataset = { id: string; symbol: string; fileName: string; importedAt: number; utcOffset: number; point: number; bars: Bar[]; skipped: number };
-export type Trade = { entryTime: number; exitTime: number; side: 1 | -1; entry: number; exit: number; pnl: number; returnPct: number; reason: string };
+export type Dataset = { id: string; symbol: string; fileName: string; importedAt: number; utcOffset?: number; point?: number; bars: Bar[]; skipped: number; funding?: { time: number; rate: number; markPrice?: number }[]; validation?: import("./data-validation").DataValidation };
+export type Trade = { entryTime: number; exitTime: number; side: 1 | -1; entry: number; exit: number; pnl: number; returnPct: number; reason: string; rMultiple?: number; funding?: number };
 export type EquityPoint = { time: number; equity: number };
-export type BacktestSettings = { capital: number; feeBps: number; slippageBps: number; useMt5Spread: boolean; start: number; end: number };
-export type ResearchWindow = { phase: "development" | "validation"; fullStart: number; fullEnd: number; boundary: number; splitPct: number; parentRunId?: string };
-export type Run = { id: string; name: string; createdAt: number; symbol: string; granularity?: number; datasetId?: string; priceDatasetId?: string; strategyId: string; strategyName: string; strategySource?: string; research?: ResearchWindow; settings: BacktestSettings; metrics: { netReturnPct: number; maxDrawdownPct: number; sharpe: number | null; winRatePct: number; tradeCount: number; totalFees: number }; curve: EquityPoint[]; trades: Trade[]; warnings: string[] };
+export type BacktestSettings = { capital: number; useMt5Spread?: boolean; feeBps: number; feePerTrade?: number; slippageBps: number; start: number; end: number; warmupStart?: number };
+export type ResearchWindow = { phase: "development" | "validation" | "holdout"; fullStart: number; fullEnd: number; boundary: number; holdoutStart?: number; splitPct: number; parentRunId?: string };
+export type Run = { id: string; name: string; createdAt: number; symbol: string; granularity?: number; datasetId?: string; priceDatasetId?: string; strategyId: string; strategyName: string; strategySource?: string; research?: ResearchWindow; settings: BacktestSettings; metrics: { netReturnPct: number; maxDrawdownPct: number; sharpe: number | null; winRatePct: number; tradeCount: number; totalFees: number; profitFactor?: number | null; averageRMultiple?: number | null; totalFunding?: number }; curve: EquityPoint[]; trades: Trade[]; warnings: string[]; summaryOnly?: boolean; cloudLinked?: boolean };
 
-export const exampleStrategy: Strategy = {
+
+export const exampleStrategy: RuleStrategy = {
   version: 1,
   name: "SMA crossover",
   description: "Enter when the 20-bar average crosses above the 50-bar average; exit on the reverse cross.",
@@ -77,8 +87,15 @@ function formula(value: unknown, refs: Set<string>, budget: { nodes: number }, d
   return false;
 }
 export function parseStrategy(source: string): Strategy {
-  let s: Strategy;
-  try { s = JSON.parse(source) as Strategy; } catch { throw new Error("Strategy is not valid JSON."); }
+  let parsed: Strategy;
+  try { parsed = JSON.parse(source) as Strategy; } catch { throw new Error("Strategy is not valid JSON."); }
+  if (parsed?.version === 3) {
+    if (typeof parsed.name !== "string" || !parsed.name.trim() || parsed.name.length > 100 || typeof parsed.description !== "string") throw new Error("Custom strategy needs a name and description.");
+    if (parsed.runtime !== "javascript" || typeof parsed.code !== "string" || !parsed.code.trim() || parsed.code.length > 60000) throw new Error("Custom strategy must contain JavaScript code (up to 60,000 characters).");
+    if (parsed.parameters !== undefined && (!parsed.parameters || typeof parsed.parameters !== "object" || Array.isArray(parsed.parameters) || JSON.stringify(parsed.parameters).length > 10000 || Object.values(parsed.parameters).some((v) => !["string", "number", "boolean"].includes(typeof v) || (typeof v === "number" && !Number.isFinite(v))))) throw new Error("Custom strategy parameters must be finite numbers, strings or booleans.");
+    return parsed;
+  }
+  const s = parsed as RuleStrategy;
   if (![1, 2].includes(s?.version) || typeof s.name !== "string" || !s.name.trim() || s.name.length > 100 || typeof s.description !== "string" || !["long", "short", "both"].includes(s.side) || !rules(s.entryLong) || !rules(s.entryShort) || !rules(s.exitLong) || !rules(s.exitShort)) throw new Error("Strategy does not match the Testify strategy format.");
   if (s.indicators !== undefined) {
     if (!Array.isArray(s.indicators) || s.indicators.length > 16) throw new Error("A strategy can define at most 16 custom indicators.");

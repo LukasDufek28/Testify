@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/markets", (r) =>
     r.fulfill({
@@ -36,7 +36,7 @@ test("market and timeframe selections persist into actual run options", async ({
     "COIN9-USD",
   );
   const saved = await page.evaluate(() =>
-    JSON.parse(localStorage.getItem("testify-tester-options-v1")!),
+    JSON.parse(localStorage.getItem("testify-tester-options-v1:e2e-user")!),
   );
   expect(saved.selectedMarkets).toEqual(["COIN9-USD"]);
   expect(saved.granularity).toBe(21600);

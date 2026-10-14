@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { exampleStrategy } from "../../src/types";
 const strategy = { ...exampleStrategy, name: "My crossover" };
 const rows = Array.from({length: 120},(_,i)=>`${1735689600+i*3600},${100+i},${102+i},${99+i},${101+i},20`);

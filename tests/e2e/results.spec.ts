@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures';
 import {runBacktest} from '../../src/engine';
 import {exampleStrategy} from '../../src/types';
 const base=1735689600;
@@ -11,7 +11,7 @@ const b={...runBacktest(dataset,{...strategy,takeProfitPct:4},{...settings,capit
 test.beforeEach(async({page})=>{
   await page.route('**/api/markets',route=>route.fulfill({json:{markets:[{id:'BTC-USD'},{id:'ETH-USD'}]}}));
   await page.goto('/#/app/history');await expect(page.getByRole('heading',{name:'Backtests',exact:true})).toBeVisible();
-  await page.evaluate(async({dataset,a,b,strategy})=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-local-v1',1);req.onsuccess=()=>{const db=req.result;const tx=db.transaction(['runs','datasets','strategies'],'readwrite');tx.objectStore('runs').put(a);tx.objectStore('runs').put(b);tx.objectStore('datasets').put(dataset);tx.objectStore('strategies').put({id:'s',name:strategy.name,source:JSON.stringify(strategy),updatedAt:Date.now()});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};req.onerror=()=>reject(req.error);});},{dataset,a,b,strategy});await page.reload();
+  await page.evaluate(async({dataset,a,b,strategy})=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-user-e2e-user',1);req.onsuccess=()=>{const db=req.result;const tx=db.transaction(['runs','datasets','strategies'],'readwrite');tx.objectStore('runs').put(a);tx.objectStore('runs').put(b);tx.objectStore('datasets').put(dataset);tx.objectStore('strategies').put({id:'s',name:strategy.name,source:JSON.stringify(strategy),updatedAt:Date.now()});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};req.onerror=()=>reject(req.error);});},{dataset,a,b,strategy});await page.reload();
 });
 test('saved results show real metrics, charts, snapshot settings and full trade exports',async({page})=>{
   await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible();await expect(page.locator('.result-metric')).toHaveCount(7);expect(await page.locator('.result-metric').evaluateAll(elements=>elements.map(el=>getComputedStyle(el).animationDelay))).toEqual(['0s','0.045s','0.09s','0.135s','0.18s','0.225s','0.27s']);expect(await page.locator('.result-metric strong .animated-value > span').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(17);await expect(page.locator('.result-metrics')).toContainText(String(a.metrics.tradeCount));await expect(page.locator('.result-metric').filter({hasText:'Max drawdown'}).locator('strong')).toHaveAttribute('data-tone',String(-a.metrics.maxDrawdownPct/10));await expect(page.locator('.result-metric').filter({hasText:'Trades'}).locator('strong')).toHaveCSS('color','rgb(255, 255, 255)');await expect(page.locator('.result-chart-grid canvas')).toHaveCount(2);
@@ -102,7 +102,7 @@ test('dense history, comparison, trade details and settings never count up',asyn
 
 test('long monthly histories fill each row and keep positive and zero returns white',async({page})=>{
  const curve=Array.from({length:10},(_,i)=>({time:Date.UTC(2025,i,1)/1000,equity:10000+[0,266,104,200,-100,100,-400,-800,-800,-600][i]}));
- await page.evaluate(async curve=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-local-v1',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction('runs','readwrite'),store=tx.objectStore('runs'),read=store.get('result-a');read.onsuccess=()=>store.put({...read.result,curve});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});},curve);
+ await page.evaluate(async curve=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-user-e2e-user',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction('runs','readwrite'),store=tx.objectStore('runs'),read=store.get('result-a');read.onsuccess=()=>store.put({...read.result,curve});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});},curve);
  await page.reload();await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
  await expect(page.locator('.monthly-returns article')).toHaveCount(10);
  for(const width of [390,768,1024,1440]){

@@ -1,3 +1,4 @@
+import type { ApiFetch } from "./api-client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ChartNoAxesCombined,
@@ -37,12 +38,14 @@ export type RunOptions = {
   start: string;
   end: string;
   feeBps: number;
+  feeMode?: "percentage" | "fixed"; feePerTrade?: number;
   slippageBps: number;
   splitPct: number;
   name: string;
   datasetId: string;
 };
 type Props = {
+  apiFetch: ApiFetch; accountControls?: ReactNode; researchTools?: ReactNode; content?: ReactNode;
   studio?: ReactNode;
   loading: boolean;
   loadError: string;
@@ -101,10 +104,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 function Assistant({
   onDraft,
+  apiFetch,
   floating = false,
   onClose,
 }: {
   onDraft: (source: string) => void;
+  apiFetch: ApiFetch;
   floating?: boolean;
   onClose?: () => void;
 }) {
@@ -122,7 +127,7 @@ function Assistant({
     setBusy(true);
     setError("");
     try {
-      const result = await generateStrategy(prompt);
+      const result = await generateStrategy(prompt, apiFetch);
       setDraft(JSON.stringify(result.strategy, null, 2));
       setReply(result.strategy.description || result.strategy.name);
     } catch (e) {
@@ -1311,7 +1316,7 @@ export default function PenpotWorkspace(p: Props) {
   const title =
     p.page === "overview"
       ? "Hello, Adam!"
-      : p.page === "studio" ? "Strategy creation" : p.page === "strategies"
+      : p.page === "connections" ? "Connections" : p.page === "studio" ? "Strategy creation" : p.page === "strategies"
         ? "Strategies"
         : p.page === "runsettings"
           ? "Run settings"
@@ -1581,7 +1586,7 @@ export default function PenpotWorkspace(p: Props) {
           <div className="design-user">
             <span>A</span>
             <div>
-              Adam V.<small>adam.xxx@gmail.com</small>
+              {p.accountControls || <>Adam V.<small>adam.xxx@gmail.com</small></>}
             </div>
           </div>
         </div>
@@ -1625,11 +1630,13 @@ export default function PenpotWorkspace(p: Props) {
             {p.notice}
           </p>
         )}
+        {p.page === "connections" && p.content}
         {p.page === "studio" && p.studio}
+        {["studio","runsettings"].includes(p.page) && p.page !== "studio" && p.researchTools}
         {p.page === "overview" && (
           <div className="design-dashboard-grid">
             <div className="design-side-column">
-              <Assistant onDraft={p.onDraft} />
+              <Assistant apiFetch={p.apiFetch} onDraft={p.onDraft} />
               <DesignCard className="design-latest raised">
                 <CardTitle icon={designIcons.latest}>Latest backtest</CardTitle>
                 <div
@@ -1705,7 +1712,7 @@ export default function PenpotWorkspace(p: Props) {
         {p.page === "strategies" && (
           <div className="design-dashboard-grid">
             <div className="design-side-column">
-              <Assistant onDraft={p.onDraft} />
+              <Assistant apiFetch={p.apiFetch} onDraft={p.onDraft} />
               <DesignCard className="design-utilities raised">
                 <CardTitle icon={designIcons.layers}>Your library</CardTitle>
                 <div className="design-library-count">
@@ -1889,6 +1896,7 @@ export default function PenpotWorkspace(p: Props) {
                       min="0"
                       step=".1"
                       aria-label="Fee (basis points)"
+                      disabled={p.options.feeMode === "fixed"}
                       value={p.options.feeBps}
                       onChange={(e) =>
                         p.update("feeBps", Number(e.target.value))
@@ -1911,7 +1919,7 @@ export default function PenpotWorkspace(p: Props) {
                 <p className="design-help">
                   Spot candles do not include bid/ask spread.
                   <br />
-                  Fees and slippage model trading costs.
+                  Fees and slippage model trading costs. {p.options.feeMode === "fixed" && `Fixed commission: ${money(p.options.feePerTrade || 0)} per trade, set in Research tools.`}
                 </p>
                 <p className="design-help">
                   Tester options are saved in this browser.
@@ -1930,7 +1938,7 @@ export default function PenpotWorkspace(p: Props) {
                   </p>
                   <p>
                     Starting capital {money(p.options.capital)} · Fee{" "}
-                    {p.options.feeBps} bps
+                    {p.options.feeMode === "fixed" ? `${money(p.options.feePerTrade || 0)} per trade` : `${p.options.feeBps} bps`}
                   </p>
                   <p>Slippage {p.options.slippageBps} bp</p>
                 </div>
@@ -1986,6 +1994,7 @@ export default function PenpotWorkspace(p: Props) {
             </button>
           </DesignCard>
         )}
+        {p.page === "studio" && p.researchTools}
       </main>
       {assistant && (
         <div
@@ -1993,7 +2002,7 @@ export default function PenpotWorkspace(p: Props) {
           role="dialog"
           aria-label="AI assistant"
         >
-          <Assistant
+          <Assistant apiFetch={p.apiFetch}
             floating
             onDraft={p.onDraft}
             onClose={() => setAssistant(false)}
@@ -2021,7 +2030,7 @@ export default function PenpotWorkspace(p: Props) {
               >
                 <X size={18} />
               </button>
-              <h2>Workspace settings</h2>
+              <h2>Workspace settings</h2>{p.accountControls}<button className="design-button secondary" onClick={() => {setSettings(false);nav("connections");}}>Connections</button>
               <p>Your strategies and results are saved in this browser.</p>
               <button
                 className="design-button"

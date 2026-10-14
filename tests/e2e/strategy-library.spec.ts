@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures";
 import { exampleStrategy } from "../../src/types";
 import {
   duplicateStrategyName,
@@ -122,7 +122,7 @@ test("delete requires confirmation, Escape and Cancel preserve data, confirmed d
   await expect(page.locator(".strategy-card")).toHaveCount(1);
   await page.evaluate(async () => {
     await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open("testify-local-v1", 1);
+      const req = indexedDB.open("testify-user-e2e-user", 1);
       req.onsuccess = () => {
         const db = req.result;
         const tx = db.transaction("runs", "readwrite");
@@ -166,7 +166,7 @@ test("delete requires confirmation, Escape and Cancel preserve data, confirmed d
   const snapshot = await page.evaluate(
     async () =>
       new Promise((resolve) => {
-        const req = indexedDB.open("testify-local-v1", 1);
+        const req = indexedDB.open("testify-user-e2e-user", 1);
         req.onsuccess = () => {
           const db = req.result;
           const read = db
@@ -189,16 +189,9 @@ test("failed delete keeps the confirmation open and can be retried", async ({
   await page.goto("/#/app/strategies");
   await importJson(page, exampleStrategy);
   await expect(page.locator(".strategy-card")).toHaveCount(1);
-  await page.evaluate(() => {
-    const original = IDBObjectStore.prototype.delete;
-    let fail = true;
-    IDBObjectStore.prototype.delete = function (key) {
-      if (fail) {
-        fail = false;
-        throw new Error("Could not delete. Try again.");
-      }
-      return original.call(this, key);
-    };
+  let failDelete=true;
+  await page.route('**/api/strategies', async route => {
+    if(route.request().method()==='DELETE' && failDelete){failDelete=false;await route.fulfill({status:503,json:{error:'Could not delete. Try again.'}});}else await route.fallback();
   });
   await page.locator(".strategy-card summary").click();
   await page
@@ -280,7 +273,7 @@ test("selected strategy opens setup and its latest run metadata is searchable wi
   page.on("pageerror", (error) => browserErrors.push(error.message));
   await page.evaluate(async () => {
     await new Promise<void>((resolve) => {
-      const req = indexedDB.open("testify-local-v1", 1);
+      const req = indexedDB.open("testify-user-e2e-user", 1);
       req.onsuccess = () => {
         const db = req.result;
         const tx = db.transaction(["strategies", "runs"], "readwrite");
@@ -359,29 +352,17 @@ test("selected strategy opens setup and its latest run metadata is searchable wi
 test("loading and failed library reads show separate states and retry recovers", async ({
   page,
 }) => {
-  await page.addInitScript(() => {
-    const original = indexedDB.open.bind(indexedDB);
-    let fail = true;
-    indexedDB.open = ((...args: Parameters<typeof original>) => {
-      if (!fail) return original(...args);
-      fail = false;
-      const fake = {
-        error: new Error("Storage temporarily unavailable"),
-        onerror: null as null | (() => void),
-      };
-      (window as unknown as { failLibraryRead: () => void }).failLibraryRead =
-        () => fake.onerror?.();
-      return fake as unknown as IDBOpenDBRequest;
-    }) as typeof indexedDB.open;
+  let release!:()=>void;let failRead=true;
+  const gate=new Promise<void>(resolve => release=resolve);
+  await page.route('**/api/strategies',async route => {
+    if(route.request().method()==='GET' && failRead){failRead=false;await gate;await route.fulfill({status:503,json:{error:'Storage temporarily unavailable'}});}else await route.fallback();
   });
   await page.goto("/#/app/strategies");
   await expect(
     page.getByText("Loading your strategies…", { exact: false }),
   ).toBeVisible();
   await expect(page.locator(".design-strategy-grid")).toHaveCount(0);
-  await page.evaluate(() =>
-    (window as unknown as { failLibraryRead: () => void }).failLibraryRead(),
-  );
+  release();
   await expect(page.getByRole("alert")).toContainText(
     "Storage temporarily unavailable",
   );

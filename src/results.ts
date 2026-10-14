@@ -1,7 +1,7 @@
-import { parseStrategy, type Run, type Trade, type Strategy, type EquityPoint } from "./types.js";
-const rulesCache=new WeakMap<Run,{source:string|undefined;rules:Strategy|null}>();
-export function savedRules(run: Run) { const cached=rulesCache.get(run);if(cached&&cached.source===run.strategySource)return cached.rules;let rules:Strategy|null=null;try{rules=run.strategySource?parseStrategy(run.strategySource):null;}catch{/* Older snapshots can be unavailable. */}rulesCache.set(run,{source:run.strategySource,rules});return rules; }
-export function tradeR(run: Run, trade: Trade) { const rules=savedRules(run); const riskPct=rules ? rules.allocationPct*rules.stopLossPct/100 : 0; return riskPct>0 ? trade.returnPct/riskPct : null; }
+import { parseStrategy, type Run, type Trade, type RuleStrategy, type EquityPoint } from "./types.js";
+const rulesCache=new WeakMap<Run,{source:string|undefined;rules:RuleStrategy|null}>();
+export function savedRules(run: Run) { const cached=rulesCache.get(run);if(cached&&cached.source===run.strategySource)return cached.rules;let rules:RuleStrategy|null=null;try{const parsed=run.strategySource?parseStrategy(run.strategySource):null;rules=parsed?.version === 3 ? null : parsed;}catch{/* Older snapshots can be unavailable. */}rulesCache.set(run,{source:run.strategySource,rules});return rules; }
+export function tradeR(run: Run, trade: Trade) { if (Number.isFinite(trade.rMultiple)) return trade.rMultiple!; const rules=savedRules(run); const riskPct=rules ? rules.allocationPct*rules.stopLossPct/100 : 0; return riskPct>0 ? trade.returnPct/riskPct : null; }
 export function resultMetrics(run: Run) {
   const profit=run.trades.reduce((sum,t)=>sum+Math.max(0,t.pnl),0);
   const loss=run.trades.reduce((sum,t)=>sum+Math.max(0,-t.pnl),0);

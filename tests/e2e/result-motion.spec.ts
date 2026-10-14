@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test('landing example stays still and uses the approved chart on every viewport', async ({ page }) => {
   await page.goto('/');
@@ -11,6 +11,7 @@ test('landing example stays still and uses the approved chart on every viewport'
 
 test('equity uses starting balance rather than previous highs and keeps a single series', async ({ page }) => {
   await page.goto('/');
+  await expect(page.locator('.landing')).toBeVisible();
   const result = await page.evaluate(async () => {
     const { equityData, equityLines } = await import('/src/theme.ts');
     const points = [100,110,105,108,110,115,90].map((equity,time)=>({time,equity}));

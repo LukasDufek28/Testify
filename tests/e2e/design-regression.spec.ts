@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/markets", (r) =>
     r.fulfill({ json: { markets: [{ id: "BTC-USD" }] } }),

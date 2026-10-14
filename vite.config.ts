@@ -11,7 +11,7 @@ function localApi(): Plugin {
         "markets",
         "candles",
         "generate-strategy",
-        "backtest",
+        "backtest", "auth", "connections", "research-cloud", "slippage", "strategies",
       ]);
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url || "/", "http://localhost");
@@ -76,5 +76,6 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   if (env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY)
     process.env.GEMINI_API_KEY = env.GEMINI_API_KEY;
-  return { plugins: [react(), localApi()], build: { target: "es2022" } };
+  for (const [key, value] of Object.entries(env)) if (!key.startsWith("VITE_") && !process.env[key]) process.env[key] = value;
+  return { worker: {format:"es"}, plugins: [react(), localApi()], build: { target: "es2022" } };
 });

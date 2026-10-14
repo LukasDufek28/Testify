@@ -1,4 +1,4 @@
-import type { BacktestSettings, Bar, Dataset, EquityPoint, Formula, Indicator, Rule, RuleSet, Run, Strategy, Trade } from "./types";
+import type { BacktestSettings, Bar, Dataset, EquityPoint, Formula, Indicator, Rule, RuleSet, Run, Strategy, RuleStrategy, Trade } from "./types";
 
 const key = (i: Indicator) => i.kind === "custom" ? `custom:${i.name!.toLowerCase()}` : `${i.kind}:${i.period ?? 0}`;
 function rolling(input: number[], op: string, period: number): number[] {
@@ -67,7 +67,7 @@ function indicatorSeries(bars: Bar[], indicator: Indicator): number[] {
   if (kind === "atr") return atrSeries(bars, period);
   return rolling(bars.map((b) => b.close), kind, period);
 }
-function buildSeries(bars: Bar[], strategy: Strategy): Map<string, number[]> {
+function buildSeries(bars: Bar[], strategy: RuleStrategy): Map<string, number[]> {
   const definitions = new Map((strategy.indicators || []).map((item) => [item.name.toLowerCase(), item.formula]));
   const custom = new Map<string, number[]>();
   const expressionCache = new WeakMap<Formula, number[]>();
@@ -123,10 +123,14 @@ const all = (rules: RuleSet, index: number, series: Map<string, number[]>) => ru
 type Position = { side: 1 | -1; entry: number; entryTime: number; units: number; equityAtEntry: number; entryFee: number };
 
 export function runBacktest(dataset: Dataset, strategy: Strategy, settings: BacktestSettings, strategyId: string, name: string, onProgress?: (fraction: number) => void): Run {
+  if (strategy.version === 3) throw new Error("Custom strategies must use runStrategyBacktest.");
+
   if (!(settings.capital > 0) || !Number.isFinite(settings.capital)) throw new Error("Starting capital must be positive.");
   if (settings.feeBps < 0 || settings.slippageBps < 0 || !Number.isFinite(settings.feeBps + settings.slippageBps)) throw new Error("Trading costs must be nonnegative.");
-  const bars = dataset.bars.filter((b) => b.time >= settings.start && b.time <= settings.end);
-  if (bars.length < 20) throw new Error("The selected date range needs at least 20 bars.");
+  if (settings.feePerTrade !== undefined && (!Number.isFinite(settings.feePerTrade) || settings.feePerTrade < 0 || settings.feePerTrade > 1e9)) throw new Error("Fixed trade fee must be nonnegative and finite.");
+  if (settings.warmupStart !== undefined && (!Number.isFinite(settings.warmupStart) || settings.warmupStart > settings.start)) throw new Error("Invalid warm-up start.");
+  const bars = dataset.bars.filter((b) => b.time >= (settings.warmupStart ?? settings.start) && b.time <= settings.end);
+  if (bars.filter(b => b.time >= settings.start).length < 20) throw new Error("The selected evaluation date range needs at least 20 bars.");
   if (bars.some((bar, i) => i > 0 && bar.time <= bars[i - 1].time)) throw new Error("Candles must be in chronological order without duplicate timestamps.");
   const intervals = bars.slice(1).map((b, i) => b.time - bars[i].time).filter((v) => v > 0).sort((a, b) => a - b);
   const coinbaseMinutes = dataset.fileName.match(/^Coinbase · (\d+)m$/)?.[1];
@@ -135,34 +139,35 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
   const series = buildSeries(bars, strategy);
   let cash = settings.capital; let position: Position | null = null; let pending: 0 | 1 | -1 | 2 = 0;
   let totalFees = 0; const curve: EquityPoint[] = []; const trades: Trade[] = []; const warnings: string[] = [];
-  if (!settings.useMt5Spread || bars.every((b) => b.spread === 0)) warnings.push("MT5 spread is unavailable or disabled; only the entered fee and slippage assumptions were charged.");
-  const adverse = (mid: number, bar: Bar, side: 1 | -1, entering: boolean) => {
-    const spread = settings.useMt5Spread ? bar.spread * dataset.point / 2 : 0;
+  warnings.push("Spot candles have no bid/ask spread; only the entered fee and slippage assumptions were charged.");
+  const adverse = (mid: number, side: 1 | -1, entering: boolean) => {
     const slip = mid * settings.slippageBps / 10000;
     const direction = entering ? side : -side;
-    return mid + direction * (spread + slip);
+    return mid + direction * slip;
   };
   const exit = (mid: number, bar: Bar, reason: string, atClose = false) => {
     if (!position) return;
     const p = position as Position;
-    const price = adverse(mid, bar, p.side, false);
-    const fee = Math.abs(p.units * price) * settings.feeBps / 10000;
+    const price = adverse(mid, p.side, false);
+    const fee = settings.feePerTrade !== undefined ? settings.feePerTrade / 2 : Math.abs(p.units * price) * settings.feeBps / 10000;
     const pnl = p.side * p.units * (price - p.entry) - fee;
     cash += pnl; totalFees += fee;
     trades.push({ entryTime: p.entryTime, exitTime: bar.time + (atClose ? barSeconds : 0), side: p.side, entry: p.entry, exit: price, pnl: pnl - p.entryFee, returnPct: (pnl - p.entryFee) / p.equityAtEntry * 100, reason });
     position = null;
   };
   const enter = (side: 1 | -1, bar: Bar) => {
-    const price = adverse(bar.open, bar, side, true);
+    const price = adverse(bar.open, side, true);
     const equityAtEntry = cash;
-    const units = cash * strategy.allocationPct / 100 / price;
-    const fee = Math.abs(units * price) * settings.feeBps / 10000;
+    if (settings.feePerTrade !== undefined && cash <= settings.feePerTrade / 2) return;
+    const units = (cash - (settings.feePerTrade ?? 0) / 2) * strategy.allocationPct / 100 / price;
+    const fee = settings.feePerTrade !== undefined ? settings.feePerTrade / 2 : Math.abs(units * price) * settings.feeBps / 10000;
     cash -= fee; totalFees += fee;
     position = { side, entry: price, entryTime: bar.time, units, equityAtEntry, entryFee: fee };
   };
   for (let i = 0; i < bars.length; i++) {
     if (i % Math.max(1, Math.ceil(bars.length / 100)) === 0) onProgress?.(i / bars.length);
     const bar = bars[i];
+    if (bar.time < settings.start) continue;
     if (pending === 2) exit(bar.open, bar, "Signal");
     else if (pending === 1 || pending === -1) { if (position) exit(bar.open, bar, "Reverse signal"); if (cash > 0) enter(pending, bar); }
     pending = 0;

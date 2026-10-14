@@ -1705,3 +1705,15 @@ body:has(.penpot-workspace),body:has(.landing) { background:#18171f; }
 }
 /* Keep JSON punctuation in the approved neutral text color as well. */
 .design-studio .monaco-editor .view-lines span { color:#f9f9fa!important; }
+
+.design-profile .account-controls { display:flex; flex-wrap:wrap; gap:5px; overflow-wrap:anywhere; font-size:12px; }
+.design-profile .account-controls > span { background:none; width:auto; height:auto; font-size:12px; }
+.design-research-tools { margin-top:16px; }
+.design-research-tools summary { cursor:pointer; }
+.design-research-controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:16px; margin-top:16px; }
+.design-research-controls label { display:grid; gap:8px; font-size:14px; }
+.design-research-controls :is(input:not([type=checkbox]),select) { width:100%; background:var(--canvas); color:inherit; border:1px solid var(--line); border-radius:12px; padding:10px; }
+.auth-screen { background:#18171f; color:#f9f9fa; }
+.auth-screen .auth-card { background:#222128; border-color:#36353f; }
+.auth-screen input { background:#18171f; color:#f9f9fa; border-color:#36353f; }
+.auth-screen .button.primary { background:linear-gradient(180deg,#3b3a43,#302f39); color:#f9f9fa; border:1px solid #797582; }

@@ -1,1 +1,20 @@
-{"version":2,"buildCommand":"npm run build","outputDirectory":"dist","framework":"vite"}
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "functions": {
+    "api/generate-strategy.js": {
+      "maxDuration": 300,
+      "includeFiles": "{lib/**,node_modules/quickjs-emscripten-core/**,node_modules/@jitl/**}"
+    },
+    "api/backtest.js": {
+      "maxDuration": 300,
+      "includeFiles": "{lib/**,node_modules/quickjs-emscripten-core/**,node_modules/@jitl/**}"
+    },
+    "api/strategies.js": {
+      "maxDuration": 30,
+      "includeFiles": "{lib/**,node_modules/quickjs-emscripten-core/**,node_modules/@jitl/**}"
+    }
+  }
+}
