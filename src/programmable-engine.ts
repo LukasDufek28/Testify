@@ -1,3 +1,4 @@
+import {adversePrice,validateExecutionOverrides} from "./execution-costs.js";
 import { runBacktest } from "./engine.js";
 import { createScriptRuntime, type EntryOrder, type ScriptPosition } from "./script-runtime.js";
 import type { BacktestSettings, Bar, Dataset, EquityPoint, Run, ScriptStrategy, Strategy, Trade } from "./types";
@@ -10,6 +11,7 @@ export async function runStrategyBacktest(dataset: Dataset, strategy: Strategy, 
 }
 
 async function runProgrammableBacktest(dataset: Dataset, strategy: ScriptStrategy, settings: BacktestSettings, strategyId: string, name: string, budgetMs = 120000): Promise<Run> {
+  validateExecutionOverrides(settings);
   if (!Number.isFinite(settings.capital) || settings.capital <= 0 || !Number.isFinite(settings.feeBps) || settings.feeBps < 0 || !Number.isFinite(settings.slippageBps) || settings.slippageBps < 0 || !Number.isFinite(settings.start) || !Number.isFinite(settings.end) || settings.start >= settings.end) throw new Error("Invalid capital, dates or trading costs.");
   if (settings.feePerTrade !== undefined && (!Number.isFinite(settings.feePerTrade) || settings.feePerTrade < 0 || settings.feePerTrade > 1e9)) throw new Error("Fixed trade fee must be nonnegative and finite.");
   if (settings.warmupStart !== undefined && (!Number.isFinite(settings.warmupStart) || settings.warmupStart > settings.start)) throw new Error("Invalid warm-up start.");
@@ -28,7 +30,7 @@ async function runProgrammableBacktest(dataset: Dataset, strategy: ScriptStrateg
   const warnings = ["Custom strategy sees only completed candles. Orders and stop updates become active on the following candle.", "One position per market; no leverage or pyramiding. Gross position notional is capped at current equity.", "OHLC candles cannot reveal intrabar order. Stops take priority when stop and target are both touched; entry-bar stop conflicts use the adverse outcome."];
   if (!funding.length) warnings.push("No historical funding data supplied; funding fees were not modeled. Short positions on spot candles are synthetic.");
   const warn = (message: string) => { if (!warnings.includes(message)) warnings.push(message); };
-  const adverse = (price: number, side: 1 | -1, entering: boolean) => price * (1 + (entering ? side : -side) * settings.slippageBps / 10000);
+  const adverse = (price: number, side: 1 | -1, entering: boolean) => adversePrice(price,side,entering,settings);
   const close = (mid: number, bar: Bar, reason: string, pct = 100, atClose = false) => {
     if (!position) return;
     const p: Position = position;
@@ -52,7 +54,9 @@ async function runProgrammableBacktest(dataset: Dataset, strategy: ScriptStrateg
     const equity = cash, distance = stop === null ? 0 : Math.abs(price - stop);
     // Leave room for the entry commission so notional plus fees cannot exceed equity.
     const cap = Math.max(0, equity - (settings.feePerTrade ?? 0) / 2) * (e.allocationPct ?? 100) / 100 / (price * (1 + (settings.feePerTrade !== undefined ? 0 : settings.feeBps / 10000)));
-    const units = Math.min(cap, e.riskPct === undefined ? cap : equity * e.riskPct / 100 / distance);
+    const requestedRisk=settings.riskPct||e.riskPct;
+    if(requestedRisk&&distance<=0)throw new Error("Risk-based sizing needs a positive initial stop distance.");
+    const units = Math.min(cap, requestedRisk === undefined ? cap : equity * requestedRisk / 100 / distance);
     if (!Number.isFinite(units) || units <= 0) return;
     const fee = settings.feePerTrade !== undefined ? settings.feePerTrade / 2 : units * price * settings.feeBps / 10000;
     cash -= fee; totalFees += fee;

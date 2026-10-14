@@ -1,6 +1,6 @@
 # Testify accounts
 
-Testify owns its email/password login. Accounts, password hashes, revocable sessions, rate-limit counters and strategies with revision history are stored in PostgreSQL. Candles, runs and preferences remain in each browser, partitioned by the account's UUID. Browser storage is not a security boundary against someone with access to the same browser profile or developer tools. Strategies synchronize between devices; candles and backtest results do not.
+Testify owns its email/password login. Accounts, password hashes, revocable sessions, rate-limit counters and strategies with revision history are stored in PostgreSQL. Candles, immutable runs, replay state, jobs and saved defaults persist in the authenticated workspace table, partitioned by the account UUID. IndexedDB keeps a browser mirror. Browser storage is not a security boundary against someone with access to the same browser profile or developer tools. Strategies, datasets, results and saved defaults synchronize between devices.
 
 ## Connected databases
 
@@ -37,7 +37,7 @@ All research APIs (`markets`, `candles`, `backtest`, `generate-strategy`, `strat
 
 Mutating requests must send an allowed `Origin`. Responses contain no session token, password hash or database details. Protected responses are private and not cached by the CDN. Auth errors use 401, invalid input 400, origin violations 403, and unconfigured or unavailable account services 503.
 
-Limits are enforced atomically in PostgreSQL across server instances. Per user per minute: Gemini 5, candle requests 90, market lists 30, server backtests 10. Login and registration also have IP and email limits. A 429 response includes `Retry-After: 60`. Coinbase's and Google's shared upstream quotas still apply; the existing candle retry flow waits and continues. These limits do not cap the total candle count of a browser backtest.
+Limits are enforced atomically in PostgreSQL across server instances. Per user per minute: strategy generation 5, assistant requests 30, replay commands 240, workspace requests 300, candle requests 90, market lists 30, server backtests 10. Login and registration also have IP and email limits. A 429 response includes `Retry-After: 60`. Coinbase's and Google's shared upstream quotas still apply; the existing candle retry flow waits and continues. These limits do not cap the total candle count of a browser backtest.
 
 ## Existing browser data
 
@@ -55,3 +55,9 @@ Expired sessions and old rate counters are removed after successful login/regist
 The app migrates existing account-scoped local strategies on the first load and keeps browser backup copies. It does not import the unowned workspace automatically. Duplicate cloud content is reused and local run references are updated. Backup export includes the cloud library; explicit backup restore saves strategies to the current account.
 
 Gemini create and modify are separate actions. Modify always receives the editor’s selected strategy JSON and instructions; development summaries are optional, and validation results are rejected. Neither action saves automatically.
+
+## Workspace and replay APIs
+
+`GET/POST/DELETE /api/workspace` scopes datasets, runs, jobs, replay records and preferences to the authenticated user. Imported data must contain ordered unique valid candles, up to 20,000 per record. Saved runs cannot change except their display name. `GET ?kind=runs&id=...&section=trades&offset=0&limit=50` pages trades. Dataset reads validate requested coverage and timeframe. Preferences validate timezone and cost/risk ranges.
+
+`GET/POST /api/replay` restores the user's replay or commits a command. Commands require `requestId` and `expectedRevision`; conflicts return 409. Only revealed candles are returned. Completion atomically updates the cursor and writes the saved result. The account schema now includes the shared idempotency table, so replay does not require an MCP grant or MCP service setup.

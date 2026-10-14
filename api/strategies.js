@@ -1,6 +1,7 @@
 import { database, requireUser, AuthError, authFailure } from "../lib/auth.js";
 import { saveStrategy } from "../lib/services/strategies.js";
 import { validateGeneratedStrategy } from "../lib/server-execution.js";
+import {ensureWorkspaceSchema} from '../lib/workspace-records.js';
 const saved = (row) => ({ id: row.id, name: row.name, source: row.source, revision: row.revision, updatedAt: new Date(row.updated_at).getTime() });
 export function createStrategiesHandler(connect = database, authorize = requireUser) {
   return async (req, res) => {
@@ -15,6 +16,11 @@ export function createStrategiesHandler(connect = database, authorize = requireU
           return res.status(200).json({ versions: rows.map((row) => ({ revision: row.revision, source: row.source, createdAt: new Date(row.created_at).getTime() })) });
         }
         const rows = await sql`SELECT id, name, source, revision, updated_at FROM testify_strategies WHERE user_id = ${user.id} ORDER BY updated_at DESC`;
+        if(req.query?.includeMetadata==='1'){
+          await ensureWorkspaceSchema(sql);
+          const recent=await sql`SELECT DISTINCT ON (payload->>'strategyId') payload->>'strategyId' AS strategy_id,payload->>'id' AS run_id,payload->>'symbol' AS market,payload->'granularity' AS timeframe,payload->'metrics' AS metrics FROM testify_workspace_records WHERE user_id=${user.id} AND kind='runs' ORDER BY payload->>'strategyId',(payload->>'createdAt')::bigint DESC`;
+          return res.status(200).json({strategies:rows.map(row=>{const last=recent.find(r=>r.strategy_id===row.id);return {...saved(row),market:last?.market??null,timeframe:last?.timeframe??null,lastResult:last?{id:last.run_id,metrics:last.metrics}:null};})});
+        }
         return res.status(200).json({ strategies: rows.map(saved) });
       }
       let body = req.body;

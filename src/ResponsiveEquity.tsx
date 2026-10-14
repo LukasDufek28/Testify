@@ -1,3 +1,4 @@
+import {getDisplayTimezone} from './RunDefaults';
 import { motion, useMotionTemplate, useReducedMotion, useSpring } from "motion/react";
 import GraphNumber from "./GraphNumber";
 import useCardTilt from './useCardTilt';
@@ -64,7 +65,7 @@ export default function ResponsiveEquity({ run, className = "" }: { run?: Run; c
   const balance = data ? interpolate(data.points[index].equity,data.points[next].equity) : selected===null ? 20037 : max - (previewY.equity - top) / (bottom - top) * (max - min);
   const loss = data ? interpolate(data.losses[index],data.losses[next]) : selected===null ? 20.6 : Math.max(0, (bottom - previewY.loss) / (bottom - top) * maxLoss);
   const timestamp = data ? interpolate(data.points[index].time,data.points[next].time)*1000 : Date.UTC(2026,0,1)+ratio*(Date.UTC(2026,11,31)-Date.UTC(2026,0,1));
-  const date = !data && selected===null ? 'May 2026' : new Date(timestamp).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  const date = !data && selected===null ? 'May 2026' : new Date(timestamp).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric", timeZone: getDisplayTimezone() });
   const gutter = width < 480 ? 34 : 49;
   const rightGutter = width < 480 ? 34 : 15;
   const plotWidth = Math.max(1, width - gutter - rightGutter);
@@ -120,7 +121,7 @@ export default function ResponsiveEquity({ run, className = "" }: { run?: Run; c
         <motion.line x1={cursorX} x2={cursorX} y1="0" y2={height} stroke="#9e9da7" strokeWidth=".8" />
         <motion.circle data-chart="equity-marker" cx={cursorX} cy={cursorY} r="3" fill="#91f5ab" /><motion.circle cx={cursorX} cy={drawdownY} r="3" fill="#e69a9a" />
         <motion.circle cx={cursorX} cy={cursorY} initial={false} animate={{r:selected===null?3:7,opacity:selected===null?0:.6}} transition={{duration:reduced?0:.16}} fill="none" stroke="#91f5ab"/>
-        {Array.from({ length: ticks }, (_, i) => { const j = Math.round(i / (ticks - 1) * (count - 1)); return <text key={i} x={gutter + i / (ticks - 1) * plotWidth} y={height + 14} textAnchor="middle" fontSize="11" fill="#9e9da7">{data ? new Date(data.points[j].time * 1000).toLocaleDateString("en-GB", { month: "short", day: "numeric", timeZone: "UTC" }) : months[j]}</text>; })}
+        {Array.from({ length: ticks }, (_, i) => { const j = Math.round(i / (ticks - 1) * (count - 1)); return <text key={i} x={gutter + i / (ticks - 1) * plotWidth} y={height + 14} textAnchor="middle" fontSize="11" fill="#9e9da7">{data ? new Date(data.points[j].time * 1000).toLocaleDateString("en-GB", { month: "short", day: "numeric", timeZone: getDisplayTimezone() }) : months[j]}</text>; })}
       </svg>
       <motion.div className="responsive-equity-tooltip" data-motion-chart-tooltip style={{left:tipLeft,top:tipY}}>
         <span data-chart="month">{date}</span><div><i /><span data-chart="strategy-value"><GraphNumber value={balance}/></span></div><div><i /><span><GraphNumber value={loss} percent/></span></div>

@@ -1,9 +1,10 @@
+import {getDisplayTimezone} from "./RunDefaults";
 import { AnimatedSelect } from "./AnimatedControls";
 import { useRef, useState, type ReactNode } from "react";
 import type { Dataset } from "./types";
 import { datasetCoverage } from "./marketData";
 
-const day = (seconds: number) => new Date(seconds * 1000).toLocaleDateString();
+const day = (seconds: number) => new Date(seconds * 1000).toLocaleDateString(undefined,{timeZone:getDisplayTimezone()});
 const interval = (seconds: number) => seconds < 3600 ? `${seconds / 60}m` : seconds < 86400 ? `${seconds / 3600}h` : `${seconds / 86400}d`;
 
 export function DataPage({ datasets, selected, market, setMarket, markets, onImport, onSelect, onRemove, onlineForm, chart }: { datasets: Dataset[]; selected?: Dataset; market: string; setMarket: (market: string) => void; markets: string[]; onImport: (file: File) => Promise<void>; onSelect: (id: string) => void; onRemove: () => Promise<void>; onlineForm: ReactNode; chart: ReactNode }) {

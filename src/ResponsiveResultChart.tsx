@@ -1,3 +1,4 @@
+import {getDisplayTimezone} from './RunDefaults';
 import { useEffect, useMemo, useRef } from "react";
 import { animate, useReducedMotion, type AnimationPlaybackControls } from "motion/react";
 import ReactECharts, { type EChartsOption } from "echarts-for-react";
@@ -21,7 +22,7 @@ export default function ResponsiveResultChart({option,height}:{option:EChartsOpt
         animations.current.forEach(animation=>animation.stop());animations.current=[];
         const params=(Array.isArray(input)?input:[input]) as {seriesName?:string;axisValueLabel?:string;value?:unknown;color?:unknown;seriesId?:string;seriesIndex?:number}[];
         const root=document.createElement('div');root.className='result-motion-tooltip';
-        const title=document.createElement('div');title.textContent=cursorTime.current===null ? params[0]?.axisValueLabel??'' : new Date(cursorTime.current).toLocaleString('en-GB',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});root.append(title);
+        const title=document.createElement('div');title.textContent=cursorTime.current===null ? params[0]?.axisValueLabel??'' : new Date(cursorTime.current).toLocaleString('en-GB',{timeZone:getDisplayTimezone(),day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});root.append(title);
         for(const [index,param] of params.entries()){
           let value=Number(Array.isArray(param.value)?param.value[1]:param.value);
           // Interpolate the displayed annotation between stored points; series data stays intact.

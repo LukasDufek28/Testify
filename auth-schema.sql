@@ -34,6 +34,23 @@ CREATE TABLE IF NOT EXISTS testify_strategy_versions (
   PRIMARY KEY (user_id, strategy_id, revision),
   FOREIGN KEY (user_id, strategy_id) REFERENCES testify_strategies(user_id, id) ON DELETE CASCADE
 );
--- Periodic maintenance; no trading data is stored in these tables.
+CREATE TABLE IF NOT EXISTS testify_workspace_records (
+  user_id uuid NOT NULL REFERENCES testify_accounts(id) ON DELETE CASCADE,
+  kind text NOT NULL,
+  id text NOT NULL,
+  payload jsonb NOT NULL,
+  revision integer NOT NULL DEFAULT 1,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, kind, id)
+);
+CREATE TABLE IF NOT EXISTS testify_mcp_mutations (
+  user_id uuid NOT NULL REFERENCES testify_accounts(id) ON DELETE CASCADE,
+  key text NOT NULL,
+  fingerprint text NOT NULL,
+  response jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, key)
+);
+-- Periodic authentication maintenance.
 -- DELETE FROM testify_sessions WHERE expires_at < now();
 -- DELETE FROM testify_auth_limits WHERE bucket < floor(extract(epoch FROM now()) / 60) - 1440;

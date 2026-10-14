@@ -8,7 +8,7 @@ export default function Site() {
   const [hash, setHash] = useState(location.hash);
   useEffect(() => {
     // Warm the account bundle while the public page is idle, before its CTA is used.
-    const timer=window.setTimeout(()=>{void import('./Auth');},600);
+    const timer=window.setTimeout(()=>{void import('./Auth').catch(()=>{});},600);
     return()=>window.clearTimeout(timer);
   },[]);
   useEffect(() => {
@@ -24,6 +24,7 @@ export default function Site() {
   const route = hash.replace("#/app/", "");
   const initialPage: WorkspacePage = (
     [
+      "manual",
       "overview",
       "studio",
       "strategies",

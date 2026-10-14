@@ -10,7 +10,7 @@ function localApi(): Plugin {
       const routes = new Set([
         "markets",
         "candles",
-        "generate-strategy",
+        "generate-strategy", "assistant", "workspace", "replay",
         "backtest", "auth", "connections", "research-cloud", "slippage", "strategies",
       ]);
       server.middlewares.use(async (req, res, next) => {
@@ -38,7 +38,7 @@ function localApi(): Plugin {
             const data = Buffer.from(chunk);
             chunks.push(data);
             bytes += data.length;
-            if (bytes > 90000)
+            if (bytes > (route === "workspace" ? 3_500_000 : route === "assistant" ? 180_000 : 220_000))
               return response
                 .status(413)
                 .json({ error: "Request is too large." });
@@ -77,5 +77,9 @@ export default defineConfig(({ mode }) => {
   if (env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY)
     process.env.GEMINI_API_KEY = env.GEMINI_API_KEY;
   for (const [key, value] of Object.entries(env)) if (!key.startsWith("VITE_") && !process.env[key]) process.env[key] = value;
-  return { worker: {format:"es"}, plugins: [react(), localApi()], server:{watch:{ignored:['**/playwright-report/**','**/test-results/**','**/.playwright-cli/**','**/.local/**']}}, build: { target: "es2022" } };
+  return {
+    cacheDir:process.env.PLAYWRIGHT_PORT?`node_modules/.vite-test-${process.env.PLAYWRIGHT_PORT}`:'node_modules/.vite',
+    optimizeDeps:{noDiscovery:true,include:['react','react-dom','react-dom/client','react/jsx-runtime','react/jsx-dev-runtime','echarts','echarts-for-react','lucide-react','motion/react','@monaco-editor/react','monaco-editor/editor/editor.api','monaco-editor/language/json/monaco.contribution','monaco-editor/languages/features/json/jsonMode','@jitl/quickjs-singlefile-browser-release-sync','quickjs-emscripten-core']},
+    worker: {format:"es"}, plugins: [react(), localApi()], server:{watch:{ignored:['**/playwright-report/**','**/test-results/**','**/.playwright-cli/**','**/.local/**']}}, build: { target: "es2022" }
+  };
 });

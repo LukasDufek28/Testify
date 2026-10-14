@@ -9,6 +9,13 @@ const dataset = (bars) => ({ id: "test", symbol: "BTC-USD", fileName: "test", im
 const script = (code) => parseStrategy(JSON.stringify({ version: 3, runtime: "javascript", name: "Test", description: "Test", code }));
 const run = (strategy, bars, costs = {}) => runStrategyBacktest(dataset(bars), strategy, { capital: 10000, feeBps: 0, slippageBps: 0, start: bars[0].time, end: bars.at(-1).time, ...costs }, "test", "test");
 
+test('run-level risk overrides script risk and cannot size a trade without a stop',async()=>{
+ const bars=Array.from({length:25},(_,i)=>bar(i,i<5?100:110));
+ await assert.rejects(run(script(`function onBar(ctx){return ctx.index===0?{entry:{side:'long'}}:{}}`),bars,{riskPct:.5}),/positive initial stop/);
+ const result=await run(script(`function onBar(ctx){return ctx.index===0?{entry:{side:'long',stopDistance:10,takeProfitPrice:110,riskPct:2}}:{}}`),bars,{riskPct:.5});
+ assert.equal(result.trades.length,1);assert.equal(result.trades[0].pnl,50);assert.equal(result.trades[0].rMultiple,1);
+});
+
 test("custom state gets immutable causal history, has no host APIs, and resets per run", async () => {
   const strategy = script(`let n=0; function onBar(ctx) { n++; if(n!==ctx.index+1 || ctx.history.length!==n || ctx.history[n]!==undefined) throw new Error('future or state'); if(typeof fetch!=='undefined' || typeof process!=='undefined' || typeof window!=='undefined' || typeof require!=='undefined' || typeof Date!=='undefined') throw new Error('host leak'); if(!Object.isFrozen(ctx.bar) || !Object.isFrozen(ctx.parameters)) throw new Error('mutable'); if(ctx.index===3) return {entry:{side:'long',stopDistance:5,riskPct:0.5}}; if(ctx.position && ctx.index===8) return {exit:true}; return {}; }`);
   const bars = Array.from({length:30},(_,i)=>bar(i));

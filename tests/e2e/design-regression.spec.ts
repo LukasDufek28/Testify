@@ -109,24 +109,10 @@ test("phone navigation, native chart labels and monthly cards remain usable", as
   await expect(monthly.getByRole('button', { name: 'Jan monthly return' })).toHaveAttribute('aria-pressed', 'true');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
-test("settings dialog traps focus and Escape restores the invoking control", async ({
-  page,
-}) => {
-  await page.goto("/#/app/overview");
-  const trigger = page.getByRole("button", { name: "Settings", exact: true });
-  await trigger.click();
-  const dialog = page.getByRole("dialog", { name: "Workspace settings" });
-  await expect(dialog).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: "Close settings" }),
-  ).toBeFocused();
-  await page.keyboard.press("Shift+Tab");
-  await expect(
-    dialog.getByRole("button", { name: "Close", exact: true }),
-  ).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
-  await expect(trigger).toBeFocused();
+test('compact sidebar omits Settings and Help while run configuration stays reachable',async({page})=>{
+  await page.goto('/#/app/overview');const nav=page.getByRole('navigation',{name:'Workspace navigation'});
+  await expect(nav.getByRole('button',{name:'Settings',exact:true})).toHaveCount(0);await expect(nav.getByRole('button',{name:'Help center',exact:true})).toHaveCount(0);
+  await nav.getByRole('button',{name:'Run settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Run settings',exact:true})).toBeVisible();
 });
 test("monthly mint gradients and separate trade navigation retain the approved design", async ({
   page,

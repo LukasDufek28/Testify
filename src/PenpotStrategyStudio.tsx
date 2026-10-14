@@ -8,6 +8,7 @@ type Props = {
   source: string; onChange: (source: string) => void;
   strategies: SavedStrategy[]; selected?: SavedStrategy; onOpen: (id: string) => void;
   onValidate: () => void; onSave: () => void;
+  beforeSource:string|null;onAcceptPreview:()=>void;onUndo:()=>void;onRun:()=>void;canRun:boolean;
   mode: 'create' | 'improve'; onMode: (mode: 'create' | 'improve') => void;
   idea: string; onIdea: (idea: string) => void; busy: boolean;
   onGenerate: () => void; onImprove: () => void; canImprove: boolean;
@@ -23,7 +24,8 @@ export default function PenpotStrategyStudio(p: Props) {
     </details>
     <div className="design-studio-grid">
       <DesignCard className="raised design-studio-editor">
-        <header className="design-studio-toolbar"><div><h2>{p.selected?.name || 'New draft'}</h2><small>strategy.json</small></div><div className="design-studio-actions"><button className="design-button secondary" onClick={p.onValidate}>Validate</button><button className="design-button" onClick={p.onSave}>Save</button></div></header>
+        <header className="design-studio-toolbar"><div><h2>{p.selected?.name || 'New draft'}</h2><small>strategy.json</small></div><div className="design-studio-actions"><button className="design-button secondary" onClick={p.onUndo}>Undo</button><button className="design-button secondary" disabled={!p.canRun} onClick={p.onRun}>Run</button><button className="design-button secondary" onClick={p.onValidate}>Validate</button><button className="design-button" onClick={p.onSave}>Save</button></div></header>
+        {p.beforeSource!==null&&<details open className="strategy-diff"><summary>Review proposed changes</summary><div className="strategy-diff-columns"><div><h3>Previous</h3><pre>{p.beforeSource}</pre></div><div><h3>Proposed</h3><pre>{p.source}</pre></div></div><div className="design-default-actions"><button className="design-button" onClick={p.onAcceptPreview}>Use this draft</button><button className="design-button secondary" onClick={p.onUndo}>Discard suggestion</button></div><p>The saved version stays unchanged until you Save.</p></details>}
         <div className="editor-wrap"><Editor height="100%" language="json" theme="testify-neutral" value={p.source} onChange={value => p.onChange(value || '')}
           beforeMount={monaco => monaco.editor.defineTheme('testify-neutral', {base:'vs-dark',inherit:false,rules:[{token:'',foreground:'f9f9fa'},{token:'string',foreground:'f9f9fa'},{token:'number',foreground:'f9f9fa'},{token:'keyword',foreground:'f9f9fa'}],colors:{'editor.background':'#18171f','editor.foreground':'#f9f9fa','editorLineNumber.foreground':'#9e9da7','editorLineNumber.activeForeground':'#f9f9fa','editor.selectionBackground':'#343149','editor.lineHighlightBackground':'#222128','editorCursor.foreground':'#f9f9fa'}})}
           options={{editContext:false,bracketPairColorization:{enabled:false},minimap:{enabled:false},fontSize:15,lineHeight:20,fontFamily:'Urbanist, sans-serif',fontLigatures:false,scrollBeyondLastLine:false,automaticLayout:true,padding:{top:18,bottom:18},wordWrap:'off',renderLineHighlight:'none',overviewRulerLanes:0,ariaLabel:'Strategy JSON editor'}} /><textarea className="design-mobile-code" aria-label="Strategy JSON editor" spellCheck={false} autoCapitalize="off" wrap="off" value={p.source} onChange={e => p.onChange(e.target.value)} /></div>
@@ -36,7 +38,7 @@ export default function PenpotStrategyStudio(p: Props) {
         <div id="studio-ai-panel" role="tabpanel" aria-labelledby={`studio-${p.mode}-tab`}>
           <label className="design-studio-prompt">{p.mode === 'create' ? 'Describe your strategy' : 'Revision guidance'}<textarea value={p.idea} onChange={e => p.onIdea(e.target.value)} placeholder="For example: enter long when the 20-bar average crosses above the 50-bar average. Exit on the reverse cross, with a 1% stop and 2% target." /></label>
           {p.mode === 'improve' && p.feedbackPicker}
-          <button className="design-button design-studio-generate" disabled={p.busy || (p.mode === 'improve' && !p.canImprove)} onClick={p.mode === 'create' ? p.onGenerate : p.onImprove}>{p.busy ? (p.mode === 'create' ? 'Generating…' : 'Revising…') : p.mode === 'create' ? 'Generate new draft' : `Improve selected strategy with ${p.feedbackCount} backtest${p.feedbackCount === 1 ? '' : 's'}`}</button>
+          <button className="design-button design-studio-generate" disabled={p.busy || (p.mode === 'improve' && !p.canImprove)} onClick={p.mode === 'create' ? p.onGenerate : p.onImprove}>{p.busy ? (p.mode === 'create' ? 'Generating…' : 'Revising…') : p.mode === 'create' ? 'Generate new draft' : p.feedbackCount ? `Improve selected strategy with ${p.feedbackCount} backtest${p.feedbackCount === 1 ? '' : 's'}` : 'Improve selected strategy'}</button>
           <small className="design-studio-review">{p.mode === 'create' ? 'Review the draft before saving.' : 'Only development results are used. Save the revised draft and backtest it again.'}</small>
         </div>
       </DesignCard>

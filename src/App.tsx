@@ -1,3 +1,8 @@
+import {createLocalStore} from './storage';
+import {flushSync} from "react-dom";
+import {AssistantProvider,useAssistantController,type AssistantAction} from "./AssistantWorkspace";
+import {setDisplayTimezone,getDisplayTimezone,type RunDefaults} from "./RunDefaults";
+import AccountLoading from "./AccountLoading";
 import AnimatedValue from "./AnimatedValue";
 import RunStatusBadge, { type RunState } from "./RunStatusBadge";
 import ResponsiveResultChart from "./ResponsiveResultChart";
@@ -6,13 +11,16 @@ import ReturningDashboard from "./ReturningDashboard";
 import PenpotWorkspace, { type RunOptions } from "./PenpotWorkspace";
 import { AnimatedSelect, DateTimePicker, RangeSlider } from "./AnimatedControls";
 import { BacktestResults, BacktestHistory, CompareBacktests, BacktestProgress } from "./BacktestResults";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 const PenpotStrategyStudio = lazy(() => import("./PenpotStrategyStudio"));
 import ReactECharts from "echarts-for-react";
 import { Download, FlaskConical, Square } from "lucide-react";
-import { createLocalStore } from "./storage";
+import { createAccountStore } from "./account-store";
 import { exampleStrategy, parseStrategy, type BacktestSettings, type Dataset, type Run, type SavedStrategy } from "./types";
 import { generateStrategy, reviseStrategy, consultStrategy, type ConsultationMessage } from "./gemini";
+import BatchBacktests from "./BatchBacktests";
+import type {BatchPlan} from "./batch-plan";
+import ManualReplay from "./ManualReplay";
 import Connections from "./Connections";
 import { browserSummary, cloudRequest, loadCloudRuns, mergeCloudRuns } from "./cloud-research";
 
@@ -32,15 +40,15 @@ type Page = WorkspacePage;
 const fmt = (n: number, digits = 2) => Number.isFinite(n) ? n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }) : "—";
 import { validateData } from "./data-validation";
 import { createApiClient, type ApiFetch } from "./api-client";
-import type { ReactNode } from "react";
+
 
 const pct = (n: number) => `${n >= 0 ? "+" : ""}${fmt(n)}%`;
-const date = (seconds: number) => new Date(seconds * 1000).toLocaleString();
+const date = (seconds: number) => new Date(seconds * 1000).toLocaleString(undefined,{timeZone:getDisplayTimezone()});
 const dateInput = (seconds: number) => { const d = new Date(seconds * 1000); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
 const timeframeName = (seconds: number) => ({ 60: "1m", 300: "5m", 900: "15m", 1800: "30m", 3600: "1h", 14400: "4h", 21600: "6h", 86400: "1d" } as Record<number, string>)[seconds] || `${seconds}s`;
 const intervals: [number, string][] = [[60, "1 minute"], [300, "5 minutes"], [900, "15 minutes"], [1800, "30 minutes"], [3600, "1 hour"], [14400, "4 hours"], [21600, "6 hours"], [86400, "1 day"]];
 const TESTER_OPTIONS_KEY = "testify-tester-options-v1";
-type TesterOptions = { strategyId: string; market: string; selectedMarkets: string[]; granularity: number; runName: string; capital: number; feeBps: number; feeMode: "fixed" | "percentage"; feePerTrade: number; slippageBps: number; autoSlippage: boolean; start: string; end: string; splitPct: number; testDatasetId: string; multiMarket: boolean };
+type TesterOptions = { strategyId: string; market: string; selectedMarkets: string[]; granularity: number; runName: string; capital: number; riskPct:number; spreadBps:number; feeBps: number; feeMode: "fixed" | "percentage"; feePerTrade: number; slippageBps: number; autoSlippage: boolean; start: string; end: string; splitPct: number; testDatasetId: string; multiMarket: boolean };
 function readTesterOptions(userId: string): Partial<TesterOptions> {
 
   try {
@@ -59,7 +67,7 @@ function readTesterOptions(userId: string): Partial<TesterOptions> {
     if (Array.isArray(saved.selectedMarkets)) options.selectedMarkets = [...new Set(saved.selectedMarkets.filter((symbol): symbol is string => typeof symbol === "string" && /^[A-Z0-9]{2,20}-(USD|USDT)$/.test(symbol)))];
     if (typeof saved.granularity === "number" && intervals.some(([value]) => value === saved.granularity)) options.granularity = saved.granularity;
     if (typeof saved.runName === "string") options.runName = saved.runName;
-    for (const key of ["capital", "feeBps", "slippageBps"] as const) { const value = saved[key]; if (typeof value === "number" && Number.isFinite(value) && value >= 0) options[key] = value; }
+    for (const key of ["capital", "feeBps", "slippageBps", "riskPct", "spreadBps"] as const) { const value = saved[key]; if (typeof value === "number" && Number.isFinite(value) && value >= 0) options[key] = value; }
     for (const key of ["start", "end"] as const) { const value = saved[key]; if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) options[key] = value; }
     if (typeof saved.splitPct === "number" && saved.splitPct >= 30 && saved.splitPct <= 80) options.splitPct = saved.splitPct;
     return options;
@@ -67,12 +75,12 @@ function readTesterOptions(userId: string): Partial<TesterOptions> {
 }
 function Chart({ curves }: { curves: { name: string; points: { time: number; equity: number }[]; capital?: number }[] }) {
   if (!curves.length || !curves.some((c) => c.points.length)) return <div className="chart-empty">Run a backtest to see an equity curve.</div>;
-  return <ResponsiveResultChart height={320} option={{ backgroundColor: "transparent", animation: true, animationDuration: 500, animationEasing: "cubicOut", tooltip: { trigger: "axis", backgroundColor: "#30497d", borderColor: "#385863", textStyle: { color: "#e5f4f2" }, valueFormatter: (value: number) => `$${fmt(value)}` }, legend: { top: 0, textStyle: { color: "#9ab2bd" } }, grid: { left: 70, right: 24, top: 48, bottom: 45 }, xAxis: { type: "time", axisLabel: { color: "#ffffff" } }, yAxis: { type: "value", scale: true, splitLine: { lineStyle: { color: "#455b8a" } }, axisLabel: { color: "#ffffff" } }, series: curves.flatMap((c, i) => equityLines(c.name, c.points, false, Boolean(i % 2), c.capital)) }} />;
+  return <ResponsiveResultChart height={320} option={{ backgroundColor: "transparent", animation: true, animationDuration: 500, animationEasing: "cubicOut", tooltip: { trigger: "axis", backgroundColor: "#222128", borderColor: "#36353f", textStyle: { color: "#e5f4f2" }, valueFormatter: (value: number) => `$${fmt(value)}` }, legend: { top: 0, textStyle: { color: "#9ab2bd" } }, grid: { left: 70, right: 24, top: 48, bottom: 45 }, xAxis: { type: "time", axisLabel: { color: "#ffffff" } }, yAxis: { type: "value", scale: true, splitLine: { lineStyle: { color: "#36353f" } }, axisLabel: { color: "#ffffff" } }, series: curves.flatMap((c, i) => equityLines(c.name, c.points, false, Boolean(i % 2), c.capital)) }} />;
 
 }
 function PriceChart({ dataset }: { dataset: Dataset }) {
   const stride = Math.max(1, Math.ceil(dataset.bars.length / 1200));
-  return <ReactECharts style={{ height: 270 }} option={{ backgroundColor: "transparent", animation: true, animationDuration: 500, animationEasing: "cubicOut", tooltip: { trigger: "axis" }, grid: { left: 65, right: 20, top: 20, bottom: 42 }, xAxis: { type: "time", axisLabel: { color: "#ffffff" } }, yAxis: { type: "value", scale: true, splitLine: { lineStyle: { color: "#455b8a" } }, axisLabel: { color: "#ffffff" } }, series: [{ type: "line", showSymbol: false, lineStyle: { color: "#f2842f", width: 2 }, data: dataset.bars.filter((_, i) => i % stride === 0).map((b) => [b.time * 1000, b.close]) }] }} />;
+  return <ReactECharts style={{ height: 270 }} option={{ backgroundColor: "transparent", animation: true, animationDuration: 500, animationEasing: "cubicOut", tooltip: { trigger: "axis" }, grid: { left: 65, right: 20, top: 20, bottom: 42 }, xAxis: { type: "time", axisLabel: { color: "#ffffff" } }, yAxis: { type: "value", scale: true, splitLine: { lineStyle: { color: "#36353f" } }, axisLabel: { color: "#ffffff" } }, series: [{ type: "line", showSymbol: false, lineStyle: { color: "#91f5ab", width: 2 }, data: dataset.bars.filter((_, i) => i % stride === 0).map((b) => [b.time * 1000, b.close]) }] }} />;
 }
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) { return <div className="metric"><span>{label}</span><strong className={value.startsWith("+") && parseFloat(value.slice(1).replace(",", "."))>0 ? "positive" : (label.includes("DRAWDOWN") && parseFloat(value.replace(",", "."))>0) || value.startsWith("-") ? "negative" : ""}><AnimatedValue animate={label.includes("RETURN")} tone={label.includes("DRAWDOWN")?metricTone("Max drawdown",Number(value.replace(/[^0-9.-]/g,""))):label.includes("RETURN")?metricTone("Return",Number(value.replace(/[^0-9.-]/g,""))):undefined} value={value}/></strong>{hint && <small>{hint}</small>}</div>; }
 function download(name: string, content: string, type = "application/json") { const url = URL.createObjectURL(new Blob([content], { type })); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
@@ -94,7 +102,7 @@ async function fetchWithRateLimitRetry(apiFetch: ApiFetch, input: RequestInfo | 
   }
 }
 const CANDLES_PER_REQUEST = 2392;
-async function loadOnlineBars(apiFetch: ApiFetch, symbol: string, granularity: number, start: number, end: number, signal?: AbortSignal, onProgress?: (loaded: number, estimated: number) => void): Promise<Dataset["bars"]> {
+async function loadOnlineBars(apiFetch: ApiFetch, symbol: string, granularity: number, start: number, end: number, signal?: AbortSignal, onProgress?: (loaded: number, estimated: number) => void | Promise<void>): Promise<Dataset["bars"]> {
   if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) throw new Error("Choose a valid historical date range.");
   const byTime = new Map<number, Dataset["bars"][number]>();
   const estimated = Math.ceil((end - start) / granularity);
@@ -106,7 +114,7 @@ async function loadOnlineBars(apiFetch: ApiFetch, symbol: string, granularity: n
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not load candles.");
     for (const bar of data.bars as Dataset["bars"]) byTime.set(bar.time, bar);
-    onProgress?.(byTime.size, estimated);
+    await onProgress?.(byTime.size, estimated);
     if (to < end) await pause(500, signal);
   }
   return [...byTime.values()].sort((a, b) => a.time - b.time);
@@ -125,14 +133,14 @@ function execute(dataset: Dataset, strategy: ReturnType<typeof parseStrategy>, s
 }
 
 export default function App({ userId, sessionId, onSessionExpired, accountControls, initialPage = "overview" }: { initialPage?: Page; userId: string; sessionId: string; onSessionExpired: () => void; accountControls: ReactNode }) {
-  const localStore = useMemo(() => createLocalStore(userId), [userId]);
   const sessionController = useMemo(() => new AbortController(), [userId,sessionId]);
   const apiFetch = useMemo(() => createApiClient(sessionId, sessionController.signal, onSessionExpired), [sessionId, sessionController]);
+  const localStore = useMemo(() => createAccountStore(userId,apiFetch), [userId,apiFetch]);
   const strategyStore = createStrategyStore(apiFetch);
   const [savedTesterOptions] = useState(() => readTesterOptions(userId));
   const [page, setPageState] = useState<Page>(() => new URLSearchParams(location.search).has("mcpAuthorize") ? "connections" : initialPage);
-  function setPage(target: Page) { history.replaceState(null, "", `#/app/${target}`); setPageState(target); }
-  useEffect(() => { const sync = () => { const route = location.hash.replace("#/app/", "") as Page; if (["overview", "strategies", "studio", "data", "backtests", "history", "results", "compare", "validation", "portfolio", "runsettings", "trades", "connections"].includes(route)) setPageState(route); }; addEventListener("hashchange", sync); addEventListener("popstate", sync); return () => { removeEventListener("hashchange", sync); removeEventListener("popstate", sync); }; }, []);
+  function setPage(target: Page) { history.replaceState(null, "", `#/app/${target}`); setPageState(target); window.scrollTo(0,0); }
+  useEffect(() => { const sync = () => { const route = location.hash.replace("#/app/", "") as Page; if (["manual", "overview", "strategies", "studio", "data", "backtests", "history", "results", "compare", "validation", "portfolio", "runsettings", "trades", "connections"].includes(route)) setPageState(route); }; addEventListener("hashchange", sync); addEventListener("popstate", sync); return () => { removeEventListener("hashchange", sync); removeEventListener("popstate", sync); }; }, []);
   const [cloudAvailable, setCloudAvailable] = useState(false);
 
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -162,10 +170,13 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
   const [granularity, setGranularity] = useState(savedTesterOptions.granularity || 3600);
   const [historyStart, setHistoryStart] = useState(dateInput(Math.floor(Date.now() / 1000) - 14 * 86400));
   const [historyEnd, setHistoryEnd] = useState(dateInput(Math.floor(Date.now() / 1000)));
+  const [draftBefore,setDraftBefore]=useState<string|null>(null);
   const [idea, setIdea] = useState("");
   const [studioMode, setStudioMode] = useState<"create" | "improve">("create");
   const [runName, setRunName] = useState(savedTesterOptions.runName ?? "New research run");
   const [capital, setCapital] = useState(savedTesterOptions.capital ?? 10000);
+  const [riskPct,setRiskPct]=useState(savedTesterOptions.riskPct??0);
+  const [spreadBps,setSpreadBps]=useState(savedTesterOptions.spreadBps??0);
   const [feeBps, setFeeBps] = useState(savedTesterOptions.feeBps ?? 2);
   const [autoSlippage, setAutoSlippage] = useState(savedTesterOptions.autoSlippage ?? false);
   const [feeMode, setFeeMode] = useState<"fixed" | "percentage">(savedTesterOptions.feeMode ?? "percentage");
@@ -213,6 +224,8 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
   const geminiPortfolio = useMemo(() => selectedFeedbackRuns.length ? summarizeDevelopmentPortfolio(selectedFeedbackRuns) : undefined, [selectedFeedbackRuns]);
   const visibleMarkets = useMemo(() => markets.filter((symbol) => symbol.toLowerCase().includes(marketSearch.trim().toLowerCase())), [markets, marketSearch]);
 
+  const assistant = useAssistantController({userId,apiFetch,context:{page,latestDevelopmentRunId:runs.find(r=>r.research?.phase==='development')?.id??null,selectedRunId:selectedRun?.research?.phase==='development'||selectedRun?.mode==='manual'?selectedRun.id:null,settings:{strategyId,markets:selectedMarkets,granularity,capital,riskPct,spreadBps,start,end,feeBps,feeMode,feePerTrade,slippageBps,splitPct,name:runName},selectedStrategy:selectedStrategy?{id:selectedStrategy.id,name:selectedStrategy.name,revision:selectedStrategy.revision,strategy:JSON.parse(selectedStrategy.source)}:null,strategies:strategies.slice(0,40).map(s=>({id:s.id,name:s.name,revision:s.revision})),runs:runs.filter(r=>r.research?.phase==='development'||r.mode==='manual').slice(0,5).map(r=>({... (r.research?.phase==='development'?summarizeDevelopmentRun(r):{name:r.name,strategyName:r.strategyName,symbol:r.symbol,metrics:r.metrics,mode:r.mode}),id:r.id,createdAt:new Date(r.createdAt).toISOString(),netProfit:r.settings.capital*r.metrics.netReturnPct/100,settings:r.settings,trades:r.trades.slice(-12)}))},execute:executeAssistant});
+  const withAssistant = (view:ReactNode) => <AssistantProvider controller={assistant}>{view}</AssistantProvider>;
   useEffect(() => () => { sessionController.abort(); backtestAbort.current?.abort(); validationAbort.current?.abort(); }, [sessionController]);
   async function refresh() {
     const [ds, ss, rs] = await Promise.all([localStore.datasets(), strategyStore.strategies(), localStore.runs()]);
@@ -254,20 +267,21 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
             available.push(imported); idMap.set(strategy.id, imported.id);
           }
         }
-        for (const run of await localStore.runs()) { const mapped = idMap.get(run.strategyId); if (mapped && mapped !== run.strategyId) await localStore.putRun({ ...run, strategyId: mapped }); }
+        const legacy=createLocalStore(userId);for (const run of await legacy.runs()) { const mapped = idMap.get(run.strategyId); if (mapped && mapped !== run.strategyId) await legacy.putRun({ ...run, strategyId: mapped }); }
         localStorage.setItem(migratedKey, "true");
       }
       await refresh();
     } catch (e) { setLibraryLoadError(e instanceof Error ? e.message : "Could not load your workspace."); } finally { setStorageLoaded(true); setLibraryLoading(false); }
 
   }
+  useEffect(()=>{let active=true;setDisplayTimezone('UTC');void apiFetch('/api/workspace?kind=preferences').then(async response=>{const body=await response.json();if(!response.ok||!active)return;const defaults=body.records[0] as RunDefaults|undefined;if(defaults){setDisplayTimezone(defaults.timezone);if(!Object.keys(savedTesterOptions).length){setCapital(defaults.capital);setRiskPct(defaults.riskPct??0);setSpreadBps(defaults.spreadBps??0);setFeeBps(defaults.feeBps);setSlippageBps(defaults.slippageBps);setSplitPct(defaults.splitPct);setFeeMode(defaults.feeMode??"percentage");setFeePerTrade(defaults.feePerTrade??1);}}}).catch(()=>{});return()=>{active=false;};},[apiFetch]);
   const loadWorkspace = initializeWorkspace;
   useEffect(() => { void initializeWorkspace(); }, []);
 
   useEffect(() => {
-    const options: TesterOptions = { strategyId, market, selectedMarkets, granularity, runName, capital, feeBps, feeMode, feePerTrade, slippageBps, autoSlippage, start, end, splitPct, testDatasetId, multiMarket };
+    const options: TesterOptions = { strategyId, market, selectedMarkets, granularity, runName, capital, riskPct, spreadBps, feeBps, feeMode, feePerTrade, slippageBps, autoSlippage, start, end, splitPct, testDatasetId, multiMarket };
     try { localStorage.setItem(`${TESTER_OPTIONS_KEY}:${userId}`, JSON.stringify(options)); } catch { /* The form still works when browser storage is unavailable. */ }
-  }, [strategyId, market, selectedMarkets, granularity, runName, capital, feeBps, feeMode, feePerTrade, slippageBps, autoSlippage, start, end, splitPct, testDatasetId, multiMarket]);
+  }, [strategyId, market, selectedMarkets, granularity, runName, capital, riskPct, spreadBps, feeBps, feeMode, feePerTrade, slippageBps, autoSlippage, start, end, splitPct, testDatasetId, multiMarket]);
   useEffect(() => { try { localStorage.setItem(`testify-portfolio-all:${userId}`, String(portfolioAll)); } catch { /* Selection still works for this visit. */ } }, [portfolioAll]);
   useEffect(() => { void (async () => { try { const response = await fetchWithRateLimitRetry(apiFetch, "/api/markets", { signal: sessionController.signal }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Could not load markets."); setMarkets(data.markets.map((m: { id: string }) => m.id)); } catch (e) { message(e); } })(); }, []);
   useEffect(() => { if (selectedStrategy) { setSource(selectedStrategy.source); setEditingRevision(selectedStrategy.revision ?? 0); } }, [selectedStrategy?.id]);
@@ -318,7 +332,7 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
   async function askGemini() {
     if (busy) return;
     setBusy("gemini-create"); setError("");
-    try { const { strategy, model } = await generateStrategy(idea, apiFetch); setSource(JSON.stringify(strategy, null, 2)); setStrategyId(""); setNotice(`${model} created a draft. Review and save it before testing.`); } catch (e) { message(e); } finally { setBusy(""); }
+    try { const { strategy, model } = await generateStrategy(idea, apiFetch); setDraftBefore(source); setSource(JSON.stringify(strategy, null, 2)); setStrategyId(""); setNotice(`${model} created a draft. Review and save it before testing.`); } catch (e) { message(e); } finally { setBusy(""); }
   }
   async function askGeminiQuestion() {
     if (busy || !idea.trim()) return;
@@ -340,18 +354,19 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
     try {
       const current = parseStrategy(source);
       const { strategy, model } = await reviseStrategy(apiFetch, current, feedbackMode === "runs" ? selectedFeedbackRuns.map(summarizeDevelopmentRun) : [], idea, feedbackMode === "portfolio" ? geminiPortfolio : undefined);
-      setSource(JSON.stringify(strategy, null, 2));
+      setDraftBefore(source); setSource(JSON.stringify(strategy, null, 2));
       setFeedbackIds([]);
       setNotice(`${model} revised the selected strategy draft. Review the changes, then Save to update it. Run new development backtests before validating this version.`);
     } catch (e) { message(e); } finally { setBusy(""); }
   }
-  function settings(): BacktestSettings { return { capital, feeBps: feeMode === "fixed" ? 0 : feeBps, ...(feeMode === "fixed" ? { feePerTrade } : {}), slippageBps, start: Date.parse(start) / 1000, end: Date.parse(end) / 1000 }; }
+  function settings(): BacktestSettings { return { capital, riskPct, spreadBps, feeBps: feeMode === "fixed" ? 0 : feeBps, ...(feeMode === "fixed" ? { feePerTrade } : {}), slippageBps, start: Date.parse(start) / 1000, end: Date.parse(end) / 1000 }; }
   function onlineDataset(symbol = market): Dataset { return { id: "online", symbol, fileName: `Coinbase · ${granularity / 60}m`, importedAt: Date.now(), bars: [], skipped: 0 }; }
   function changeGranularity(value: number) {
     setGranularity(value);
   }
   function cancelBacktest() { backtestAbort.current?.abort(); setRunProgress("Cancelling"); }
   async function runTest() {
+    if (backtestAbort.current) return message("A backtest is already running.");
     if (!selectedStrategy) return message("Choose a saved strategy.");
     if (testDatasetId === "online" && !selectedMarkets.length) return message("Check at least one market.");
     setActiveRunContext({name:runName,description:`${selectedStrategy.name} · ${testDatasetId==="online" ? selectedMarkets.join(", ") : datasets.find(dataset=>dataset.id===testDatasetId)?.symbol} · ${timeframeName(granularity)}`});
@@ -360,6 +375,8 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
     backtestAbort.current = controller;
     const completed: Run[] = [];
     const failures: string[] = [];
+    const jobId=crypto.randomUUID();let snapshot:BatchPlan|undefined;
+    const saveJob=async(status:string,progress:number)=>{if(!snapshot)return;const response=await apiFetch('/api/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'jobs',record:{id:jobId,name:runName,status,progress,snapshot,completed:completed.map(r=>r.id),failures,updatedAt:Date.now()}})});if(!response.ok){const body=await response.json();throw new Error(body.error||'Could not save run progress.');}};
     try {
       const strategy = parseStrategy(selectedStrategy.source);
       const fullSettings = settings();
@@ -370,9 +387,13 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
       if (testDatasetId !== "online" && !storedDataset) throw new Error("Choose an available dataset.");
       const chosen = storedDataset ? [storedDataset.symbol] : multiMarket ? [...selectedMarkets] : [selectedMarkets[0]];
       const runGranularity = storedDataset ? datasetCoverage(storedDataset).seconds : granularity;
+      if(storedDataset&&(fullSettings.start<storedDataset.bars[0].time||fullSettings.end>storedDataset.bars.at(-1)!.time+runGranularity||granularity!==runGranularity))throw new Error('The selected dataset does not cover these dates or timeframe. Use its available coverage.');
+      snapshot={name:runName,strategyId:selectedStrategy.id,strategyName:selectedStrategy.name,datasetId:testDatasetId,granularity:runGranularity,capital:fullSettings.capital,riskPct:fullSettings.riskPct,spreadBps:fullSettings.spreadBps,feeBps:fullSettings.feeBps,feePerTrade:fullSettings.feePerTrade,slippageBps:fullSettings.slippageBps,splitPct,children:chosen.map(symbol=>({symbol,start,end,source:selectedStrategy.source,label:symbol}))};
+      await saveJob('queued',0);
       for (const [index, symbol] of chosen.entries()) {
         if (controller.signal.aborted) break;
         if (index) await pause(1000, controller.signal);
+        await saveJob('running',index/chosen.length*100);
         setRunPercent(index / chosen.length * 100); setRunProgress(`${index + 1} of ${chosen.length}: ${symbol}`);
         try {
           const name = runName.trim() || "Research run";
@@ -387,11 +408,12 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
             slippageNote = `Slippage estimate: ${estimate.slippageBps} bps per side for ${symbol}, sampled ${new Date(estimate.sampledAt).toISOString()}, reference order ${fmt(capital)} quote currency. ${estimate.method} Fixed for this run; real costs vary with order size, equity and market conditions. Commission is separate.`;
           }
 
-          const bars = storedDataset ? storedDataset.bars.filter(bar => bar.time >= assumptions.start && bar.time < assumptions.end) : await loadOnlineBars(apiFetch, symbol, granularity, assumptions.start, assumptions.end, controller.signal, (loaded, estimated) => { setRunPercent((index + Math.min(.7, loaded / Math.max(1, estimated) * .7)) / chosen.length * 100); setRunProgress(`${index + 1} of ${chosen.length}: ${symbol} · ${loaded.toLocaleString()} / ~${estimated.toLocaleString()} candles`); });
+          const bars = storedDataset ? storedDataset.bars.filter(bar => bar.time >= assumptions.start && bar.time < assumptions.end) : await loadOnlineBars(apiFetch, symbol, granularity, assumptions.start, assumptions.end, controller.signal, async (loaded, estimated) => { setRunPercent((index + Math.min(.7, loaded / Math.max(1, estimated) * .7)) / chosen.length * 100); setRunProgress(`${index + 1} of ${chosen.length}: ${symbol} · ${loaded.toLocaleString()} / ~${estimated.toLocaleString()} candles`); await saveJob('running',(index+Math.min(.7,loaded/Math.max(1,estimated)*.7))/chosen.length*100); });
           if (bars.length < 20) throw new Error("At least 20 candles are needed for a backtest.");
           setRunPercent((index + .7) / chosen.length * 100); setRunProgress(`${index + 1} of ${chosen.length}: ${symbol} · calculating`);
           const run = await execute({ ...(storedDataset || onlineDataset(symbol)), bars }, strategy, marketSettings, selectedStrategy.id, name, controller.signal, fraction => setRunPercent((index + .7 + fraction * .25) / chosen.length * 100));
           if (controller.signal.aborted) break;
+          run.id=`${jobId}-${index}`;run.mode='automatic';
           run.granularity = runGranularity;
           run.datasetId = storedDataset?.id;
           if (slippageNote) run.warnings.push(slippageNote);
@@ -405,6 +427,7 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
           await refresh();
         } catch (error) { if (controller.signal.aborted) break; failures.push(`${symbol}: ${error instanceof Error ? error.message : String(error)}`); }
       }
+      await saveJob(controller.signal.aborted?'cancelled':failures.length?'failed':'completed',completed.length/chosen.length*100);
       if (completed.length) {
         setRunId(completed[completed.length - 1].id);
         setPage(chosen.length > 1 ? "history" : "results");
@@ -413,7 +436,90 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
       if (controller.signal.aborted && !completed.length) setNotice("Backtest cancelled.");
       if (failures.length) setError(failures.slice(0, 5).join(" · "));
       setRunState(controller.signal.aborted ? 'cancelled' : failures.length ? 'error' : completed.length ? 'success' : 'error');
-    } catch (e) { setRunState(controller.signal.aborted ? 'cancelled' : 'error'); if (controller.signal.aborted) setNotice(completed.length ? `${completed.length} completed backtest${completed.length === 1 ? "" : "s"} saved. Remaining markets cancelled.` : "Backtest cancelled."); else message(e); } finally { if (backtestAbort.current === controller) backtestAbort.current = null; setBusy(""); setRunProgress(""); }
+    } catch (e) { if(snapshot)await saveJob(controller.signal.aborted?'cancelled':'failed',completed.length/snapshot.children.length*100).catch(()=>{}); setRunState(controller.signal.aborted ? 'cancelled' : 'error'); if (controller.signal.aborted) setNotice(completed.length ? `${completed.length} completed backtest${completed.length === 1 ? "" : "s"} saved. Remaining markets cancelled.` : "Backtest cancelled."); else message(e); } finally { if(snapshot&&failures.length&&!completed.length)await saveJob('failed',0).catch(()=>{}); if (backtestAbort.current === controller) backtestAbort.current = null; setBusy(""); setRunProgress(""); }
+  }
+  async function runBatch(plan:BatchPlan,resumeId?:string) {
+    if(busy)return;const controller=new AbortController();backtestAbort.current=controller;
+    setBusy('backtest');setRunState('processing');setError('');setPage('backtests');setRunPercent(0);
+    const id=resumeId||crypto.randomUUID(),completed:string[]=[],failures:string[]=[];let existing:Run[]=[];
+    const writeJob=async(status:string,progress:number)=>{const response=await apiFetch('/api/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'jobs',record:{id,name:plan.name,status,progress,snapshot:plan,completed,failures,updatedAt:Date.now()}})});if(!response.ok){const body=await response.json();throw new Error(body.error||'Could not save batch state.');}};
+    try {
+      existing=await localStore.runs();
+      if(!plan.children.length||plan.children.length>24)throw new Error('A batch supports 1–24 child runs.');
+      await writeJob('queued',0);
+      for(const [index,child] of plan.children.entries()) {
+        if(controller.signal.aborted)break;
+        const runId=`${id}-${index}`;if(existing.some(r=>r.id===runId)){completed.push(runId);continue;}
+        setRunProgress(`${index+1} of ${plan.children.length}: ${child.label}`);setRunPercent(index/plan.children.length*100);await writeJob('running',index/plan.children.length*100);
+        try {
+          const strategy=parseStrategy(child.source),full={capital:plan.capital,riskPct:plan.riskPct,spreadBps:plan.spreadBps,feeBps:plan.feeBps,...(plan.feePerTrade!==undefined?{feePerTrade:plan.feePerTrade}:{}),slippageBps:plan.slippageBps,start:Date.parse(child.start)/1000,end:Date.parse(child.end)/1000};
+          const window=researchWindow(full.start,full.end,plan.splitPct),settings={...full,end:window.boundary};
+          const stored=datasets.find(d=>d.id===plan.datasetId);
+          if(stored&&stored.symbol!==child.symbol)throw new Error('The selected dataset belongs to '+stored.symbol+', not '+child.symbol+'.');
+          if(plan.datasetId!=='online'&&!stored)throw new Error('Dataset unavailable.');
+          const bars=stored?stored.bars.filter(b=>b.time>=settings.start&&b.time<settings.end):await loadOnlineBars(apiFetch,child.symbol,plan.granularity,settings.start,settings.end,controller.signal,(loaded,total)=>setRunPercent((index+Math.min(.7,loaded/Math.max(1,total)*.7))/plan.children.length*100));
+          if(bars.length<20)throw new Error('At least 20 development candles are required.');
+          const dataset:Dataset={...(stored||onlineDataset(child.symbol)),bars};const run=await execute(dataset,strategy,settings,plan.strategyId,`${plan.name} · ${child.label}`,controller.signal);
+          run.id=runId;run.mode='automatic';run.strategySource=JSON.stringify(strategy);run.granularity=plan.granularity;run.research={...window,phase:'development'};
+          if(stored)run.datasetId=stored.id;else{const snapshot={...dataset,id:crypto.randomUUID()};await localStore.putDataset(snapshot);run.priceDatasetId=snapshot.id;}
+          await localStore.putRun(run);completed.push(run.id);setRunId(run.id);setRunPercent((index+1)/plan.children.length*100);
+        }catch(e){if(controller.signal.aborted)break;failures.push(`${child.label}: ${e instanceof Error?e.message:String(e)}`);}
+      }
+      await writeJob(controller.signal.aborted?'cancelled':failures.length?'failed':'completed',completed.length/plan.children.length*100);
+      await refresh();setNotice(`${completed.length} batch results saved.${failures.length?` ${failures.length} failed; completed results are preserved.`:''}`);if(failures.length)setError(failures.slice(0,4).join(' · '));
+      setRunState(controller.signal.aborted?'cancelled':failures.length?'error':'success');if(completed.length)setPage('history');
+    }catch(e){await writeJob(controller.signal.aborted?'cancelled':'failed',completed.length/Math.max(1,plan.children.length)*100).catch(()=>{});message(e);setRunState('error');}finally{backtestAbort.current=null;setBusy('');setRunProgress('');}
+  }
+  async function executeAssistant(action:AssistantAction):Promise<unknown> {
+    const input=action.input;
+    if(action.name==='open_page') {
+      const allowed:Page[]=['overview','strategies','studio','backtests','runsettings','trades','history','data','results','compare'];
+      if(!allowed.includes(input.page as Page))throw new Error('Unknown page.');
+      setPage(input.page as Page);return {success:true,page:input.page};
+    }
+    if(action.name==='update_settings') {
+      if(busy)throw new Error('Wait for the active operation before changing settings.');
+      const allowed=new Set(['strategyId','markets','granularity','capital','start','end','feeBps','feeMode','feePerTrade','slippageBps','riskPct','spreadBps','splitPct','name']);
+      if(Object.keys(input).some(key=>!allowed.has(key)))throw new Error('Unsupported run setting.');
+      if(input.strategyId!==undefined&&!strategies.some(s=>s.id===input.strategyId))throw new Error('That strategy is not in your account.');
+      if(input.markets!==undefined&&(!Array.isArray(input.markets)||!input.markets.length||input.markets.length>12||input.markets.some(m=>typeof m!=='string'||!markets.includes(m))))throw new Error('Choose available market symbols.');
+      for(const key of ['capital','feeBps','feePerTrade','slippageBps','riskPct','spreadBps','splitPct','granularity'])if(input[key]!==undefined&&(typeof input[key]!=='number'||!Number.isFinite(input[key])))throw new Error('Invalid '+key+'.');
+      if(input.capital!==undefined&&(Number(input.capital)<=0||Number(input.capital)>1e9))throw new Error('Capital must be positive.');
+      for(const key of ['feeBps','slippageBps'])if(input[key]!==undefined&&(Number(input[key])<0||Number(input[key])>1000))throw new Error('Invalid cost setting.');
+      if(input.feeMode!==undefined&&!['fixed','percentage'].includes(String(input.feeMode)))throw new Error('Invalid fee mode.');
+      if(input.feePerTrade!==undefined&&(Number(input.feePerTrade)<0||Number(input.feePerTrade)>1e9))throw new Error('Invalid fixed fee.');
+      if(input.riskPct!==undefined&&(Number(input.riskPct)<0||Number(input.riskPct)>10))throw new Error('Risk must be between 0 and 10%.');
+      if(input.spreadBps!==undefined&&(Number(input.spreadBps)<0||Number(input.spreadBps)>1000))throw new Error('Spread must be between 0 and 1000 bps.');
+      if(input.splitPct!==undefined&&(Number(input.splitPct)<30||Number(input.splitPct)>80))throw new Error('Development split must be between 30 and 80.');
+      if(input.granularity!==undefined&&!intervals.some(([value])=>value===input.granularity))throw new Error('Unsupported timeframe.');
+      for(const key of ['start','end'])if(input[key]!==undefined&&(typeof input[key]!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(input[key]))||!Number.isFinite(Date.parse(String(input[key])))))throw new Error('Use a valid date and time.');
+      if(Date.parse(String(input.start??start))>=Date.parse(String(input.end??end)))throw new Error('Start must be before end.');
+      if(input.name!==undefined&&(typeof input.name!=='string'||input.name.length>100))throw new Error('Run name is too long.');
+      flushSync(()=>{if(input.strategyId!==undefined)setStrategyId(String(input.strategyId));if(input.markets!==undefined){setSelectedMarkets(input.markets as string[]);setMultiMarket((input.markets as string[]).length>1);}if(input.granularity!==undefined)setGranularity(Number(input.granularity));if(input.capital!==undefined)setCapital(Number(input.capital));if(input.riskPct!==undefined)setRiskPct(Number(input.riskPct));if(input.spreadBps!==undefined)setSpreadBps(Number(input.spreadBps));if(input.start!==undefined)setStart(String(input.start));if(input.end!==undefined)setEnd(String(input.end));if(input.feeBps!==undefined){setFeeBps(Number(input.feeBps));if(input.feeMode===undefined)setFeeMode('percentage');}if(input.feeMode!==undefined)setFeeMode(input.feeMode as 'fixed'|'percentage');if(input.feePerTrade!==undefined){setFeePerTrade(Number(input.feePerTrade));if(input.feeMode===undefined&&input.feeBps===undefined)setFeeMode('fixed');}if(input.slippageBps!==undefined)setSlippageBps(Number(input.slippageBps));if(input.splitPct!==undefined)setSplitPct(Number(input.splitPct));if(input.name!==undefined)setRunName(String(input.name));setPage('runsettings');});
+      return {success:true,applied:input};
+    }
+    if(action.name==='create_strategy') {
+      if(busy)throw new Error('Wait for the current operation.');
+      const result=await generateStrategy(String(input.instructions||''),apiFetch);
+      if(input.save!==true){setDraftBefore(source);setStrategyId('');setSource(JSON.stringify(result.strategy,null,2));setPage('studio');return {success:true,draft:true,name:result.strategy.name,message:'Draft opened in the strategy editor. Review and Save to create a saved version.'};}
+      const saved=await strategyStore.putStrategy({id:crypto.randomUUID(),name:result.strategy.name,source:JSON.stringify(result.strategy,null,2),updatedAt:Date.now(),revision:0});
+      await refresh();flushSync(()=>{setStrategyId(saved.id);setSource(saved.source);setPage('studio');});
+      return {success:true,id:saved.id,name:saved.name,revision:saved.revision};
+    }
+    if(action.name==='revise_strategy') {
+      if(busy||!selectedStrategy)throw new Error('Choose a saved strategy and wait for the current operation.');
+      const result=await reviseStrategy(apiFetch,parseStrategy(selectedStrategy.source),feedbackEligible.slice(0,3).map(summarizeDevelopmentRun),String(input.instructions||''));
+      setDraftBefore(source);setSource(JSON.stringify(result.strategy,null,2));setPage('studio');
+      return {success:true,draft:true,name:result.strategy.name,message:'Revision opened in the strategy editor. The user must review and Save before it can be backtested.'};
+    }
+    if(action.name==='run_backtest') {
+      if(busy||!selectedStrategy)throw new Error('Select a saved strategy and wait for the active operation.');
+      setPage('backtests');const before=new Set((await localStore.runs()).map(r=>r.id));
+      await runTest();const saved=(await localStore.runs()).filter(r=>!before.has(r.id));
+      if(!saved.length)throw new Error('No backtest was saved. Check the error on the Backtests page and correct its settings.');
+      return {success:true,runs:saved.map(r=>({id:r.id,name:r.name,symbol:r.symbol,metrics:r.metrics,netProfit:r.settings.capital*r.metrics.netReturnPct/100}))};
+    }
+    throw new Error('Unsupported assistant action.');
   }
   async function validate() {
     if (!selectedValidationRuns.length) return message("Select at least one development backtest to validate.");
@@ -492,12 +598,13 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
   async function exportBackup() { const [ds, ss, rs] = await Promise.all([localStore.datasets(), strategyStore.strategies(), localStore.runs()]); download("testify-backup.json", JSON.stringify({ format: "testify-backup-v1", datasets: ds, strategies: ss, runs: rs })); }
   function createDraft() { setStrategyId(""); setSource(JSON.stringify({ ...exampleStrategy, name: "New strategy" }, null, 2)); setPage("studio"); setError(""); }
   async function importStrategy(file: File, target: Page = "studio") {
+    const originHash=location.hash;
     try {
       if (file.size > 2 * 1024 * 1024) throw new Error("Choose a strategy JSON file under 2 MB.");
       const parsed = parseStrategyImport(await file.text());
       let firstId = "";
       for (const strategy of parsed) { const id = crypto.randomUUID(); firstId ||= id; await strategyStore.putStrategy({ id, name: strategy.name, source: JSON.stringify(strategy, null, 2), updatedAt: Date.now() }); }
-      await refresh(); setStrategyId(firstId); setSource(JSON.stringify(parsed[0], null, 2)); setError(""); setPage(target); setNotice(`Imported ${parsed.length} ${parsed.length === 1 ? "strategy" : "strategies"}.`);
+      await refresh(); setStrategyId(firstId); setSource(JSON.stringify(parsed[0], null, 2)); setError(""); if(location.hash===originHash)setPage(target); setNotice(`Imported ${parsed.length} ${parsed.length === 1 ? "strategy" : "strategies"}.`);
     } catch (e) { if (target === "strategies") throw e; message(e); }
   }
   async function duplicateStrategy(strategy: SavedStrategy) {
@@ -531,7 +638,7 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
       const parsed=parseStrategy(run.strategySource);
       let snapshot=strategies.find(strategy=>{try{return JSON.stringify(parseStrategy(strategy.source))===JSON.stringify(parsed);}catch{return false;}});
       if(!snapshot){snapshot={id:crypto.randomUUID(),name:`${parsed.name} · saved run`,source:run.strategySource,updatedAt:Date.now()};await localStore.putStrategy(snapshot);await refresh();}
-      setStrategyId(snapshot.id);setSource(snapshot.source);setSelectedMarkets([run.symbol]);setMultiMarket(false);setGranularity(run.granularity||3600);setTestDatasetId(run.datasetId||"online");setCapital(run.settings.capital);setFeeBps(run.settings.feeBps);setFeeMode(run.settings.feePerTrade === undefined ? "percentage" : "fixed");setFeePerTrade(run.settings.feePerTrade ?? 1);setSlippageBps(run.settings.slippageBps);setStart(dateInput(run.research?.fullStart||run.settings.start));setEnd(dateInput(run.research?.fullEnd||run.settings.end));setSplitPct(run.research?.splitPct||60);setRunName(`${run.name} copy`);setPage("backtests");setNotice("Saved strategy version and settings restored.");
+      setStrategyId(snapshot.id);setSource(snapshot.source);setSelectedMarkets([run.symbol]);setMultiMarket(false);setGranularity(run.granularity||3600);setTestDatasetId(run.datasetId||"online");setCapital(run.settings.capital);setRiskPct(run.settings.riskPct??0);setSpreadBps(run.settings.spreadBps??0);setFeeBps(run.settings.feeBps);setFeeMode(run.settings.feePerTrade === undefined ? "percentage" : "fixed");setFeePerTrade(run.settings.feePerTrade ?? 1);setSlippageBps(run.settings.slippageBps);setStart(dateInput(run.research?.fullStart||run.settings.start));setEnd(dateInput(run.research?.fullEnd||run.settings.end));setSplitPct(run.research?.splitPct||60);setRunName(`${run.name} copy`);setPage("backtests");setNotice("Saved strategy version and settings restored.");
     }catch(error){message(error);}
   }
   const loadTradeBars = useMemo(() => async (run: Run, trade: Run["trades"][number], signal: AbortSignal) => {
@@ -576,23 +683,27 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
     <label>Backtest to rename<select value={renamingRunId} onChange={e => {setRenamingRunId(e.target.value);setRenameValue(runs.find(run=>run.id===e.target.value)?.name || "");}}><option value="">Select a run</option>{runs.map(run => <option key={run.id} value={run.id}>{run.name}</option>)}</select></label>
     {renamingRunId && <><label>New backtest name<input value={renameValue} onChange={e => setRenameValue(e.target.value)} maxLength={100}/></label><button className="design-button" disabled={renameBusy} onClick={() => void renameRun()}>Rename backtest</button></>}
     </div></details>;
-  if (!storageLoaded && page !== "strategies") return <div className="site-loading" role="status">Opening your workspace…</div>;
-  if (["overview","strategies","studio","backtests","runsettings","trades","connections"].includes(page)) return <PenpotWorkspace apiFetch={apiFetch} accountControls={accountControls} researchTools={researchTools} content={<Connections apiFetch={apiFetch}/>}
+  if (!storageLoaded && page !== "strategies") return withAssistant(<AccountLoading/>);
+  if (["manual","overview","strategies","studio","backtests","runsettings","trades","connections"].includes(page)) return withAssistant(<PenpotWorkspace apiFetch={apiFetch} accountControls={accountControls} researchTools={researchTools} batchTools={<BatchBacktests apiFetch={apiFetch} strategy={selectedStrategy} options={{markets:selectedMarkets,start,end,capital,riskPct,spreadBps,feeBps:feeMode==="fixed"?0:feeBps,...(feeMode==="fixed"?{feePerTrade}:{}),slippageBps,splitPct,granularity,datasetId:testDatasetId,name:runName}} busy={!!busy} onRun={(plan,id)=>void runBatch(plan,id)}/>} content={page==="manual"?<ManualReplay apiFetch={apiFetch} datasets={datasets} strategies={strategies} settings={settings()} onCompleted={refresh} onData={()=>setPage("data")}/>:<Connections apiFetch={apiFetch}/>}
     studio={<Suspense fallback={<p role="status">Opening strategy editor…</p>}><PenpotStrategyStudio source={source} onChange={setSource} strategies={strategies} selected={selectedStrategy} onOpen={setStrategyId}
-      onValidate={() => void validateDraft()} onSave={() => void saveStrategy()}
+      beforeSource={draftBefore} onAcceptPreview={()=>setDraftBefore(null)} onUndo={()=>{setSource(draftBefore??selectedStrategy?.source??JSON.stringify(exampleStrategy,null,2));setDraftBefore(null);}} onRun={()=>setPage('backtests')} canRun={!!selectedStrategy&&source===selectedStrategy.source} onValidate={() => void validateDraft()} onSave={() => {setDraftBefore(null);void saveStrategy();}}
       mode={studioMode} onMode={setStudioMode} idea={idea} onIdea={setIdea} busy={busy.startsWith("gemini")} onGenerate={() => void askGemini()} onImprove={() => void askGeminiRevision()}
-      canImprove={!!selectedStrategy && !!selectedFeedbackRuns.length} feedbackCount={selectedFeedbackRuns.length}
+      canImprove={!!selectedStrategy} feedbackCount={selectedFeedbackRuns.length}
       feedbackPicker={<RunPicker title="Backtests for Gemini" runs={feedbackEligible} selectedIds={feedbackIds} onChange={setFeedbackIds} emptyText="Save and backtest this strategy version on the development period first."/>} /></Suspense>}
     loading={libraryLoading} loadError={libraryLoadError} onRetry={loadWorkspace} datasets={datasets}
     page={page} navigate={setPage} strategies={strategies} runs={runs} selectedRun={selectedRun}
-    options={{strategyId,markets:selectedMarkets,granularity,capital,start,end,feeBps,feeMode,feePerTrade,slippageBps,splitPct,name:runName,datasetId:testDatasetId}}
+    options={{strategyId,markets:selectedMarkets,granularity,capital,riskPct,spreadBps,start,end,feeBps,feeMode,feePerTrade,slippageBps,splitPct,name:runName,datasetId:testDatasetId}}
     update={(key:keyof RunOptions,value:string|number|string[])=>{
       if(key==="strategyId")setStrategyId(String(value));
       else if(key==="markets"){setSelectedMarkets(value as string[]);setMultiMarket((value as string[]).length>1);}
       else if(key==="granularity")setGranularity(Number(value));
       else if(key==="capital")setCapital(Number(value));
+      else if(key==="riskPct")setRiskPct(Number(value));
+      else if(key==="spreadBps")setSpreadBps(Number(value));
       else if(key==="start")setStart(String(value));
       else if(key==="end")setEnd(String(value));
+      else if(key==="feeMode")setFeeMode(value==="fixed"?"fixed":"percentage");
+      else if(key==="feePerTrade")setFeePerTrade(Number(value));
       else if(key==="feeBps")setFeeBps(Number(value));
       else if(key==="slippageBps")setSlippageBps(Number(value));
       else if(key==="splitPct")setSplitPct(Number(value));
@@ -612,9 +723,9 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
     onImport={async file=>{try{await importStrategy(file,"strategies");}catch(e){message(e);}}} onExport={ids=>{const selected=strategies.filter(s=>ids.includes(s.id));if(selected.length)download(selected.length===1?`${selected[0].name.replace(/\W+/g,"-")}.json`:"testify-strategies.json",selected.length===1?selected[0].source:JSON.stringify(selected.map(s=>JSON.parse(s.source)),null,2));}}
     onDelete={deleteLibraryStrategy} onDuplicate={duplicateStrategy} onDraft={draft=>{setSource(draft);setStrategyId("");setPage("studio");}}
     onBackup={exportBackup} loadBars={loadTradeBars}
-  />;
+  />);
   if (page === "overview" && !runs.length) return <EmptyDashboard strategyCount={strategies.length} error={error} onNavigate={(target) => { setPage(target); setError(""); }} onBackup={exportBackup} onImport={importStrategy} />;
-  return <WorkspaceShell accountControls={accountControls} page={page} onNavigate={(target) => { setPage(target === "backtests" && runs.length ? "history" : target); setError(""); }} onBackup={exportBackup}>
+  return withAssistant(<WorkspaceShell accountControls={accountControls} page={page} onNavigate={(target) => { setPage(target === "backtests" && runs.length ? "history" : target); setError(""); }} onBackup={exportBackup}>
       {runState !== 'idle' && <RunStatusBadge state={runState} announce/>}
       {error && <div className="banner error" role="alert"><span>{error}</span><button onClick={() => setError("")}>Dismiss</button></div>}{notice && <div className="banner success" role="status"><span>{notice}</span><button onClick={() => setNotice("")}>Dismiss</button></div>}
       {strategyToDelete && <ConfirmStrategyDelete strategy={strategyToDelete} onDelete={deleteLibraryStrategy} onClose={() => setStrategyToDelete(null)} />}
@@ -637,7 +748,7 @@ export default function App({ userId, sessionId, onSessionExpired, accountContro
 {page === "history" && <BacktestHistory runs={runs} selected={compareIds.filter(id=>runs.some(run=>run.id===id))} onSelect={setCompareIds} onOpen={(run)=>{setRunId(run.id);setPage("results");}} onCompare={()=>setPage("compare")} onNew={()=>setPage("backtests")} onDelete={removeRun} onClear={clearHistory}/>}
 {page === "results" && <BacktestResults key={runId} run={selectedRun} datasetsLabel={datasets.find(dataset=>dataset.id===(selectedRun?.datasetId||selectedRun?.priceDatasetId))?.fileName} onImprove={improveSavedRun} onHistory={()=>setPage("history")} onCompare={(run)=>{setCompareIds(ids=>ids.includes(run.id)?ids:[run.id,...ids]);setPage("compare");}} onReuse={reuseRunSettings} onValidate={()=>{setValidationIds(selectedRun?[selectedRun.id]:[]);setPage("validation");}} onPortfolio={()=>setPage("portfolio")} loadBars={loadTradeBars}/>}
 {page === "compare" && <CompareBacktests runs={runs} selected={compareIds} onSelect={setCompareIds} onHistory={()=>setPage("history")}/>}
-{page === "portfolio" && <><div className="page-header"><div><div className="eyebrow">PORTFOLIO LAB</div><h1>Portfolio equity</h1><p>Select runs for a portfolio view, or filter by your custom Run name to display one saved backtest.</p></div></div><div className="two-col portfolio-layout"><section className="panel"><div className="panel-head"><div><div className="overline">SELECT</div><h3>Saved runs</h3></div><button className="button subtle" type="button" aria-pressed={portfolioAll} onClick={() => { setPortfolioAll((current) => !current); setPortfolioIds([]); setPortfolioDisplayRunId(""); setPortfolioNameFilter(""); }}>{portfolioAll ? "All selected" : "Select all"}</button></div><div className="portfolio-list">{runs.map((r) => <label key={r.id}><input type="checkbox" checked={portfolioAll || portfolioIds.includes(r.id)} onChange={(e) => togglePortfolioRun(r.id, e.target.checked)}/><div><strong>{r.name}</strong><small>{r.symbol} · {r.granularity ? timeframeName(r.granularity) + " · " : ""}{r.strategyName}</small></div><b className={r.metrics.netReturnPct > 0 ? "good" : "bad"}><AnimatedValue tone={metricTone("Return",r.metrics.netReturnPct)} value={pct(r.metrics.netReturnPct)}/></b></label>)}{!runs.length && <p className="empty-copy">Run backtests first to compare them.</p>}</div></section><section className="panel"><div className="panel-head"><div><div className="overline">VIEW</div><h3>{portfolioMode === "overlay" ? "Individual equity curves" : "Combined portfolio curve"}</h3></div></div><div className="portfolio-filter"><label>Filter by Run name<input type="search" value={portfolioNameFilter} onChange={(e) => filterPortfolioByName(e.target.value)} placeholder="Search your run names…"/></label><label>Display run<AnimatedSelect aria-label="Display run" value={activeDisplayRunId} onChange={(e) => { setPortfolioDisplayRunId(e.target.value); if (!e.target.value) setPortfolioNameFilter(""); }} disabled={!runs.length}><option value="">All selected runs</option>{matchingRunNames.map((r) => <option key={r.id} value={r.id}>{r.name} · {r.symbol} · {new Date(r.createdAt).toLocaleString()}</option>)}</AnimatedSelect></label>{portfolioNameFilter.trim() && !matchingRunNames.length && <p className="help">No saved Run names match.</p>}</div><div className="mode-switch" role="group" aria-label="Portfolio view"><button className={portfolioMode === "overlay" ? "active" : ""} onClick={() => setPortfolioMode("overlay")}>Individual lines</button><button className={portfolioMode === "combined" ? "active" : ""} onClick={() => setPortfolioMode("combined")}>Combined portfolio</button></div>{portfolioMode === "overlay" ? <><Chart curves={displayedPortfolio.map((r) => ({ name: `${r.symbol} · ${r.name}`, points: r.curve, capital: r.settings.capital }))}/><div className="inline-note">Each line shows one independent backtest with its own starting capital.</div></> : <>{displayedPortfolio.length > 0 && <div className="metrics three inset"><Metric label="COMBINED RETURN" value={pct(combinedPortfolio.returnPct)}/><Metric label="MAX DRAWDOWN" value={`${fmt(combinedPortfolio.maxDrawdownPct)}%`}/><Metric label="SELECTED RUNS" value={String(displayedPortfolio.length)}/></div>}<Chart curves={combinedPortfolio.curve.length ? [{ name: "Combined portfolio", points: combinedPortfolio.curve }] : []}/><div className="inline-note">Each run contributes its percentage return against the same starting capital. A −10% run and a +15% run combine to +5%. This assumes full starting capital on every selected run, so total exposure grows with the number of runs. Curves are aligned by time; a run contributes 0% before it starts and holds its last value after it ends.</div></>}</section></div></>}
-  </WorkspaceShell>;
+{page === "portfolio" && <><div className="page-header"><div><div className="eyebrow">PORTFOLIO LAB</div><h1>Portfolio equity</h1><p>Select runs for a portfolio view, or filter by your custom Run name to display one saved backtest.</p></div></div><div className="two-col portfolio-layout"><section className="panel"><div className="panel-head"><div><div className="overline">SELECT</div><h3>Saved runs</h3></div><button className="button subtle" type="button" aria-pressed={portfolioAll} onClick={() => { setPortfolioAll((current) => !current); setPortfolioIds([]); setPortfolioDisplayRunId(""); setPortfolioNameFilter(""); }}>{portfolioAll ? "All selected" : "Select all"}</button></div><div className="portfolio-list">{runs.map((r) => <label key={r.id}><input type="checkbox" checked={portfolioAll || portfolioIds.includes(r.id)} onChange={(e) => togglePortfolioRun(r.id, e.target.checked)}/><div><strong>{r.name}</strong><small>{r.symbol} · {r.granularity ? timeframeName(r.granularity) + " · " : ""}{r.strategyName}</small></div><b className={r.metrics.netReturnPct > 0 ? "good" : "bad"}><AnimatedValue tone={metricTone("Return",r.metrics.netReturnPct)} value={pct(r.metrics.netReturnPct)}/></b></label>)}{!runs.length && <p className="empty-copy">Run backtests first to compare them.</p>}</div></section><section className="panel"><div className="panel-head"><div><div className="overline">VIEW</div><h3>{portfolioMode === "overlay" ? "Individual equity curves" : "Combined portfolio curve"}</h3></div></div><div className="portfolio-filter"><label>Filter by Run name<input type="search" value={portfolioNameFilter} onChange={(e) => filterPortfolioByName(e.target.value)} placeholder="Search your run names…"/></label><label>Display run<AnimatedSelect aria-label="Display run" value={activeDisplayRunId} onChange={(e) => { setPortfolioDisplayRunId(e.target.value); if (!e.target.value) setPortfolioNameFilter(""); }} disabled={!runs.length}><option value="">All selected runs</option>{matchingRunNames.map((r) => <option key={r.id} value={r.id}>{r.name} · {r.symbol} · {new Date(r.createdAt).toLocaleString(undefined,{timeZone:getDisplayTimezone()})}</option>)}</AnimatedSelect></label>{portfolioNameFilter.trim() && !matchingRunNames.length && <p className="help">No saved Run names match.</p>}</div><div className="mode-switch" role="group" aria-label="Portfolio view"><button className={portfolioMode === "overlay" ? "active" : ""} onClick={() => setPortfolioMode("overlay")}>Individual lines</button><button className={portfolioMode === "combined" ? "active" : ""} onClick={() => setPortfolioMode("combined")}>Combined portfolio</button></div>{portfolioMode === "overlay" ? <><Chart curves={displayedPortfolio.map((r) => ({ name: `${r.symbol} · ${r.name}`, points: r.curve, capital: r.settings.capital }))}/><div className="inline-note">Each line shows one independent backtest with its own starting capital.</div></> : <>{displayedPortfolio.length > 0 && <div className="metrics three inset"><Metric label="COMBINED RETURN" value={pct(combinedPortfolio.returnPct)}/><Metric label="MAX DRAWDOWN" value={`${fmt(combinedPortfolio.maxDrawdownPct)}%`}/><Metric label="SELECTED RUNS" value={String(displayedPortfolio.length)}/></div>}<Chart curves={combinedPortfolio.curve.length ? [{ name: "Combined portfolio", points: combinedPortfolio.curve }] : []}/><div className="inline-note">Each run contributes its percentage return against the same starting capital. A −10% run and a +15% run combine to +5%. This assumes full starting capital on every selected run, so total exposure grows with the number of runs. Curves are aligned by time; a run contributes 0% before it starts and holds its last value after it ends.</div></>}</section></div></>}
+  </WorkspaceShell>);
 
 }

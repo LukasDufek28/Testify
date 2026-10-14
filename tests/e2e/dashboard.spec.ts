@@ -154,32 +154,9 @@ test("assistant launcher respects reduced motion and Escape closes its popup", a
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
-test("assistant generates through the existing endpoint and opens a reviewable draft", async ({
-  page,
-}) => {
-  await page.route("**/api/generate-strategy", (r) =>
-    r.fulfill({
-      json: {
-        strategy: {
-          ...exampleStrategy,
-          name: "AI draft",
-          description: "Draft ready for review",
-        },
-        model: "test",
-      },
-    }),
-  );
-  await page.goto("/#/app/overview");
-  await page.getByLabel("Ask the AI assistant").fill("Create a crossover");
-  await page
-    .getByRole("button", { name: "Send to assistant", exact: true })
-    .click();
-  await expect(
-    page.getByText("Draft ready for review", { exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Open draft", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Strategy creation", exact: true }),
-  ).toBeVisible();
-  await expect(page.locator(".design-studio-toolbar")).toContainText("New draft");
+test('assistant creates through an explicit site action and saves the strategy to the existing editor',async({page})=>{
+  let calls=0;await page.route('**/api/assistant',r=>{calls++;return r.fulfill({json:calls===1?{answer:'',actions:[{id:'create-1',name:'create_strategy',input:{instructions:'Create a crossover',save:true}}],messages:[{role:'assistant',content:[{type:'tool-call',toolCallId:'create-1',toolName:'create_strategy',input:{instructions:'Create a crossover',save:true}}]}]}:{answer:'The strategy is saved.',actions:[],messages:[]}});});
+  await page.route('**/api/generate-strategy',r=>r.fulfill({json:{strategy:{...exampleStrategy,name:'AI draft',description:'Draft ready for review'},model:'test'}}));
+  await page.goto('/#/app/overview');await page.getByLabel('Ask the AI assistant').fill('Create and save a crossover');await page.getByRole('button',{name:'Send message',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Strategy creation',exact:true})).toBeVisible();await expect(page.locator('.design-studio-toolbar')).toContainText('AI draft');await expect(page.getByRole('dialog',{name:'AI assistant'})).toContainText('The strategy is saved.');
 });

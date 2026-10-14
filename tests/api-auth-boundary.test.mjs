@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import assistant from "../api/assistant.js";
+import workspace from "../api/workspace.js";
+import replay from "../api/replay.js";
 import strategies from "../api/strategies.js";
 import markets from "../api/markets.js";
 import candles from "../api/candles.js";
@@ -15,7 +18,7 @@ test("every research endpoint rejects unauthenticated requests before calling pr
   const old = globalThis.fetch;
   globalThis.fetch = async () => { throw new Error("Unauthenticated request reached an upstream service"); };
   try {
-    for (const [handler, method] of [[strategies, "GET"], [markets, "GET"], [candles, "GET"], [backtest, "POST"], [generate, "POST"], [connections, "POST"], [cloud, "POST"]]) {
+    for (const [handler, method] of [[assistant,"POST"],[workspace,"GET"],[replay,"POST"],[strategies, "GET"], [markets, "GET"], [candles, "GET"], [backtest, "POST"], [generate, "POST"], [connections, "POST"], [cloud, "POST"]]) {
       const res = { statusCode: 200, headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(c) { this.statusCode = c; return this; }, json(body) { this.body = body; return this; } };
       await handler({ method, headers: { origin: "https://testify.example", host: "testify.example" }, query: {}, body: {} }, res);
       assert.equal(res.statusCode, 401);

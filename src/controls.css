@@ -22,3 +22,10 @@
 .range-control:focus-within .range-track { outline:2px solid white; outline-offset:5px; }
 .control-popup.closing { pointer-events:none; animation:control-close 120ms ease-in both; } @keyframes control-close { from { opacity:1; transform:none; } to { opacity:0; transform:translateY(-4px) scale(.98); } }
 .calendar-grid button { padding:6px 0; }.calendar-heading { padding-bottom:8px; }.calendar-time { padding:10px 4px; }.calendar-footer { padding-top:6px; }.calendar-footer button { padding:6px 14px; }
+
+.control-popup { background:#222128; border-color:#36353f; border-radius:16px; font-family:Urbanist,sans-serif; color:#f9f9fa; color-scheme:dark; box-shadow:0 12px 30px #0005; }
+.control-popup input { background:#18171f; border-color:#36353f; border-radius:10px; }
+.control-popup button:hover,.control-popup button:focus-visible,.control-options .keyboard-active,.control-options button[aria-selected=true] { background:#34323e; }
+.control-options button[aria-selected=true] { box-shadow:inset 2px 0 #9a8ed3; }
+.calendar-footer { border-color:#36353f; }
+.calendar-grid button[aria-pressed=true],.calendar-footer button:last-child { background:#6556b7; }

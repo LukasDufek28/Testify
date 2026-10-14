@@ -1,3 +1,4 @@
+import {adversePrice,executionFee,validateExecutionOverrides} from "./execution-costs.js";
 import type { BacktestSettings, Bar, Dataset, EquityPoint, Formula, Indicator, Rule, RuleSet, Run, Strategy, RuleStrategy, Trade } from "./types";
 
 const key = (i: Indicator) => i.kind === "custom" ? `custom:${i.name!.toLowerCase()}` : `${i.kind}:${i.period ?? 0}`;
@@ -123,7 +124,9 @@ const all = (rules: RuleSet, index: number, series: Map<string, number[]>) => ru
 type Position = { side: 1 | -1; entry: number; entryTime: number; units: number; equityAtEntry: number; entryFee: number };
 
 export function runBacktest(dataset: Dataset, strategy: Strategy, settings: BacktestSettings, strategyId: string, name: string, onProgress?: (fraction: number) => void): Run {
+  validateExecutionOverrides(settings);
   if (strategy.version === 3) throw new Error("Custom strategies must use runStrategyBacktest.");
+  if(settings.riskPct&&strategy.stopLossPct<=0)throw new Error('Risk-based sizing needs a positive strategy stop loss.');
 
   if (!(settings.capital > 0) || !Number.isFinite(settings.capital)) throw new Error("Starting capital must be positive.");
   if (settings.feeBps < 0 || settings.slippageBps < 0 || !Number.isFinite(settings.feeBps + settings.slippageBps)) throw new Error("Trading costs must be nonnegative.");
@@ -139,28 +142,26 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
   const series = buildSeries(bars, strategy);
   let cash = settings.capital; let position: Position | null = null; let pending: 0 | 1 | -1 | 2 = 0;
   let totalFees = 0; const curve: EquityPoint[] = []; const trades: Trade[] = []; const warnings: string[] = [];
-  warnings.push("Spot candles have no bid/ask spread; only the entered fee and slippage assumptions were charged.");
-  const adverse = (mid: number, side: 1 | -1, entering: boolean) => {
-    const slip = mid * settings.slippageBps / 10000;
-    const direction = entering ? side : -side;
-    return mid + direction * slip;
-  };
+  warnings.push(settings.spreadBps ? `A constant ${settings.spreadBps} bps spread was modeled as half the spread per fill, in addition to fees and slippage.` : "Spot candles have no bid/ask spread; only the entered fee and slippage assumptions were charged.");
+  const adverse = (mid:number,side:1|-1,entering:boolean) => adversePrice(mid,side,entering,settings);
   const exit = (mid: number, bar: Bar, reason: string, atClose = false) => {
     if (!position) return;
     const p = position as Position;
     const price = adverse(mid, p.side, false);
-    const fee = settings.feePerTrade !== undefined ? settings.feePerTrade / 2 : Math.abs(p.units * price) * settings.feeBps / 10000;
+    const fee = executionFee(p.units,price,settings);
     const pnl = p.side * p.units * (price - p.entry) - fee;
     cash += pnl; totalFees += fee;
-    trades.push({ entryTime: p.entryTime, exitTime: bar.time + (atClose ? barSeconds : 0), side: p.side, entry: p.entry, exit: price, pnl: pnl - p.entryFee, returnPct: (pnl - p.entryFee) / p.equityAtEntry * 100, reason });
+    const initialRisk=p.units*p.entry*strategy.stopLossPct/100;
+    trades.push({ entryTime: p.entryTime, exitTime: bar.time + (atClose ? barSeconds : 0), side: p.side, entry: p.entry, exit: price, pnl: pnl - p.entryFee, returnPct: (pnl - p.entryFee) / p.equityAtEntry * 100, ...(initialRisk>0?{rMultiple:(pnl-p.entryFee)/initialRisk}:{}), reason });
     position = null;
   };
   const enter = (side: 1 | -1, bar: Bar) => {
     const price = adverse(bar.open, side, true);
     const equityAtEntry = cash;
     if (settings.feePerTrade !== undefined && cash <= settings.feePerTrade / 2) return;
-    const units = (cash - (settings.feePerTrade ?? 0) / 2) * strategy.allocationPct / 100 / price;
-    const fee = settings.feePerTrade !== undefined ? settings.feePerTrade / 2 : Math.abs(units * price) * settings.feeBps / 10000;
+    const cap = (cash - (settings.feePerTrade ?? 0) / 2) * strategy.allocationPct / 100 / price;
+    const units = settings.riskPct ? Math.min(cap,cash*settings.riskPct/100/(price*strategy.stopLossPct/100)) : cap;
+    const fee = executionFee(units,price,settings);
     cash -= fee; totalFees += fee;
     position = { side, entry: price, entryTime: bar.time, units, equityAtEntry, entryFee: fee };
   };

@@ -1,18 +1,14 @@
+import RunDefaultsPanel, {getDisplayTimezone} from "./RunDefaults";
+import WorkspaceSidebar from "./WorkspaceSidebar";
 import type { ApiFetch } from "./api-client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  ChartNoAxesCombined,
-  ChevronLeft,
-  Database,
-  House,
   Layers,
   Menu,
   Search,
-  Send,
-  Square,
   X,
 } from "lucide-react";
-import { generateStrategy } from "./gemini";
+import { AssistantCard, useAssistantContext } from "./AssistantWorkspace";
 import {
   CardTitle,
   DesignCard,
@@ -38,6 +34,7 @@ export type RunOptions = {
   markets: string[];
   granularity: number;
   capital: number;
+  riskPct:number; spreadBps:number;
   start: string;
   end: string;
   feeBps: number;
@@ -48,7 +45,7 @@ export type RunOptions = {
   datasetId: string;
 };
 type Props = {
-  apiFetch: ApiFetch; accountControls?: ReactNode; researchTools?: ReactNode; content?: ReactNode;
+  apiFetch: ApiFetch; accountControls?: ReactNode; researchTools?: ReactNode; batchTools?:ReactNode; content?: ReactNode;
   studio?: ReactNode;
   loading: boolean;
   loadError: string;
@@ -93,7 +90,7 @@ const tradeDate = (time: number) =>
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "UTC",
+    timeZone: getDisplayTimezone(),
   });
 const money = (n: number) =>
   "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -106,149 +103,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     </label>
   );
 }
-function Assistant({
-  onDraft,
-  apiFetch,
-  floating = false,
-  onClose,
-}: {
-  onDraft: (source: string) => void;
-  apiFetch: ApiFetch;
-  floating?: boolean;
-  onClose?: () => void;
-}) {
-  const [prompt, setPrompt] = useState(""),
-    [busy, setBusy] = useState(false),
-    [reply, setReply] = useState(""),
-    [error, setError] = useState(""),
-    [draft, setDraft] = useState("");
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const drag = useRef<{ x: number; y: number; dx: number; dy: number } | null>(
-    null,
-  );
-  async function send() {
-    if (!prompt.trim() || busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await generateStrategy(prompt, apiFetch);
-      setDraft(JSON.stringify(result.strategy, null, 2));
-      setReply(result.strategy.description || result.strategy.name);
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "The assistant is unavailable. Try again.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <DesignCard className={"design-assistant " + (floating ? "floating" : "")}>
-      <div
-        className="assistant-drag"
-        style={
-          floating
-            ? { transform: `translate(${position.x}px,${position.y}px)` }
-            : undefined
-        }
-      />
-      <header
-        onPointerDown={(e) => {
-          if (
-            !floating ||
-            (e.target instanceof Element && e.target.closest("button"))
-          )
-            return;
-          drag.current = {
-            x: e.clientX,
-            y: e.clientY,
-            dx: position.x,
-            dy: position.y,
-          };
-          e.currentTarget.setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          if (drag.current) {
-            const d = drag.current;
-            const x = Math.max(
-                -70,
-                Math.min(innerWidth - 380, d.dx + e.clientX - d.x),
-              ),
-              y = Math.max(
-                -innerHeight / 2,
-                Math.min(50, d.dy + e.clientY - d.y),
-              );
-            setPosition({ x, y });
-            const card = e.currentTarget.parentElement!;
-            card.style.transform = `translate(${x}px,${y}px)`;
-          }
-        }}
-        onPointerUp={() => {
-          drag.current = null;
-        }}
-      >
-        <CardTitle icon={designIcons.assistant}>AI assistant</CardTitle>
-        {floating && (
-          <button
-            className="design-icon-button"
-            aria-label="Close assistant"
-            onClick={onClose}
-          >
-            <X size={16} />
-          </button>
-        )}
-      </header>
-      {!reply ? (
-        <>
-          <h2>
-            What can I<br />
-            help you with?
-          </h2>
-          <div className="assistant-suggestions">
-            {["Review my strategy", "Explain drawdown"].map((text) => (
-              <button key={text} onClick={() => setPrompt(text)}>
-                {text}
-              </button>
-            ))}
-          </div>
-        </>
-      ) : (
-        <div className="assistant-response">
-          <p>{reply}</p>
-          <button className="design-button" onClick={() => onDraft(draft)}>
-            Open draft
-          </button>
-        </div>
-      )}
-      {error && (
-        <p role="alert" className="design-error">
-          {error}
-        </p>
-      )}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-      >
-        <input
-          aria-label="Ask the AI assistant"
-          placeholder="Ask anything..."
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-        />
-        <button
-          aria-label={busy ? "Generating strategy" : "Send to assistant"}
-          disabled={busy}
-        >
-          <Send size={18} fill="currentColor" />
-        </button>
-      </form>
-    </DesignCard>
-  );
-}
+
 function SettingsFields({
   p,
   advanced = false,
@@ -1112,7 +967,7 @@ function Replay({ p }: { p: Props }) {
                   day: "2-digit",
                   month: "short",
                   year: "numeric",
-                  timeZone: "UTC",
+                  timeZone: getDisplayTimezone(),
                 })
               : "No trades"}{" "}
             · {trade?.side === -1 ? "Short" : "Long"}
@@ -1255,8 +1110,8 @@ function Replay({ p }: { p: Props }) {
 }
 export default function PenpotWorkspace(p: Props) {
   const {scope,reduced}=useWorkspaceMotion(p.page);
-  const [assistant, setAssistant] = useState(false),
-    [navOpen, setNavOpen] = useState(false),
+  const assistant = useAssistantContext();
+  const [navOpen, setNavOpen] = useState(false),
     [settings, setSettings] = useState(false),
     [symbolSearch, setSymbolSearch] = useState(""),
     [workspaceSearch, setWorkspaceSearch] = useState("");
@@ -1306,7 +1161,7 @@ export default function PenpotWorkspace(p: Props) {
   useEffect(() => {
     function escape(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        setAssistant(false);
+        assistant.setOpen(false);
         setSettings(false);
         setNavOpen(false);
       }
@@ -1316,13 +1171,13 @@ export default function PenpotWorkspace(p: Props) {
   }, []);
   const sample = !p.runs.length;
   const active =
-    p.page === "runsettings" || p.page === "trades" || p.page === "results"
+    p.page === "manual" || p.page === "runsettings" || p.page === "trades" || p.page === "results"
       ? "backtests"
       : p.page === "studio" ? "strategies" : p.page;
   const title =
     p.page === "overview"
       ? "Hello, Adam!"
-      : p.page === "connections" ? "Connections" : p.page === "studio" ? "Strategy creation" : p.page === "strategies"
+      : p.page === "manual" ? "Manual replay" : p.page === "connections" ? "Connections" : p.page === "studio" ? "Strategy creation" : p.page === "strategies"
         ? "Strategies"
         : p.page === "runsettings"
           ? "Run settings"
@@ -1460,143 +1315,7 @@ export default function PenpotWorkspace(p: Props) {
       >
         <Menu size={20} />
       </button>
-      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
-        <div className="design-sidebar-top">
-          <a
-            className="design-brand"
-            href="#"
-            aria-label="Back to Testify home"
-          >
-            TESTIFY
-          </a>
-          <button
-            className="design-icon-button"
-            aria-label="Close navigation"
-            onClick={() => setNavOpen(false)}
-          >
-            <ChevronLeft size={13} />
-          </button>
-          <nav aria-label="Workspace navigation">
-            {[
-              ["overview", "Dashboard", House],
-              ["backtests", "Backtests", ChartNoAxesCombined],
-            ].map(([id, label, Icon]) => {
-              void Icon;
-              return (
-                <button
-                  key={id as string}
-                  aria-current={active === id ? "page" : undefined}
-                  onClick={() => nav(id as WorkspacePage)}
-                >
-                  <span className="design-icon" aria-hidden="true">
-                    <img
-                      src={
-                        "/design/icon-" +
-                        ({
-                          overview: "home",
-                          backtests: "backtests",
-                          strategies: "strategies",
-                          data: "data",
-                        }[id as string] || "home") +
-                        ".svg"
-                      }
-                      alt=""
-                      width="15"
-                      height="15"
-                    />
-                  </span>
-                  {label as string}
-                </button>
-              );
-            })}
-            <div className="design-subnav">
-              {[
-                ["backtests", "Overview"],
-                ["trades", "Trades & chart"],
-                ["runsettings", "Run settings"],
-              ].map(([id, label]) => (
-                <button
-                  key={id}
-                  aria-current={p.page === id ? "page" : undefined}
-                  onClick={() => nav(id as WorkspacePage)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {[
-              ["strategies", "Strategies", Square],
-              ["data", "Data", Database],
-            ].map(([id, label, Icon]) => {
-              void Icon;
-              return (
-                <button
-                  key={id as string}
-                  aria-current={active === id ? "page" : undefined}
-                  onClick={() => nav(id as WorkspacePage)}
-                >
-                  <span className="design-icon" aria-hidden="true">
-                    <img
-                      src={
-                        "/design/icon-" +
-                        ({
-                          overview: "home",
-                          backtests: "backtests",
-                          strategies: "strategies",
-                          data: "data",
-                        }[id as string] || "home") +
-                        ".svg"
-                      }
-                      alt=""
-                      width="15"
-                      height="15"
-                    />
-                  </span>
-                  {label as string}
-                </button>
-              );
-            })}
-            <hr />
-            <button onClick={() => setSettings(true)}>
-              <span className="design-icon">
-                <img
-                  src="/design/icon-settings.svg"
-                  alt=""
-                  width="15"
-                  height="15"
-                />
-              </span>
-              Settings
-            </button>
-            <button onClick={() => setSettings(true)}>
-              <span className="design-icon">
-                <img
-                  src="/design/icon-help.svg"
-                  alt=""
-                  width="15"
-                  height="15"
-                />
-              </span>
-              Help center
-            </button>
-          </nav>
-        </div>
-        <div className="design-sidebar-bottom">
-          <button
-            className="design-ai-launcher"
-            aria-label="Open AI assistant"
-            onClick={() => setAssistant((v) => !v)}
-          >
-            <img src="/design/ai-wall.svg" alt="" />
-          </button>
-          {p.accountControls || <div className="design-user">
-            <span>A</span>
-            <div>
-              Adam V.<small>adam.xxx@gmail.com</small>
-            </div>
-          </div>}
-        </div>
-      </aside>
+      <WorkspaceSidebar active={active} nav={nav} navOpen={navOpen} setNavOpen={setNavOpen} accountControls={p.accountControls}/>
       <main ref={scope} className="design-main" data-motion-page={p.page}>
         <header className="design-topbar">
           <DesignIcon icon={Layers} />
@@ -1636,13 +1355,13 @@ export default function PenpotWorkspace(p: Props) {
             {p.notice}
           </p>
         )}
-        {p.page === "connections" && p.content}
+        {["connections","manual"].includes(p.page) && p.content}
         {p.page === "studio" && p.studio}
         {["studio","runsettings"].includes(p.page) && p.page !== "studio" && p.researchTools}
         {p.page === "overview" && (
           <div className="design-dashboard-grid">
             <div className="design-side-column">
-              <Assistant apiFetch={p.apiFetch} onDraft={p.onDraft} />
+              <AssistantCard />
               <DesignCard className="design-latest raised">
                 <CardTitle icon={designIcons.latest}>Latest backtest</CardTitle>
                 <div
@@ -1698,8 +1417,8 @@ export default function PenpotWorkspace(p: Props) {
                   <CardTitle icon={designIcons.edit}>
                     Continue working
                   </CardTitle>
-                  <h2>{p.strategies[0]?.name || "BTC trend crossover"}</h2>
-                  <p>BTC-USD · 1h · Saved version 3</p>
+                  <h2>{p.strategies[0]?.name || "Create your first strategy"}</h2>
+                  <p>{p.strategies[0]?`Saved version ${p.strategies[0].revision??1} · Ready to edit` : "Describe your idea, save the rules and run a backtest."}</p>
                   <button
                     className="design-button"
                     onClick={() =>
@@ -1718,7 +1437,7 @@ export default function PenpotWorkspace(p: Props) {
         {p.page === "strategies" && (
           <div className="design-dashboard-grid">
             <div className="design-side-column">
-              <Assistant apiFetch={p.apiFetch} onDraft={p.onDraft} />
+              <AssistantCard />
               <DesignCard className="design-utilities raised">
                 <CardTitle icon={designIcons.layers}>Your library</CardTitle>
                 <div className="design-library-count">
@@ -1895,6 +1614,7 @@ export default function PenpotWorkspace(p: Props) {
                     }
                   />
                 </Field>
+                <Field label="Risk per trade · % of equity"><input type="number" aria-label="Risk per trade percent" min="0" max="10" step=".1" value={p.options.riskPct} onChange={e=>p.update('riskPct',Number(e.target.value))}/></Field><p className="design-help">0 uses the strategy's allocation. A risk override requires a stop loss and is capped at available equity.</p><Field label="Spread · basis points"><input type="number" aria-label="Spread (basis points)" min="0" max="1000" step=".1" value={p.options.spreadBps} onChange={e=>p.update('spreadBps',Number(e.target.value))}/></Field>
                 <div className="design-fees">
                   <Field label="Fee · basis points">
                     <input
@@ -1925,7 +1645,7 @@ export default function PenpotWorkspace(p: Props) {
                 <p className="design-help">
                   Spot candles do not include bid/ask spread.
                   <br />
-                  Fees and slippage model trading costs. {p.options.feeMode === "fixed" && `Fixed commission: ${money(p.options.feePerTrade || 0)} per trade, set in Research tools.`}
+                  Entered spread, fees and slippage model trading costs. {p.options.feeMode === "fixed" && `Fixed commission: ${money(p.options.feePerTrade || 0)} per trade, set in Research tools.`}
                 </p>
                 <p className="design-help">
                   Tester options are saved in this browser.
@@ -1950,6 +1670,8 @@ export default function PenpotWorkspace(p: Props) {
                 </div>
               </DesignCard>
             </div>
+            {p.batchTools}
+            <RunDefaultsPanel apiFetch={p.apiFetch} current={{capital:p.options.capital,feeMode:p.options.feeMode,feePerTrade:p.options.feePerTrade,riskPct:p.options.riskPct,spreadBps:p.options.spreadBps,feeBps:p.options.feeBps,slippageBps:p.options.slippageBps,splitPct:p.options.splitPct}} onApply={defaults=>{p.update('feeMode',defaults.feeMode??'percentage');p.update('feePerTrade',defaults.feePerTrade??1);p.update('capital',defaults.capital);p.update('riskPct',defaults.riskPct??0);p.update('spreadBps',defaults.spreadBps??0);p.update('feeBps',defaults.feeBps);p.update('slippageBps',defaults.slippageBps);p.update('splitPct',defaults.splitPct);}}/>
             <div className="design-settings-footer">
               <small>
                 {p.options.markets.length} instruments selected · Options saved
@@ -2002,19 +1724,6 @@ export default function PenpotWorkspace(p: Props) {
         )}
         {p.page === "studio" && p.researchTools}
       </main>
-      {assistant && (
-        <div
-          className="design-floating-assistant"
-          role="dialog"
-          aria-label="AI assistant"
-        >
-          <Assistant apiFetch={p.apiFetch}
-            floating
-            onDraft={p.onDraft}
-            onClose={() => setAssistant(false)}
-          />
-        </div>
-      )}
       {settings && (
         <div
           className="design-modal-backdrop"
