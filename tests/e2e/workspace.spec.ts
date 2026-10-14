@@ -11,9 +11,9 @@ test("strategy library imports, searches, duplicates, exports and opens persiste
   await page.goto("/#/app/strategies");
   await page.locator('input[type=file]').setInputFiles({name:"strategy.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(strategy))});
   await expect(page.locator(".strategy-card")).toContainText(strategy.name);
-  await page.getByRole("button",{name:"Duplicate",exact:true}).click();
+  await page.locator(".strategy-card summary").click();await page.getByRole("button",{name:"Duplicate",exact:true}).click();
   await expect(page.locator(".strategy-card")).toHaveCount(2);
-  await page.getByPlaceholder("Search by name, market or timeframe").fill(" copy");
+  await page.getByPlaceholder("Search strategies...").fill(" copy");
   await expect(page.locator(".strategy-card")).toHaveCount(1);
   await page.getByRole("checkbox",{name:`Select ${strategy.name} copy`,exact:true}).check();
   const download = page.waitForEvent("download");
@@ -41,8 +41,7 @@ test("CSV data import validates files and runs the real worker on stored candles
   await page.getByRole("button",{name:"Details →",exact:true}).click();
   await expect(page.getByText("BTC-USD · 120 candles, sorted timestamps and valid prices.",{exact:true})).toBeVisible();
   await page.getByRole("button",{name:"Backtests",exact:true}).click();
-  await page.getByRole("combobox",{name:"Market / dataset",exact:true}).click();
-  await page.getByRole("option",{name:"BTC-USD · history.csv",exact:true}).click();
+  await page.getByRole("combobox",{name:"Market / dataset",exact:true}).selectOption({label:"BTC-USD · history.csv"});
   await page.reload();
   await expect(page.getByRole("combobox",{name:"Market / dataset",exact:true})).toContainText("history.csv");
 
@@ -69,8 +68,8 @@ test("three screens keep the shared responsive shell and primary hover effects",
       await page.setViewportSize({width,height:900});
       expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
     }
-    const button=page.locator(".testify-primary").filter({visible:true}).first();
+    const button=page.locator(".testify-primary,.design-button").filter({visible:true}).first();
     await button.hover();
-    expect(await button.evaluate(e=>getComputedStyle(e,"::after").animationName)).toBe("landing-glare");
+    if(["strategies","backtests","studio"].includes(route))await expect(button).toHaveCSS("filter","brightness(1.12)");else expect(await button.evaluate(e=>getComputedStyle(e,"::after").animationName)).toBe("landing-glare");
   }
 });

@@ -1,61 +1,155 @@
-import {test,expect} from '@playwright/test';
-import {exampleStrategy} from '../../src/types';
-const orange='rgb(242, 132, 47)', blue='rgb(69, 91, 138)';
-test.beforeEach(async({page})=>{await page.route('**/api/markets',r=>r.fulfill({json:{markets:[{id:'BTC-USD'}]}}));});
-test('strategy and dashboard hover states retain orange and blue through real hover',async({page})=>{
- await page.goto('/#/app/studio');
- for(const name of ['Save','Generate new draft']) {const button=page.getByRole('button',{name,exact:true});await expect(button).toHaveCSS('background-color',orange);await button.hover();await expect(button).toHaveCSS('background-color',orange);await expect(button).toHaveCSS('color','rgb(255, 255, 255)');}
- const validate=page.getByRole('button',{name:'Validate',exact:true});await validate.hover();await expect(validate).toHaveCSS('background-color',blue);
- await page.getByRole('button',{name:'Save',exact:true}).click();await page.locator('.strategy-panel summary').click();const saved=page.locator('.strategy-list button');await saved.hover();await expect(saved).toHaveCSS('background-color',blue);
+import { test, expect } from "@playwright/test";
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/markets", (r) =>
+    r.fulfill({ json: { markets: [{ id: "BTC-USD" }] } }),
+  );
 });
-test('returning dashboard uses consistent performance colors and responsive design sections',async({page})=>{
- await page.goto('/#/app/overview');await expect(page.getByRole('heading',{level:1})).toBeVisible();
- await page.evaluate(async(strategy)=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-local-v1',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction(['runs','strategies'],'readwrite');tx.objectStore('strategies').put({id:'s',name:strategy.name,source:JSON.stringify(strategy),updatedAt:1});for(const [id,value] of [['gain',12],['loss',-2]] as const)tx.objectStore('runs').put({id,name:id,createdAt:id==='gain'?2:1,symbol:'BTC-USD',strategyId:'s',strategyName:strategy.name,granularity:3600,settings:{start:1735689600,end:1735776000},metrics:{netReturnPct:value,maxDrawdownPct:3,tradeCount:2},curve:[],trades:[],warnings:[]});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});},exampleStrategy);
- await page.reload();await expect(page.getByRole('heading',{name:'Dashboard',exact:true})).toBeVisible();await expect(page.locator('.dashboard-summary article')).toHaveCount(4);
- await expect(page.getByText('Saved snapshot',{exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'View results for gain',exact:true})).toBeVisible();
- for(const heading of ['Continue working','Ready to test?','Recent backtests'])await expect(page.getByRole('heading',{name:heading,exact:true})).toBeVisible();
- await expect(page.locator('.dashboard-summary .positive')).toHaveText('+12.0%');await expect(page.locator('.dashboard-summary .positive .animated-value')).toHaveCSS('color','rgb(255, 255, 255)');
- await expect(page.getByRole('cell',{name:'-2.0%',exact:true}).locator('.animated-value')).toHaveCSS('color','rgb(252, 230, 213)');
- await expect(page.locator('.dashboard-summary article').nth(3).locator('.animated-value')).toHaveCSS('color','rgb(251, 218, 193)');
- expect(await page.locator('.hero').count()).toBe(0);
- for(const width of [390,1024,1366,1920]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);}
- await page.getByRole('button',{name:'Create strategy',exact:true}).hover();await expect(page.getByRole('button',{name:'Create strategy',exact:true})).toHaveCSS('background-color',orange);
- await page.getByRole('button',{name:`Open strategy ${exampleStrategy.name}`,exact:true}).click();await expect(page.getByRole('heading',{name:'Strategy creation',exact:true})).toBeVisible();
+test("copied font, icons, card glare and restrained profit gradients load", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/#/app/overview");
+  await expect(page.locator(".penpot-workspace")).toHaveCSS(
+    "background-color",
+    "rgb(24, 23, 31)",
+  );
+  await expect(page.locator(".design-assistant")).toHaveCSS(
+    "border-radius",
+    "24px",
+  );
+  await expect(page.locator(".design-metric")).toHaveCount(3);
+  expect(
+    await page
+      .locator(".design-metric")
+      .first()
+      .evaluate((e) => getComputedStyle(e).backgroundImage),
+  ).toContain("0.05");
+  expect(
+    await page
+      .locator(".design-metric")
+      .last()
+      .evaluate((e) => getComputedStyle(e).backgroundImage),
+  ).toContain("230, 154, 154");
+  expect(
+    await page
+      .locator(".design-card")
+      .first()
+      .evaluate((e) => getComputedStyle(e, "::before").maskComposite),
+  ).toContain("exclude");
+  await expect
+    .poll(() =>
+      page
+        .locator(".design-icon img")
+        .evaluateAll((images) =>
+          images.every(
+            (i) =>
+              (i as HTMLImageElement).complete &&
+              (i as HTMLImageElement).naturalWidth > 0,
+          ),
+        ),
+    )
+    .toBe(true);
 });
-test('backtest progress advances with loaded candles, estimates remaining time and saves a real result',async({page})=>{
- await page.goto('/#/app/strategies');await page.locator('input[type=file]').setInputFiles({name:'s.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(exampleStrategy))});await expect(page.locator('.strategy-card')).toHaveCount(1);
- await page.evaluate(()=>localStorage.setItem('testify-tester-options-v1',JSON.stringify({start:'2025-01-01T00:00',end:'2025-10-01T00:00',splitPct:70,granularity:3600})));
- await page.goto('/#/app/backtests');
- let release!:()=>void;const gate=new Promise<void>(resolve=>release=resolve);let requests=0;
- await page.route('**/api/candles?**',async route=>{const url=new URL(route.request().url());requests++;if(requests===2)await gate;const start=Number(url.searchParams.get('start')),end=Number(url.searchParams.get('end'));await route.fulfill({json:{bars:Array.from({length:Math.ceil((end-start)/3600)},(_,i)=>({time:start+i*3600,open:100+i*.01,high:102+i*.01,low:99+i*.01,close:101+i*.01,volume:100,spread:0}))}});});
- await page.getByRole('button',{name:'Run backtest',exact:true}).click();const bar=page.getByRole('progressbar',{name:'Backtest processing'});await expect(bar).toBeVisible();await expect.poll(async()=>Number(await bar.getAttribute('aria-valuenow'))).toBeGreaterThan(0);const value=Number(await bar.getAttribute('aria-valuenow'));expect(value).toBeLessThan(70);await expect(page.getByText(/remaining · estimate/)).toBeVisible();await expect(bar.locator('span')).toHaveCSS('animation-name','none');
- release();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible({timeout:20000});await page.reload();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible();
+test("all approved workspace pages resize without outer overflow or browser errors", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  for (const route of [
+    "overview",
+    "strategies",
+    "backtests",
+    "runsettings",
+    "trades",
+  ]) {
+    await page.goto("/#/app/" + route);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    for (const width of [320, 390, 768, 1024, 1440, 1920]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+    }
+  }
+  expect(errors).toEqual([]);
 });
 
-test('sidebar permanently shows a border and orange edge and click smoothly fills the button even with reduced motion',async({page})=>{
- await page.emulateMedia({reducedMotion:'reduce'});
- await page.clock.install();
- await page.goto('/#/app/data');await expect(page.getByRole('heading',{level:1})).toBeVisible();
- const active=page.getByRole('button',{name:'Data',exact:true});
- await expect(active).toHaveAttribute('aria-current','page');
- for (const button of await page.locator('.dashboard-sidebar nav button').all()) { const selected=await button.getAttribute('aria-current'); await expect(button).toHaveCSS('border-top-color',selected?orange:blue); expect(await button.evaluate(el=>getComputedStyle(el,'::before').borderLeftColor)).toBe(orange); await expect(button).toHaveCSS('background-color',selected?orange:'rgba(0, 0, 0, 0)'); }
- const target=page.getByRole('button',{name:'Backtests',exact:true});
- await target.hover();await expect(target).toHaveCSS('filter','brightness(1.08)');
- expect(await target.evaluate(el=>getComputedStyle(el,'::before').borderLeftColor)).toBe(orange);
- await expect(target.locator('.nav-click-fill')).toHaveCount(0);
- await target.click();await expect(target).toHaveAttribute('aria-current','page');await expect(active).not.toHaveAttribute('aria-current','page');
- const fill=target.locator('.nav-click-fill');await expect(fill).toHaveCSS('animation-name','nav-click-fill');
- await page.clock.runFor(100);
- const middle=await fill.evaluate(el=>new DOMMatrix(getComputedStyle(el).transform).m11);
- expect(middle).toBeGreaterThan(0);expect(middle).toBeLessThan(1);
- await page.clock.runFor(700);await expect(fill).toHaveCount(0);await expect(target).toHaveCSS('background-color',orange);await page.mouse.move(700,100);await expect(target).toHaveCSS('background-color',orange);await page.reload();await expect(target).toHaveAttribute('aria-current','page');await expect(target).toHaveCSS('background-color',orange);
- await page.getByRole('button',{name:'Settings',exact:true}).click(); await expect(page.getByRole('dialog',{name:'Workspace settings'})).toBeVisible(); await expect(page.locator('.dashboard-sidebar nav button').last().locator('.nav-click-fill')).toHaveCSS('animation-name','nav-click-fill');
+test("latest balance retains the Penpot mint gradient over its parent gray and exported outline icons stay transparent", async ({ page }) => {
+  await page.goto('/#/app/overview');
+  const card = page.locator('.design-latest');
+  const background = await card.evaluate(e => getComputedStyle(e).backgroundColor);
+  await expect(card.locator('.design-final-balance')).toHaveCSS('background-color', background);
+  await expect(card.locator('.design-final-balance')).toHaveCSS('background-image', 'linear-gradient(rgba(24, 23, 31, 0), rgba(145, 245, 171, 0.05))');
+  const icons = await page.locator('.design-icon img').evaluateAll(images => [...new Set(images.map(image => (image as HTMLImageElement).src))]);
+  for (const url of icons) {
+    const response = await page.request.get(url);
+    const svg = await response.text();
+    expect(svg.match(/<svg[^>]*fill="none"/)).not.toBeNull();
+  }
 });
 
-test('shared logo is centered without a caption on every workspace page',async({page})=>{
- for(const route of ['overview','strategies','backtests','data','history']){
-  await page.goto(`/#/app/${route}`);await expect(page.getByRole('heading',{level:1})).toBeVisible();
-  await expect(page.getByText('BACKTESTING WORKSPACE',{exact:true})).toHaveCount(0);
-  const alignment=await page.locator('.workspace-brand').evaluate(el=>{const link=el.getBoundingClientRect(),img=el.querySelector('img')!.getBoundingClientRect();return Math.abs(link.left+link.width/2-img.left-img.width/2);});expect(alignment).toBeLessThan(1);
- }
+test("phone navigation, native chart labels and monthly cards remain usable", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto('/#/app/overview');
+  await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
+  await expect(page.locator('.design-sidebar')).toBeVisible();
+  await page.getByRole('button', { name: 'Close navigation', exact: true }).click();
+  await expect(page.locator('.design-sidebar')).not.toBeVisible();
+  const chart = page.locator('.responsive-equity-plot');
+  await chart.scrollIntoViewIfNeeded();
+  await chart.focus();
+  await page.keyboard.press('End');
+  await expect(chart.locator('[data-chart="month"]')).toHaveText('Dec 2026');
+  expect(await chart.locator('svg text').evaluateAll(texts => texts.every(t => parseFloat(getComputedStyle(t).fontSize) >= 11))).toBe(true);
+  expect(await chart.locator('.responsive-equity-tooltip').evaluate(e => e.getBoundingClientRect().right)).toBeLessThanOrEqual(320);
+  const monthly = page.locator('.design-monthly');
+  const value = await monthly.locator('.design-monthly-heading strong').textContent();
+  await monthly.getByRole('button', { name: 'Jan monthly return' }).click();
+  await expect(monthly.locator('.design-monthly-heading strong')).not.toHaveText(value!);
+  await expect(monthly.getByRole('button', { name: 'Jan monthly return' })).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+test("settings dialog traps focus and Escape restores the invoking control", async ({
+  page,
+}) => {
+  await page.goto("/#/app/overview");
+  const trigger = page.getByRole("button", { name: "Settings", exact: true });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Workspace settings" });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Close settings" }),
+  ).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(
+    dialog.getByRole("button", { name: "Close", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+test("monthly mint gradients and separate trade navigation retain the approved design", async ({
+  page,
+}) => {
+  await page.goto("/#/app/overview");
+  const selected = page.getByRole("button", { name: "Apr monthly return" });
+  await expect(selected).toHaveAttribute("aria-pressed", "true");
+  const g = await selected
+    .locator("span")
+    .evaluate((e) => getComputedStyle(e).backgroundImage);
+  expect(g).toContain("145, 245, 171");
+  expect(g).toContain("91, 175, 119");
+  await page.goto("/#/app/trades");
+  await expect(
+    page.getByRole("button", { name: "Previous trade", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Next trade", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Selected trade · #25", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Previous trade", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Next bar", exact: true }).click();
+  await expect(page.getByText("38 / 44 bars", { exact: true })).toBeVisible();
 });

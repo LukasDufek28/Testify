@@ -16,7 +16,24 @@ export default function Site() {
   }, [hash]);
   if (!hash.startsWith("#/app/")) return <Landing />;
   const route = hash.replace("#/app/", "");
-  const initialPage: WorkspacePage = (["overview", "studio", "strategies", "data", "backtests", "history", "results", "compare", "portfolio", "validation"] as string[]).includes(route) ? route as WorkspacePage : "overview";
+  const initialPage: WorkspacePage = (
+    [
+      "overview",
+      "studio",
+      "strategies",
+      "data",
+      "backtests",
+      "history",
+      "results",
+      "compare",
+      "portfolio",
+      "validation",
+      "runsettings",
+      "trades",
+    ] as string[]
+  ).includes(route)
+    ? (route as WorkspacePage)
+    : "overview";
   return (
     <Suspense
       fallback={
@@ -25,10 +42,7 @@ export default function Site() {
         </div>
       }
     >
-      <App
-        key={hash}
-        initialPage={initialPage}
-      />
+      <App key={hash} initialPage={initialPage} />
     </Suspense>
   );
 }

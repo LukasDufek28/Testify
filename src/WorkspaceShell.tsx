@@ -5,11 +5,11 @@ import "./dashboard.css";
 import "./motion.css";
 import "./workspace.css";
 
-export type WorkspacePage = "overview" | "strategies" | "studio" | "data" | "backtests" | "history" | "results" | "compare" | "validation" | "portfolio";
+export type WorkspacePage = "overview" | "strategies" | "studio" | "data" | "backtests" | "history" | "results" | "compare" | "validation" | "portfolio" | "runsettings" | "trades";
 export default function WorkspaceShell({ page, onNavigate, onBackup, children }: { page: WorkspacePage; onNavigate: (page: WorkspacePage) => void; onBackup: () => Promise<void>; children: ReactNode }) {
   const settings = useRef<HTMLDialogElement>(null);
   const active = page === "studio" ? "strategies" : ["history", "results", "compare", "validation", "portfolio"].includes(page) ? "backtests" : page;
-  const labels: Record<WorkspacePage, string> = { overview: "Dashboard", strategies: "Strategies", studio: "Strategies / Edit strategy", data: "Data / Market data", backtests: "Backtests / New backtest", history: "Backtests / History", results: "Backtests / Backtest results", compare: "Backtests / Compare backtests", validation: "Backtests / Validation", portfolio: "Backtests / Portfolio" };
+  const labels: Record<WorkspacePage, string> = { overview: "Dashboard", strategies: "Strategies", studio: "Strategies / Edit strategy", data: "Data / Market data", backtests: "Backtests / New backtest", history: "Backtests / History", results: "Backtests / Backtest results", compare: "Backtests / Compare backtests", validation: "Backtests / Validation", portfolio: "Backtests / Portfolio", runsettings: "Backtests / Run settings", trades: "Backtests / Trades & chart" };
   return <div className={`dashboard-shell workspace-shell ${page === "studio" ? "workspace-studio" : ""}`}>
     <aside className="dashboard-sidebar"><WorkspaceBrand/>
       <WorkspaceNavigation active={active} onNavigate={onNavigate} onSettings={() => settings.current?.showModal()}/>

@@ -16,7 +16,7 @@ test.beforeEach(async({page})=>{
 test('saved results show real metrics, charts, snapshot settings and full trade exports',async({page})=>{
   await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible();await expect(page.locator('.result-metric')).toHaveCount(7);expect(await page.locator('.result-metric').evaluateAll(elements=>elements.map(el=>getComputedStyle(el).animationDelay))).toEqual(['0s','0.045s','0.09s','0.135s','0.18s','0.225s','0.27s']);expect(await page.locator('.result-metric strong .animated-value > span').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(17);await expect(page.locator('.result-metrics')).toContainText(String(a.metrics.tradeCount));await expect(page.locator('.result-metric').filter({hasText:'Max drawdown'}).locator('strong')).toHaveAttribute('data-tone',String(-a.metrics.maxDrawdownPct/10));await expect(page.locator('.result-metric').filter({hasText:'Trades'}).locator('strong')).toHaveCSS('color','rgb(255, 255, 255)');await expect(page.locator('.result-chart-grid canvas')).toHaveCount(2);
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();const file=await download;expect(file.suggestedFilename()).toBe('Run-A-trades.csv');const content=await (await import('node:fs/promises')).readFile((await file.path())!,'utf8');expect(content.split('\r\n')).toHaveLength(a.trades.length+1);
-  await page.getByRole('tab',{name:'Settings',exact:true}).click();await expect(page.locator('.saved-settings').first()).toContainText('10,000');await page.getByRole('button',{name:'Use these settings',exact:true}).click();await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Run A copy');await expect(page.getByLabel('Starting capital',{exact:true})).toHaveValue('10000');await expect(page.getByRole('combobox',{name:'Market / dataset',exact:true})).toContainText(dataset.fileName);
+  await page.getByRole('tab',{name:'Settings',exact:true}).click();await expect(page.locator('.saved-settings').first()).toContainText('10,000');await page.getByRole('button',{name:'Use these settings',exact:true}).click();await page.goto('/#/app/runsettings');await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Run A copy');await expect(page.getByLabel('Starting capital',{exact:true})).toHaveValue('10000');await expect(page.getByRole('combobox',{name:'Market / dataset',exact:true})).toContainText(dataset.fileName);
   await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await page.reload();await expect(page.locator('.workspace-page-heading')).toContainText('Result strategy');await page.getByRole('button',{name:'Improve strategy',exact:true}).click();await expect(page.getByRole('heading',{name:'Strategy creation',exact:true})).toBeVisible();
 });
 test('trade selection and filters use saved candles without network and paginate all trades',async({page})=>{
@@ -30,14 +30,14 @@ test('results, trades, settings, history and compare resize without outer overfl
   for(const route of ['compare','history','results']){await page.goto(`/#/app/${route}`);await expect(page.getByRole('heading',{level:1})).toBeVisible();for(const width of [320,390,768,1024,1440,1920]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}if(route==='results'){for(const tab of ['Trades & chart','Settings']){await page.getByRole('tab',{name:tab,exact:true}).click();for(const width of [320,768,1440]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}}}}
 });
 test('cancelled online backtest preserves settings and saves no partial run',async({page})=>{
-  await page.goto('/#/app/backtests');await page.route('**/api/candles?**',async route=>{await new Promise(resolve=>setTimeout(resolve,1500));try{await route.fulfill({json:{bars}});}catch{/* Request was cancelled. */}});await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtest in progress',exact:true})).toBeVisible();await page.getByRole('button',{name:'Cancel run',exact:true}).click();await expect(page.getByRole('heading',{name:'New backtest',exact:true})).toBeVisible();await expect(page.locator('.banner.success')).toContainText('Backtest cancelled');await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(2);
+  await page.goto('/#/app/backtests');await page.route('**/api/candles?**',async route=>{await new Promise(resolve=>setTimeout(resolve,1500));try{await route.fulfill({json:{bars}});}catch{/* Request was cancelled. */}});await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Running backtest',exact:true})).toBeVisible();await page.getByRole('button',{name:'Cancel backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtests',exact:true})).toBeVisible();await expect(page.locator('.design-notice')).toContainText('Backtest cancelled');await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(2);
 });
 
 test('online run stores original candles for offline trade inspection after reload',async({page})=>{
-  await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await page.getByRole('tab',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Use these settings',exact:true}).click();await page.getByRole('combobox',{name:'Market / dataset',exact:true}).click();await page.getByRole('option',{name:'Online market data',exact:true}).click();await page.route('**/api/candles?**',route=>{const q=new URL(route.request().url()).searchParams;return route.fulfill({json:{bars:bars.filter(bar=>bar.time>=Number(q.get('start'))&&bar.time<=Number(q.get('end')))}});});await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible();await page.route('**/api/candles?**',route=>route.abort());await page.reload();await page.getByRole('tab',{name:'Trades & chart',exact:true}).click();await expect(page.locator('.trade-price-chart canvas')).toBeVisible();await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(3);
+  await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await page.getByRole('tab',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Use these settings',exact:true}).click();await page.getByRole('combobox',{name:'Market / dataset',exact:true}).selectOption('online');await page.route('**/api/candles?**',route=>{const q=new URL(route.request().url()).searchParams;return route.fulfill({json:{bars:bars.filter(bar=>bar.time>=Number(q.get('start'))&&bar.time<=Number(q.get('end')))}});});await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible();await page.route('**/api/candles?**',route=>route.abort());await page.reload();await page.getByRole('tab',{name:'Trades & chart',exact:true}).click();await expect(page.locator('.trade-price-chart canvas')).toBeVisible();await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(3);
 });
 test('failed run returns to configuration and preserves its settings',async({page})=>{
-  await page.goto('/#/app/backtests');await page.getByLabel('Run name',{exact:true}).fill('Preserve my test');await page.route('**/api/candles?**',route=>route.fulfill({status:503,json:{error:'Historical data temporarily unavailable'}}));await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.locator('.banner.error')).toContainText('Historical data temporarily unavailable');await expect(page.getByRole('heading',{name:'New backtest',exact:true})).toBeVisible();await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Preserve my test');
+  await page.goto('/#/app/runsettings');await page.getByLabel('Run name',{exact:true}).fill('Preserve my test');await page.route('**/api/candles?**',route=>route.fulfill({status:503,json:{error:'Historical data temporarily unavailable'}}));await page.getByRole('button',{name:/Run 1 backtests/}).click();await expect(page.locator('.design-error')).toContainText('Historical data temporarily unavailable');await expect(page.getByRole('heading',{name:'Run settings',exact:true})).toBeVisible();await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Preserve my test');
 });
 
 test('only headline profit and return count up while secondary metrics stay still',async({page})=>{
@@ -142,4 +142,31 @@ test('summary cards animate, allocate space to their content and fill ultrawide 
   if(width===3440)expect(geometry.font).toBeGreaterThan(desktopSize*1.4);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
  }
+});
+
+
+test('Penpot replay reads stored candles, plots saved risk levels and exports actual trades',async({page})=>{
+ await page.route('**/api/candles?**',route=>route.abort());
+ await page.goto('/#/app/trades');
+ await expect(page.getByRole('heading',{name:'Selected trade · #1',exact:true})).toBeVisible();
+ await expect(page.getByRole('slider',{name:'Replay position'})).toBeEnabled();
+ const range=page.getByRole('slider',{name:'Replay position'});
+ await range.press('End');
+ await expect(page.locator('[data-marker="entry"]')).toBeVisible();
+ await expect(page.locator('[data-marker="exit"]')).toBeVisible();
+ await expect(page.locator('[data-level="SL"]')).toBeVisible();
+ await expect(page.locator('[data-level="TP"]')).toBeVisible();
+ const details=page.locator('.design-trade-detail');
+ await expect(details.locator('dl>div').filter({hasText:'Stop loss'})).toContainText((b.trades[0].entry*.98).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}));
+ await page.getByRole('button',{name:'Next trade',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Selected trade · #2',exact:true})).toBeVisible();
+ await expect(range).toHaveValue('1');
+ await expect(page.getByRole('button',{name:'Previous trade',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Next bar',exact:true}).click();await expect(range).toHaveValue('2');
+ await page.getByRole('button',{name:'Play',exact:true}).click();await expect(page.getByRole('button',{name:'Pause',exact:true})).toBeVisible();
+ await expect.poll(()=>range.inputValue()).not.toBe('2');await page.getByRole('button',{name:'Pause',exact:true}).click();
+ const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export trades',exact:true}).click();
+ const file=await download,content=await(await import('node:fs/promises')).readFile((await file.path())!,'utf8');
+ expect(content.split('\r\n')).toHaveLength(b.trades.length+1);expect(content).toContain(new Date(b.trades[0].exitTime*1000).toISOString());
+ await page.reload();await expect(page.getByRole('heading',{name:'Trades & chart',exact:true})).toBeVisible();
 });

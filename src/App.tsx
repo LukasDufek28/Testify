@@ -1,12 +1,13 @@
 import AnimatedValue from "./AnimatedValue";
 import { equityLines, metricTone } from "./theme";
 import ReturningDashboard from "./ReturningDashboard";
+import PenpotWorkspace, { type RunOptions } from "./PenpotWorkspace";
 import { AnimatedSelect, DateTimePicker, RangeSlider } from "./AnimatedControls";
 import { BacktestResults, BacktestHistory, CompareBacktests, BacktestProgress } from "./BacktestResults";
-import { useEffect, useMemo, useRef, useState } from "react";
-import Editor from "@monaco-editor/react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+const PenpotStrategyStudio = lazy(() => import("./PenpotStrategyStudio"));
 import ReactECharts from "echarts-for-react";
-import { BrainCircuit, Code2, Download, FlaskConical, Plus, Save, ShieldCheck, Square, Trash2 } from "lucide-react";
+import { Download, FlaskConical, Square } from "lucide-react";
 import { localStore } from "./storage";
 import { exampleStrategy, parseStrategy, type BacktestSettings, type Dataset, type Run, type SavedStrategy } from "./types";
 import { generateStrategy, reviseStrategy } from "./gemini";
@@ -112,7 +113,7 @@ export default function App({ initialPage = "overview" }: { initialPage?: Page }
   const [savedTesterOptions] = useState(readTesterOptions);
   const [page, setPageState] = useState<Page>(initialPage);
   function setPage(target: Page) { history.replaceState(null, "", `#/app/${target}`); setPageState(target); }
-  useEffect(() => { const sync = () => { const route = location.hash.replace("#/app/", "") as Page; if (["overview", "strategies", "studio", "data", "backtests", "history", "results", "compare", "validation", "portfolio"].includes(route)) setPageState(route); }; addEventListener("hashchange", sync); addEventListener("popstate", sync); return () => { removeEventListener("hashchange", sync); removeEventListener("popstate", sync); }; }, []);
+  useEffect(() => { const sync = () => { const route = location.hash.replace("#/app/", "") as Page; if (["overview", "strategies", "studio", "data", "backtests", "history", "results", "compare", "validation", "portfolio", "runsettings", "trades"].includes(route)) setPageState(route); }; addEventListener("hashchange", sync); addEventListener("popstate", sync); return () => { removeEventListener("hashchange", sync); removeEventListener("popstate", sync); }; }, []);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [strategies, setStrategies] = useState<SavedStrategy[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
@@ -423,6 +424,42 @@ export default function App({ initialPage = "overview" }: { initialPage?: Page }
 
 
   if (!storageLoaded && page !== "strategies") return <div className="site-loading" role="status">Opening your workspace…</div>;
+  if (["overview","strategies","studio","backtests","runsettings","trades"].includes(page)) return <PenpotWorkspace
+    studio={<Suspense fallback={<p role="status">Opening strategy editor…</p>}><PenpotStrategyStudio source={source} onChange={setSource} strategies={strategies} selected={selectedStrategy} onOpen={setStrategyId}
+      onValidate={() => {try {parseStrategy(source);setNotice("Strategy format is valid.");setError("");} catch(e) {message(e);}}} onSave={() => void saveStrategy()}
+      mode={studioMode} onMode={setStudioMode} idea={idea} onIdea={setIdea} busy={busy === "gemini"} onGenerate={() => void askGemini()} onImprove={() => void askGeminiRevision()}
+      canImprove={!!selectedStrategy && !!selectedFeedbackRuns.length} feedbackCount={selectedFeedbackRuns.length}
+      feedbackPicker={<RunPicker title="Backtests for Gemini" runs={feedbackEligible} selectedIds={feedbackIds} onChange={setFeedbackIds} emptyText="Save and backtest this strategy version on the development period first."/>} /></Suspense>}
+    loading={libraryLoading} loadError={libraryLoadError} onRetry={loadWorkspace} datasets={datasets}
+    page={page} navigate={setPage} strategies={strategies} runs={runs} selectedRun={selectedRun}
+    options={{strategyId,markets:selectedMarkets,granularity,capital,start,end,feeBps,slippageBps,splitPct,name:runName,datasetId:testDatasetId}}
+    update={(key:keyof RunOptions,value:string|number|string[])=>{
+      if(key==="strategyId")setStrategyId(String(value));
+      else if(key==="markets"){setSelectedMarkets(value as string[]);setMultiMarket((value as string[]).length>1);}
+      else if(key==="granularity")setGranularity(Number(value));
+      else if(key==="capital")setCapital(Number(value));
+      else if(key==="start")setStart(String(value));
+      else if(key==="end")setEnd(String(value));
+      else if(key==="feeBps")setFeeBps(Number(value));
+      else if(key==="slippageBps")setSlippageBps(Number(value));
+      else if(key==="splitPct")setSplitPct(Number(value));
+      else if(key==="name")setRunName(String(value));
+      else if(key==="datasetId") {
+        setTestDatasetId(String(value));
+        const chosen=datasets.find(dataset=>dataset.id===value);
+        if(chosen?.bars.length) {
+          setStart(dateInput(chosen.bars[0].time));
+          setEnd(dateInput(chosen.bars[chosen.bars.length-1].time));
+          setSelectedMarkets([chosen.symbol]);setMultiMarket(false);setGranularity(chosen.bars.length>1 ? Math.max(1,chosen.bars[1].time-chosen.bars[0].time) : 3600);
+        }
+      }
+    }} markets={markets} error={error} notice={notice}
+    onCreate={createDraft} onOpen={id=>{setStrategyId(id);setSource(strategies.find(s=>s.id===id)!.source);setPage("studio");}}
+    onRun={()=>void runTest()} onCancel={cancelBacktest} running={busy==="backtest"} progress={runPercent} progressText={runProgress}
+    onImport={async file=>{try{await importStrategy(file,"strategies");}catch(e){message(e);}}} onExport={ids=>{const selected=strategies.filter(s=>ids.includes(s.id));if(selected.length)download(selected.length===1?`${selected[0].name.replace(/\W+/g,"-")}.json`:"testify-strategies.json",selected.length===1?selected[0].source:JSON.stringify(selected.map(s=>JSON.parse(s.source)),null,2));}}
+    onDelete={deleteLibraryStrategy} onDuplicate={duplicateStrategy} onDraft={draft=>{setSource(draft);setStrategyId("");setPage("studio");}}
+    onBackup={exportBackup} loadBars={loadTradeBars}
+  />;
   if (page === "overview" && !runs.length) return <EmptyDashboard strategyCount={strategies.length} error={error} onNavigate={(target) => { setPage(target); setError(""); }} onBackup={exportBackup} onImport={importStrategy} />;
   return <WorkspaceShell page={page} onNavigate={(target) => { setPage(target === "backtests" && runs.length ? "history" : target); setError(""); }} onBackup={exportBackup}>
       {error && <div className="banner error" role="alert"><span>{error}</span><button onClick={() => setError("")}>Dismiss</button></div>}{notice && <div className="banner success" role="status"><span>{notice}</span><button onClick={() => setNotice("")}>Dismiss</button></div>}
@@ -430,7 +467,7 @@ export default function App({ initialPage = "overview" }: { initialPage?: Page }
       {page === "overview" && <ReturningDashboard strategies={strategies} runs={runs} onCreate={createDraft} onBacktest={() => setPage("backtests")} onOpenStrategy={id => { setStrategyId(id); setPage("studio"); }} onOpenRun={run => { setRunId(run.id); setPage("results"); }} onBackup={exportBackup} onRestore={importBackup}/>}
       {page === "strategies" && <StrategiesPage strategies={strategies} runs={runs} loading={libraryLoading} loadError={libraryLoadError} onRetry={loadWorkspace} onBacktest={(id)=>{ setStrategyId(id); setMultiMarket(false); setPage("backtests"); setError(""); }} onCreate={createDraft} onOpen={(id)=>{ setStrategyId(id); setSource(strategies.find(strategy=>strategy.id===id)!.source); setPage("studio"); }} onDuplicate={duplicateStrategy} onDelete={deleteLibraryStrategy} onImport={(file)=>importStrategy(file,"strategies")} onExport={(ids)=>{ const selected=strategies.filter(strategy=>ids.includes(strategy.id)); download(selected.length===1 ? `${selected[0].name.replace(/\W+/g,"-")}.json` : "testify-strategies.json", selected.length===1 ? selected[0].source : JSON.stringify(selected.map(strategy=>JSON.parse(strategy.source)),null,2)); }} />}
 {page === "data" && <DataPage datasets={datasets} selected={selectedDataset} market={market} setMarket={setMarket} markets={markets} onImport={importData} onSelect={setDatasetId} onRemove={removeDataset} chart={selectedDataset ? <PriceChart dataset={selectedDataset}/> : null} onlineForm={<div className="form-stack"><label>Market<AnimatedSelect aria-label="Market" value={market} onChange={e=>setMarket(e.target.value)}>{[...new Set([market,...markets])].map(symbol=><option key={symbol}>{symbol}</option>)}</AnimatedSelect></label><label>Interval<AnimatedSelect aria-label="Interval" value={granularity} onChange={e=>setGranularity(Number(e.target.value))}>{intervals.map(([value,label])=><option key={value} value={value}>{label}</option>)}</AnimatedSelect></label><div className="form-split"><label>Start<DateTimePicker aria-label="Start" value={historyStart} onChange={e=>setHistoryStart(e.target.value)}/></label><label>End<DateTimePicker aria-label="End" value={historyEnd} onChange={e=>setHistoryEnd(e.target.value)}/></label></div><button className="button primary dashboard-primary testify-primary" disabled={busy==="data"} onClick={()=>void loadCrypto()}>{busy==="data" ? "Loading…" : "Load market data"}</button><p className="help">Historical candles load in batches. Times are stored in UTC.</p></div>} />}
-{page === "studio" && <><div className="page-header"><div><div className="eyebrow">STRATEGY STUDIO</div><h1>Strategy creation</h1><p>Write your rules or build a draft with AI.</p></div><button className="button subtle" onClick={() => { setStrategyId(""); setSource(JSON.stringify({ ...exampleStrategy, name: "New strategy" }, null, 2)); }}><Plus size={15}/> New strategy</button></div><div className="studio-layout"><details className="panel strategy-panel"><summary>Saved strategies <span>{strategies.length}</span></summary><div className="strategy-list">{strategies.map((s) => <button key={s.id} className={s.id === strategyId ? "selected" : ""} onClick={() => setStrategyId(s.id)}><Code2 size={16}/><div><strong>{s.name}</strong><small>{new Date(s.updatedAt).toLocaleDateString()}</small></div></button>)}</div></details><div className="studio-main"><section className="panel studio-editor"><div className="editor-toolbar"><div><span className="file-dot"/> {selectedStrategy?.name || "New draft"}<span className="muted">strategy.json</span></div><div className="button-row"><button className="button subtle" onClick={() => { try { parseStrategy(source); setNotice("Strategy format is valid."); setError(""); } catch (e) { message(e); } }}><ShieldCheck size={14}/> Validate</button><button className="button primary dashboard-primary testify-primary" onClick={() => void saveStrategy()}><Save size={14}/> Save</button>{selectedStrategy && <button className="button ghost" aria-label="Delete selected strategy" onClick={() => setStrategyToDelete(selectedStrategy)}><Trash2 size={14}/></button>}</div></div><div className="editor-wrap"><Editor height="100%" language="json" theme="vs-dark" value={source} onChange={(value) => setSource(value || "")} options={{ minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false, automaticLayout: true }}/></div><div className="editor-footer">Rules are evaluated after bar close; orders fill no earlier than the next bar open.</div></section><section className="panel studio-assistant"><div className="panel-head"><div><div className="overline">AI ASSISTANT</div><h3>Build your next idea</h3><p>Describe the rules. Review the draft before saving.</p></div><BrainCircuit size={25} className="accent"/></div><div className="studio-mode" role="tablist" aria-label="AI tools"><button role="tab" aria-selected={studioMode === "create"} onClick={() => setStudioMode("create")}>Create</button><button role="tab" aria-selected={studioMode === "improve"} onClick={() => setStudioMode("improve")}>Improve</button></div><div className="form-stack"><label>{studioMode === "create" ? "Describe your strategy" : "Revision guidance"}<textarea rows={3} value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="For example: create a custom MACD histogram from 12/26 EMAs, enter long when it crosses above zero and volume exceeds its 20-bar average, then exit on a bearish cross."/></label>{studioMode === "create" ? <button className="button primary dashboard-primary testify-primary" disabled={busy === "gemini"} onClick={() => void askGemini()}><BrainCircuit size={15}/>{busy === "gemini" ? "Generating…" : "Generate new draft"}</button> : <><RunPicker title="Backtests for Gemini" runs={feedbackEligible} selectedIds={feedbackIds} onChange={setFeedbackIds} emptyText="Save and backtest this strategy version on the development period first."/><button className="button subtle" disabled={busy === "gemini" || !selectedStrategy || !selectedFeedbackRuns.length} onClick={() => void askGeminiRevision()}><BrainCircuit size={15}/>{busy === "gemini" ? "Revising…" : `Improve selected strategy with ${selectedFeedbackRuns.length} backtest${selectedFeedbackRuns.length === 1 ? "" : "s"}`}</button><p className="help">Only development results are used. Save the revised draft and backtest it again.</p></>}</div></section></div></div></>}
+
       {page === "backtests" && busy === "backtest" && <BacktestProgress name={activeRunContext.name} description={activeRunContext.description} progress={runProgress} percent={runPercent} onCancel={cancelBacktest}/> }
       {page === "backtests" && busy !== "backtest" && <BacktestsPage running={busy==="backtest"} onRun={()=>void runTest()} onCancel={cancelBacktest} onNavigate={setPage} multi={multiMarket} onMode={(multi)=>{ setMultiMarket(multi); if(multi) selectTestDataset("online"); else setSelectedMarkets(current=>current.slice(0,1)); }} configuration={<div className="workspace-form-grid">
 <label>Strategy and version<AnimatedSelect aria-label="Strategy and version" value={strategyId} onChange={e=>setStrategyId(e.target.value)}><option value="">Choose a saved strategy</option>{strategies.map(strategy=><option key={strategy.id} value={strategy.id}>{strategy.name}</option>)}</AnimatedSelect></label>

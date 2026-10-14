@@ -1,85 +1,185 @@
 import { test, expect } from "@playwright/test";
 import { exampleStrategy } from "../../src/types";
-
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/markets", route => route.fulfill({ json: { markets: [{ id: "BTC-USD" }] } }));
+  await page.route("**/api/markets", (r) =>
+    r.fulfill({ json: { markets: [{ id: "BTC-USD" }] } }),
+  );
 });
-
-test("new user dashboard matches the design, stays empty, and resizes", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
+test("approved dashboard geometry, preview data and responsive shell", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/#/app/overview");
-  await expect(page.getByRole("heading", { name: "Your first strategy starts here", exact: true })).toBeVisible();
-  await expect(page.getByText("You do not have any saved strategies yet.", { exact: false })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByRole("heading", { name: "Hello, Adam!", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Preview data", { exact: true })).toBeVisible();
+  const b = await page.locator(".design-dashboard-grid").boundingBox();
+  expect(b!.x).toBe(266);
+  expect(b!.y).toBe(178);
   for (const width of [320, 390, 640, 850, 960, 1280, 1440, 1920]) {
     await page.setViewportSize({ width, height: 900 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
   }
-  await page.setViewportSize({ width: 1440, height: 1200 });
-  expect((await page.locator(".dashboard-shell").boundingBox())!.height).toBeGreaterThanOrEqual(1200);
-  await page.reload();
-  await expect(page.getByText("You do not have any saved strategies yet.", { exact: false })).toBeVisible();
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Workspace settings" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  expect(errors).toEqual([]);
+  const counts = await page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        const q = indexedDB.open("testify-local-v1", 1);
+        q.onsuccess = () => {
+          const db = q.result,
+            tx = db.transaction(["strategies", "runs"]),
+            a = tx.objectStore("strategies").count(),
+            b = tx.objectStore("runs").count();
+          tx.oncomplete = () => {
+            db.close();
+            resolve([a.result, b.result]);
+          };
+        };
+      }),
+  );
+  expect(counts).toEqual([0, 0]);
 });
-
-test("onboarding steps open existing strategy, data, and backtest flows", async ({ page }) => {
-  for (const [step, heading] of [["1 Create a strategy", "Strategy creation"], ["2 Choose your data", "Market data"], ["3 Run and review", "New backtest"]]) {
-    await page.goto("/#/app/overview");
-    await page.reload();
-    await page.getByRole("button", { name: `Open this step: ${step}`, exact: true }).click();
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(heading);
-  }
-});
-
-test("JSON import validates files and persists the user's strategy", async ({ page }) => {
+test("dashboard actions open the existing editor and advanced settings", async ({
+  page,
+}) => {
   await page.goto("/#/app/overview");
-  await page.locator('input[type="file"]').setInputFiles({ name: "invalid.json", mimeType: "application/json", buffer: Buffer.from('{}') });
+  await page
+    .locator(".design-continue")
+    .getByRole("button", { name: "Open", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Strategy creation", exact: true }),
+  ).toBeVisible();
+  await page.goto("/#/app/overview");
+  await page
+    .getByRole("button", { name: "View backtest", exact: true })
+    .click();
+  await page
+    .locator(".design-run-simple")
+    .getByRole("button", { name: "Settings", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Run settings", exact: true }),
+  ).toBeVisible();
+});
+test("JSON import rejects invalid files and persists saved rules", async ({
+  page,
+}) => {
+  await page.goto("/#/app/strategies");
+  const input = page.getByLabel("Import strategy JSON file");
+  await input.setInputFiles({
+    name: "invalid.json",
+    mimeType: "application/json",
+    buffer: Buffer.from("{}"),
+  });
   await expect(page.getByRole("alert")).toBeVisible();
-  const strategy = { ...exampleStrategy, name: "My imported strategy" };
-  await page.locator('input[type="file"]').setInputFiles({ name: "strategy.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(strategy)) });
-  await expect(page.getByRole("heading", { name: "Strategy creation", exact: true })).toBeVisible();
-  await expect(page.locator(".strategy-list")).toContainText(strategy.name);
-  await page.goto("/#/app/overview");
-  await expect(page.getByText("You have 1 saved strategy, ready for a first backtest.", { exact: false })).toBeVisible();
+  await input.setInputFiles({
+    name: "rules.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({ ...exampleStrategy, name: "Imported rules" }),
+    ),
+  });
+  await expect(page.locator(".strategy-card")).toContainText("Imported rules");
+  await page.reload();
+  await expect(page.locator(".strategy-card")).toHaveCount(1);
 });
-
-test("completed backtests select the returning-user dashboard after storage loads", async ({ page }) => {
+test("saved results replace preview metrics and monthly values", async ({
+  page,
+}) => {
   await page.goto("/#/app/overview");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.evaluate(async () => {
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open("testify-local-v1", 1);
-      request.onsuccess = () => {
-        const db = request.result;
-        const tx = db.transaction("runs", "readwrite");
-        tx.objectStore("runs").put({ id: "completed-test", name: "Completed backtest", createdAt: Date.now(), symbol: "BTC-USD", strategyId: "s", strategyName: "Test strategy", metrics: { netReturnPct: 12, maxDrawdownPct: 3, tradeCount: 2, sharpe: 1, winRatePct: 50, totalFees: 0 }, curve: [], trades: [], warnings: [] });
-        tx.oncomplete = () => { db.close(); resolve(); };
-        tx.onerror = () => reject(tx.error);
+    await new Promise<void>((resolve) => {
+      const q = indexedDB.open("testify-local-v1", 1);
+      q.onsuccess = () => {
+        const db = q.result,
+          tx = db.transaction("runs", "readwrite");
+        tx.objectStore("runs").put({
+          id: "actual",
+          name: "Actual run",
+          createdAt: 1,
+          symbol: "ETH-USD",
+          strategyId: "s",
+          strategyName: "Actual rules",
+          settings: { capital: 10000, start: 1735689600, end: 1738368000 },
+          metrics: {
+            netReturnPct: 12,
+            maxDrawdownPct: 3,
+            tradeCount: 0,
+            sharpe: 1,
+            winRatePct: 0,
+            totalFees: 0,
+          },
+          curve: [
+            { time: 1735689600, equity: 10000 },
+            { time: 1738368000, equity: 11200 },
+          ],
+          trades: [],
+          warnings: [],
+        });
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
       };
-      request.onerror = () => reject(request.error);
     });
   });
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
-  await expect(page.locator(".dashboard-welcome")).toHaveCount(0);
+  await expect(
+    page.getByText("Saved workspace", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".design-final-balance")).toContainText("$11,200");
+  await expect(page.locator(".design-metric").first()).toContainText("$1,200");
+  await expect(page.locator(".design-live-chart")).toBeVisible();
+  await expect(page.locator(".design-monthly")).toContainText("$1,200");
 });
-
-test("dashboard primary buttons retain their approved hover motion", async ({ page }) => {
+test("assistant launcher respects reduced motion and Escape closes its popup", async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/#/app/overview");
-  const button = page.getByRole("button", {name:"Create with AI",exact:true});
-  await button.hover();
-  await expect.poll(() => button.evaluate(e => Number(getComputedStyle(e).transform.match(/matrix\(([^,]+)/)?.[1]))).toBe(1.025);
-  expect(await button.evaluate(e => getComputedStyle(e, "::after").animationName)).toBe("landing-glare");
+  const launcher = page.getByRole("button", {
+    name: "Open AI assistant",
+    exact: true,
+  });
+  await launcher.hover();
+  await expect(launcher).toHaveCSS("transform", "none");
+  await launcher.click();
+  await expect(
+    page.getByRole("dialog", { name: "AI assistant", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
-
-test("dashboard onboarding keeps its quick staggered popup animation", async ({ page }) => {
+test("assistant generates through the existing endpoint and opens a reviewable draft", async ({
+  page,
+}) => {
+  await page.route("**/api/generate-strategy", (r) =>
+    r.fulfill({
+      json: {
+        strategy: {
+          ...exampleStrategy,
+          name: "AI draft",
+          description: "Draft ready for review",
+        },
+        model: "test",
+      },
+    }),
+  );
   await page.goto("/#/app/overview");
-  await page.locator(".dashboard-steps article").first().waitFor();
-  const timings = await page.locator(".dashboard-steps article").evaluateAll(elements => elements.map(e => ({name:getComputedStyle(e).animationName, delay:getComputedStyle(e).animationDelay})));
-  expect(timings.map(t => t.delay)).toEqual(["0.14s", "0.24s", "0.34s"]);
+  await page.getByLabel("Ask the AI assistant").fill("Create a crossover");
+  await page
+    .getByRole("button", { name: "Send to assistant", exact: true })
+    .click();
+  await expect(
+    page.getByText("Draft ready for review", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Open draft", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Strategy creation", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".design-studio-toolbar")).toContainText("New draft");
 });

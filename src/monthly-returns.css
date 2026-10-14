@@ -1,0 +1,15 @@
+.monthly-return-card { width: min(100%,344px); padding: 18px; border: 1px solid #36353F; border-radius: 20px; background: #18171F; color: #F9F9FA; font-family: Urbanist,sans-serif; text-align: left; }
+.monthly-return-card header { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:12px; color:#9E9DA7; }
+.monthly-return-card header>span:first-child { display:flex;align-items:center;gap:8px; }
+.monthly-return-card header svg { box-sizing:content-box; padding:5px; border-radius:50%;background:#2B2A33; }
+.monthly-change { border-radius:8px;padding:3px 10px;background:#222128;color:#91F5AB; }
+.monthly-change.is-negative {color:#E69A9A;}
+.monthly-return-card>strong {display:block;font-weight:500;font-size:24px;margin-top:10px;}
+.monthly-bars {display:flex;align-items:stretch;gap:14px;height:90px;margin-top:12px;}
+.monthly-bars button {background:transparent;border:0;padding:0;min-width:0;flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;cursor:pointer;color:#9E9DA7;}
+.monthly-bars button>span {display:block;border-radius:9px;border:1px solid #36353F;background:linear-gradient(180deg,#393842,#222128);transition:filter 180ms;}
+.monthly-bars button[aria-pressed=true]>span {background:linear-gradient(180deg,#6655A7,#41349D);border-color:#6655A7;}
+.monthly-bars button:hover>span {filter:brightness(1.15);}
+.monthly-bars small {font-size:10px;margin-top:8px;text-align:center;}
+.monthly-bars button:focus-visible {outline:1px solid #A394E5;outline-offset:4px;border-radius:9px;}
+@media(prefers-reduced-motion:reduce){.monthly-bars button>span{transition:none;}}

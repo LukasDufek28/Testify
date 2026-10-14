@@ -137,3 +137,189 @@
 .landing-chart-demo { width: 100%; touch-action: pan-y; border-radius: 26px; }
 .landing-chart-demo:focus-visible { outline: 1px solid #A394E5; outline-offset: 4px; }
 .landing-chart-demo svg { display: block; width: 100%; height: auto; }
+
+.landing-preview, .landing-process { text-align: center; }
+.landing-preview h2, .landing-process h2 { margin-inline: auto; }
+.landing-monthly { display: flex; justify-content: center; margin-top: 32px; }
+.landing-steps article { text-align: center; }
+/* Landing showcase uses the full chart width rather than a compact dashboard tile. */
+.landing-monthly { margin-top:24px; }
+.landing-monthly .monthly-return-card {width:100%;max-width:none;padding:28px 32px;border-radius:26px;}
+.landing-monthly .monthly-return-card header {font-size:16px;}
+.landing-monthly .monthly-return-card header svg {width:18px;height:18px;padding:7px;}
+.landing-monthly .monthly-change {padding:5px 16px;font-size:14px;}
+.landing-monthly .monthly-return-card>strong {font-size:36px;margin-top:16px;}
+.landing-monthly .monthly-bars {height:190px;gap:clamp(16px,3vw,50px);margin-top:24px;}
+.landing-monthly .monthly-bars button>span {border-radius:14px;}
+.landing-monthly .monthly-bars small {font-size:14px;margin-top:14px;}
+@media(max-width:560px){.landing-monthly .monthly-return-card{padding:20px;border-radius:20px;}.landing-monthly .monthly-return-card header{font-size:13px;}.landing-monthly .monthly-change{font-size:12px;padding:4px 10px;}.landing-monthly .monthly-return-card>strong{font-size:28px;}.landing-monthly .monthly-bars{height:130px;gap:10px;}.landing-monthly .monthly-bars small{font-size:10px;}.landing-monthly .monthly-bars button>span{border-radius:8px;}}
+
+/* Penpot NEXT GEN: approved landing + shared, responsive showcase cards. */
+.landing{--landing-canvas:#18171f;--landing-border:#36353f;--landing-gutter:clamp(24px,5.556vw,80px)}
+.landing-header,.landing-main,.landing-footer{max-width:1280px}
+.landing-header{min-height:119px}.landing-header .landing-button{min-height:56px;font-size:16px}
+.landing-logo{font-size:28px}.landing-hero{min-height:862px;padding-top:123px}
+.landing h1{font-size:clamp(52px,7.36vw,106px);margin-top:30px;line-height:1.24}
+.landing-intro{margin-top:30px;font-size:22px}
+.landing-description{font-size:18px}
+.landing-preview{padding-top:34px}
+.landing-preview h2{font-size:clamp(32px,3.611vw,52px);margin:0;line-height:1.28}
+.landing-preview-caption{margin-top:12px;font-size:18px;line-height:24px}
+.landing-chart{margin:37px 0 0}
+.landing-chart-image{aspect-ratio:843.6748/336}
+.landing-chart-demo{border-radius:24px}
+.landing-showcase-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:24px;text-align:left}
+.landing-showcase-row>.design-card{height:auto;aspect-ratio:628/338;padding:clamp(20px,2.23vw,32px);border-radius:clamp(24px,2.5vw,38px)}
+.landing-showcase-row .design-card-title{font-size:clamp(14px,1.56vw,22.5px);gap:clamp(12px,1.34vw,19px)}
+.landing-showcase-row .design-icon{width:clamp(34px,3.8vw,55px);height:clamp(34px,3.8vw,55px)}
+.landing-showcase-row .design-icon svg{width:clamp(15px,1.7vw,24px);height:clamp(15px,1.7vw,24px)}
+.landing-showcase-row .design-monthly-heading strong{font-size:clamp(22px,2.46vw,35px)}
+.landing-showcase-row .design-monthly-heading small{font-size:clamp(12px,1.34vw,19px)}
+.landing-showcase-row .design-monthly-bars{height:clamp(90px,10.07vw,145px);gap:clamp(12px,1.34vw,19px);margin-top:clamp(23px,2.57vw,37px)}
+.landing-showcase-row .design-monthly-bars button>span{border-radius:clamp(8px,.9vw,13px)}
+.landing-showcase-row .design-monthly-bars small{font-size:clamp(13px,1.45vw,21px);padding-top:clamp(12px,1.34vw,19px)}
+.landing-showcase-row .design-strategy-title h3{font-size:clamp(20px,2.13vw,30.6px);line-height:1.2}
+.landing-showcase-row .design-strategy-example>p{font-size:clamp(13px,1.38vw,20px);margin:clamp(12px,1.28vw,18px) 0 clamp(16px,1.7vw,24px)}
+.landing-showcase-row .design-strategy-stats{padding-top:clamp(16px,1.7vw,24px)}
+.landing-showcase-row .design-strategy-stats small{font-size:clamp(12px,1.28vw,18px)}
+.landing-showcase-row .design-strategy-stats strong{font-size:clamp(23px,2.44vw,35px);margin-top:8px}
+.landing-showcase-row .design-strategy-example footer{margin-top:clamp(12px,1.28vw,18px)}
+.landing-showcase-row .design-strategy-example footer small{font-size:clamp(12px,1.28vw,18px)}
+.landing-showcase-row .design-strategy-example footer .design-button{font-size:clamp(14px,1.49vw,21px);min-height:clamp(34px,3.62vw,52px);padding-inline:clamp(17px,1.8vw,26px)}
+.landing-process{padding-top:64px}.landing-process h2{font-size:52px}
+.landing-steps article{text-align:left}.landing-steps{gap:48px;margin-top:90px;padding-bottom:80px}
+.landing-steps h3{font-size:24px}.landing-steps p{font-size:16px}
+.landing-final h2{font-size:42px}
+@media(max-width:800px){.landing-showcase-row{gap:16px}.landing-showcase-row>.design-card{padding:20px;min-height:240px;aspect-ratio:auto}.landing-showcase-row .design-monthly-bars{height:90px;gap:10px}.landing-showcase-row .design-strategy-title h3{font-size:18px}.landing-showcase-row .design-strategy-stats strong{font-size:22px}.landing-showcase-row .design-card-title{font-size:13px}.landing-showcase-row .design-icon{width:30px;height:30px}.landing-process h2{font-size:36px}}
+@media(max-width:560px){
+  .landing{padding-inline:24px}.landing-header{min-height:84px}
+  .landing-header .landing-button{min-height:52px;font-size:14px;padding-inline:20px}
+  .landing-hero{min-height:816px;padding-top:80px;padding-bottom:40px}
+  .landing h1{font-size:52px;line-height:1.1;margin-top:50px}
+  .landing h1>span+span{margin-top:38px}
+  .landing-intro{font-size:18px;max-width:240px;margin:45px auto 0;line-height:1.5}
+  .landing-description{font-size:14px;max-width:200px;margin:24px auto 0}
+  .landing-actions{margin-top:40px}
+  .landing-actions .landing-secondary{display:none}
+  .landing .landing-scroll{margin-top:72px;font-size:9px}
+  .landing-preview{padding-top:40px}
+  .landing-preview h2{font-size:34px;max-width:300px;line-height:1.2}
+  .landing-preview-caption{display:none}
+  .landing-chart{margin-top:50px}
+  .landing-chart .design-equity svg{min-height:260px;aspect-ratio:auto}
+  .landing-chart .design-equity svg{height:260px}
+  .landing-showcase-row{grid-template-columns:1fr;margin-top:40px;gap:24px}
+  .landing-showcase-row>.design-card{min-height:0;height:185px;padding:18px 16px;border-radius:24px}
+  .landing-showcase-row .design-icon{width:30px;height:30px}
+  .landing-showcase-row .design-card-title{font-size:12.35px;gap:10px}
+  .landing-showcase-row .design-monthly-heading strong{font-size:19.4px}
+  .landing-showcase-row .design-monthly-heading small{font-size:10.6px}
+  .landing-showcase-row .design-monthly-bars{height:79.4px;margin-top:20px;gap:10px}
+  .landing-showcase-row .design-monthly-bars small{font-size:11.47px;padding-top:10px}
+  .landing-showcase-row .design-strategy-title h3{font-size:16.78px}
+  .landing-showcase-row .design-strategy-example>p{font-size:10.9px;margin:10px 0 13px}
+  .landing-showcase-row .design-strategy-stats{padding-top:13px}
+  .landing-showcase-row .design-strategy-stats small{font-size:10px}
+  .landing-showcase-row .design-strategy-stats strong{font-size:19.3px;margin-top:4px}
+  .landing-showcase-row .design-strategy-example footer{margin-top:10px}
+  .landing-showcase-row .design-strategy-example footer small{font-size:10px}
+  .landing-showcase-row .design-strategy-example footer .design-button{font-size:11.75px;min-height:28px;padding:5px 14px}
+  .landing-process{padding-top:60px}
+  .landing-process h2{font-size:34px;max-width:260px}
+  .landing-steps{padding-inline:64px;gap:70px;margin-top:54px;padding-bottom:70px}
+  .landing-steps h3{font-size:24px}.landing-steps p{font-size:16px}
+  .landing-final h2{font-size:27px}
+  .landing-footer-logo{display:none}
+}
+@media(max-width:360px){.landing h1{font-size:44px}.landing-steps{padding-inline:32px}.landing-preview h2{font-size:30px}}
+
+.landing .design-strategy-title h3{margin:0;font-weight:400}.landing .design-card button{font-family:inherit;font-weight:400}.landing .design-card p{line-height:1.4}
+@media(min-width:801px){
+  .landing-hero{padding-top:118px}
+  .landing h1{margin-top:20px;line-height:1.221}
+  .landing-intro{margin-top:42px;line-height:28px}
+  .landing-description{margin-top:20px}
+  .landing-actions{margin-top:63px}
+  .landing .landing-button{min-height:56px}
+  .landing-showcase-row>.design-card{min-height:0}
+  .landing-showcase-row .design-strategy-example{height:auto;overflow:hidden}
+  .landing-showcase-row .design-strategy-example .design-icon{width:52px;height:52px}
+  .landing-showcase-row .design-strategy-example>p{margin:15px 0 22px;line-height:24px}
+  .landing-showcase-row .design-strategy-stats small{line-height:23px}
+  .landing-showcase-row .design-strategy-stats strong{line-height:43px}
+  .landing-showcase-row .design-strategy-example footer{margin-top:18px}
+  .landing-process h2{line-height:1.29}
+  .landing-steps{gap:25px;margin-top:64px;padding-bottom:58px}
+  .landing-steps article{padding-left:clamp(20px,8.125vw,117px)}
+  .landing-steps h3{font-size:25px;margin-top:24px;line-height:32px}
+  .landing-steps p{font-size:17px;line-height:29px}
+  .landing-final{padding-top:50px;padding-bottom:74px}
+  .landing-final h2{line-height:54px}
+  .landing-final .landing-button{margin-top:45px}
+  .landing-footer{padding-top:26px;padding-bottom:88px}
+}
+
+.landing .design-equity svg{min-height:0}
+
+.landing .design-equity .landing-chart-image{max-height:none}
+
+.landing-mobile-copy{display:none}
+@media(max-width:560px){
+ .landing-header{min-height:92px}
+ .landing-header .landing-button{min-height:57px;font-size:16px;width:130px;padding-inline:10px}
+ .landing-hero{min-height:808px;padding-top:87px}
+ .landing-kicker{line-height:12px}
+ .landing h1{margin-top:23px;line-height:57px}
+ .landing h1>span+span{margin-top:30px}
+ .landing-intro{font-size:19px;line-height:30px;margin-top:70px;max-width:260px}
+ .landing-description{line-height:25px;margin-top:25px}
+ .landing-actions{margin-top:43px}
+ .landing-actions .landing-button{min-height:57px;font-size:16px}
+ .landing .landing-scroll{font-size:10px;line-height:12px;margin-top:86px}
+ .landing-preview h2{font-size:35px;line-height:44px;margin-inline:auto}
+ .landing-chart{margin-top:37px}
+ .landing .design-equity .landing-chart-image{aspect-ratio:344/260;height:260px;max-height:none}
+ .landing-showcase-row>.design-card{height:auto;aspect-ratio:344/185.23077}
+ .landing-process{padding-top:44px}
+ .landing-process h2{font-size:35px;line-height:44px}
+ .landing-steps{padding-inline:73px 30px;gap:56px;margin-top:28px;padding-bottom:61px}
+ .landing-steps article{min-height:119px}
+ .landing-step-number{font-size:12px;line-height:15px}
+ .landing-steps h3{font-size:24px;line-height:29px;margin:15px 0 14px;white-space:nowrap}
+ .landing-steps p{font-size:16px;line-height:25px;margin:0;white-space:nowrap}
+ .landing-final{padding-top:50px;padding-bottom:42px}
+ .landing-final h2{font-size:27px;line-height:33px}
+ .landing-final .landing-button{margin-top:27px;min-height:57px;font-size:16px}
+ .landing-mobile-copy{display:inline}
+ .landing-desktop-copy{display:none}
+ .landing-footer{padding:0 0 40px;border-top:0;gap:45px;font-size:12px}
+ .landing-footer p{font-size:12px;line-height:15px}
+}
+@media(max-width:360px){.landing-steps{padding-inline:40px 10px}.landing-steps p{white-space:normal}.landing-steps h3{font-size:21px}.landing-final h2{font-size:23px}}
+
+/* Let content reflow instead of resizing a fixed artboard. */
+.landing-hero { min-height:clamp(650px,calc(100svh - 119px),862px); padding-top:clamp(72px,8.55vw,123px); }
+.landing .design-responsive-equity { text-align:left; padding:clamp(16px,2.2vw,32px); }
+.landing .design-responsive-equity .landing-chart-image { height:auto; aspect-ratio:auto; }
+.landing .responsive-equity-header .design-card-title { font-size:clamp(13px,1.3vw,18px); }
+.landing-showcase-row>.design-card { aspect-ratio:auto; min-height:0; }
+.landing-showcase-row .design-strategy-title { min-width:0; }
+.landing-showcase-row .design-strategy-title h3 { overflow-wrap:anywhere; }
+.landing-steps h3,.landing-steps p { white-space:normal; }
+@media(max-width:800px) {
+ .landing-hero { min-height:calc(100svh - 92px); }
+ .landing-steps { gap:clamp(16px,4vw,32px); }
+}
+@media(max-width:560px) {
+ .landing { --landing-gutter:clamp(16px,6.15vw,24px); }
+ .landing-hero { padding-top:clamp(48px,10svh,87px); padding-bottom:48px; }
+ .landing h1 { font-size:clamp(40px,12.4vw,64px); line-height:1.12; }
+ .landing h1>span+span { margin-top:24px; }
+ .landing-intro { margin-top:clamp(30px,7svh,70px); }
+ .landing .landing-scroll { margin-top:48px; }
+ .landing-preview h2,.landing-process h2 { font-size:clamp(28px,9vw,35px); line-height:1.25; }
+ .landing-showcase-row>.design-card { height:auto; aspect-ratio:auto; }
+ .landing-steps { padding-inline:clamp(16px,12vw,73px) 0; }
+ .landing-steps h3 { font-size:clamp(21px,6.15vw,24px); }
+ .landing-footer { gap:24px; }
+}

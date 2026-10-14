@@ -11,10 +11,10 @@ test("approved silver landing, local font, and shared chart load without browser
   page.on("response", response => { if (response.status() >= 400) failures.push(response.url()); });
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("An idea is a start.Evidence is an edge.");
-  await expect(page.getByRole("heading", { name: "Your strategy. A clearer picture." })).toBeAttached();
+  await expect(page.getByRole("heading", { name: /Your strategy\.\s*A clearer picture\./ })).toBeAttached();
   await page.getByRole("link", { name: "Explore", exact: true }).click();
   await expect(page.locator(".landing-chart-image")).toBeVisible();
-  await expect(page.locator(".landing-chart-image")).toHaveAttribute("viewBox", "472 366 1072 458");
+  await expect(page.locator(".responsive-equity-header")).toContainText("Equity & drawdown");
   await expect(page.getByText("FROM IDEA TO EVIDENCE", {exact:true})).toHaveCount(0);
   await page.evaluate(() => document.fonts.ready);
   expect(await page.evaluate(() => document.fonts.check('400 106px Urbanist'))).toBe(true);
@@ -26,15 +26,16 @@ test("approved silver landing, local font, and shared chart load without browser
   expect(failures).toEqual([]);
 });
 
-test("responsive layouts preserve the exact same chart proportions without horizontal overflow", async ({ page }) => {
+test("responsive layouts reflow with readable chart labels without horizontal overflow", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   for (const width of [320, 390, 560, 640, 800, 960, 1280, 1440, 1920, 3440]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
-    const chart = await page.locator(".landing-chart-image").boundingBox();
-    expect(chart!.width / chart!.height).toBeCloseTo(1072 / 458, 2);
-    await expect(page.locator(".landing-chart-image")).toHaveAttribute("viewBox", "472 366 1072 458");
+    await expect.poll(async () => page.locator(".landing-chart-image").evaluate(svg => Math.abs((svg as SVGSVGElement).viewBox.baseVal.width - svg.getBoundingClientRect().width))).toBeLessThan(1);
+    const current=await page.locator(".landing-chart-image").boundingBox();
+    expect(current!.height).toBeGreaterThanOrEqual(224);
+    expect(await page.locator(".landing-chart-image text").evaluateAll(texts => texts.every(t => parseFloat(getComputedStyle(t).fontSize) >= 11))).toBe(true);
     const title = await page.locator("#landing-heading").boundingBox();
     expect(title!.x).toBeGreaterThanOrEqual(0);
     expect(title!.x + title!.width).toBeLessThanOrEqual(width);
@@ -55,11 +56,11 @@ test("explore, section links, workspace entry, and return home work", async ({ p
   await page.getByRole("link", { name: "Product", exact: true }).click();
   await expect(page).toHaveURL(/#product-preview$/);
   await page.getByRole("link", { name: "Open free workspace", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your first strategy starts here", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Hello, Adam!", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Back to Testify home" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("An idea is a start.");
   await page.getByRole("link", { name: "Start for free", exact: true }).first().click();
-  await expect(page.getByRole("heading", { name: "Your first strategy starts here", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Hello, Adam!", exact: true })).toBeVisible();
 });
 
 test("subtle motion reveals content once and hover does not move the glossy button", async ({ page }) => {
@@ -94,6 +95,8 @@ test("reduced motion keeps all content visible and removes entrance animation", 
 
 
 test("approved equity demo responds to hover, touch and keyboard without changing curves", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   const demo = page.locator(".landing-chart-demo");
@@ -115,4 +118,24 @@ test("approved equity demo responds to hover, touch and keyboard without changin
   await demo.scrollIntoViewIfNeeded();
   await demo.dispatchEvent("pointerdown", {pointerType:"touch",clientX:(await demo.boundingBox())!.x + 200,clientY:(await demo.boundingBox())!.y + 70});
   await expect(demo.locator('[data-chart="month"]')).not.toHaveText("Jan 2026");
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(demo.locator("svg")).toBeVisible();
+    await demo.scrollIntoViewIfNeeded();
+    const box = (await demo.boundingBox())!;
+    await page.mouse.move(box.x + box.width * .8, box.y + 80);
+    await page.mouse.wheel(0, 450);
+    await page.mouse.wheel(0, -450);
+    await demo.focus();
+    await page.keyboard.press("End");
+    await expect(demo.locator('[data-chart="month"]')).toHaveText("Dec 2026");
+    await expect(demo.locator('[data-chart="strategy-value"]')).toHaveText(/^\$[\d,]+$/);
+    await expect(page.getByRole("heading", { level: 1 })).toBeAttached();
+  }
+  // Tooltip values are independent of the axis text in the DOM.
+  await demo.locator("svg text").evaluateAll(texts => texts.forEach(t => t.remove()));
+  await page.keyboard.press("Home");
+  await expect(demo.locator('[data-chart="month"]')).toHaveText("Jan 2026");
+  await expect(demo.locator('[data-chart="strategy-value"]')).toHaveText(/^\$[\d,]+$/);
+  expect(errors).toEqual([]);
 });

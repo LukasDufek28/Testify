@@ -1,19 +1,86 @@
-import {test,expect} from "@playwright/test";
-test.beforeEach(async({page})=>{await page.route('**/api/markets',r=>r.fulfill({json:{markets:Array.from({length:12},(_,i)=>({id:i===0?'BTC-USD':`COIN${i}-USD`}))}}));});
-test('landing and workspace secondary buttons brighten without lifting',async({page})=>{
-  await page.goto('/');const landing=page.getByRole('link',{name:'Explore',exact:true});await landing.hover();await page.waitForTimeout(250);const reference=await landing.evaluate(e=>({filter:getComputedStyle(e).filter,transform:getComputedStyle(e).transform}));
-  await page.goto('/#/app/backtests');const secondary=page.getByRole('button',{name:'Saved backtests',exact:true});await secondary.hover();await page.waitForTimeout(250);expect(await secondary.evaluate(e=>({filter:getComputedStyle(e).filter,transform:getComputedStyle(e).transform}))).toEqual({filter:'brightness(1.1)',transform:'none'});expect(reference).toEqual({filter:'brightness(1.12)',transform:'none'});
+import { test, expect } from "@playwright/test";
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/markets", (r) =>
+    r.fulfill({
+      json: {
+        markets: Array.from({ length: 12 }, (_, i) => ({
+          id: i === 0 ? "BTC-USD" : "COIN" + i + "-USD",
+        })),
+      },
+    }),
+  );
 });
-test('animated selects support keyboard, search, dismissal and disabled controls',async({page})=>{
-  await page.goto('/#/app/backtests');const frame=page.getByRole('combobox',{name:'Timeframe',exact:true});await frame.focus();await frame.press('ArrowDown');await expect(page.getByRole('listbox')).toBeVisible();expect(await page.locator('.control-popup').evaluate(e=>getComputedStyle(e).animationName)).toBe('control-open');await frame.press('ArrowDown');await frame.press('Enter');await expect(frame).toContainText('6 hours');
-  await page.getByRole('combobox',{name:'Market',exact:true}).click();await page.getByRole('searchbox',{name:'Search Market',exact:true}).fill('COIN9');await page.getByRole('option',{name:'COIN9-USD',exact:true}).click();await expect(page.getByRole('combobox',{name:'Market',exact:true})).toContainText('COIN9-USD');await frame.click();await page.keyboard.press('Escape');await expect(page.getByRole('listbox')).toHaveCount(0);await expect(frame).toBeFocused();
-  await page.getByRole('button',{name:'Multiple markets',exact:true}).click();await expect(page.getByRole('combobox',{name:'Market / dataset',exact:true})).toBeDisabled();
-  await page.getByRole('button',{name:'Data',exact:true}).click();await page.getByRole('combobox',{name:'CSV market',exact:true}).click();await page.getByRole('searchbox',{name:'Search CSV market',exact:true}).fill('BTC');await page.getByRole('option',{name:'BTC-USD',exact:true}).click();
+test("secondary buttons brighten without moving", async ({ page }) => {
+  await page.goto("/#/app/backtests");
+  const b = page
+    .locator(".design-run-simple")
+    .getByRole("button", { name: "Settings", exact: true });
+  await b.scrollIntoViewIfNeeded();
+  const before = await b.boundingBox();
+  await b.hover();
+  await expect(b).toHaveCSS("filter", "brightness(1.12)");
+  await expect(b).toHaveCSS("transform", "none");
+  expect((await b.boundingBox())!.y).toBe(before!.y);
 });
-test('calendar uses the design palette and retains date and time changes',async({page})=>{
-  await page.goto('/#/app/backtests');const start=page.getByRole('button',{name:'Start date',exact:true});await start.click();const calendar=page.getByRole('dialog',{name:'Start date calendar',exact:true});await expect(calendar).toBeVisible();expect(await calendar.evaluate(e=>getComputedStyle(e).backgroundColor)).toBe('rgb(48, 73, 125)');await calendar.getByRole('button',{name:'Previous month',exact:true}).click();await calendar.locator('.calendar-grid button').first().click();await page.getByRole('spinbutton',{name:'Start date hour',exact:true}).fill('12');await page.getByRole('spinbutton',{name:'Start date minute',exact:true}).fill('30');await calendar.getByRole('button',{name:'Done',exact:true}).click();await expect(start).toContainText('12:30');await page.reload();await expect(start).toContainText('12:30');
-  for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:700});await start.click();const box=await calendar.boundingBox();expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.x+box!.width).toBeLessThanOrEqual(width);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.keyboard.press('Escape');}
+test("market and timeframe selections persist into actual run options", async ({
+  page,
+}) => {
+  await page.goto("/#/app/backtests");
+  await page.getByLabel("Timeframe", { exact: true }).selectOption("21600");
+  await page.getByLabel("Market", { exact: true }).selectOption("COIN9-USD");
+  await page.reload();
+  await expect(page.getByLabel("Timeframe", { exact: true })).toHaveValue(
+    "21600",
+  );
+  await expect(page.getByLabel("Market", { exact: true })).toHaveValue(
+    "COIN9-USD",
+  );
+  const saved = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("testify-tester-options-v1")!),
+  );
+  expect(saved.selectedMarkets).toEqual(["COIN9-USD"]);
+  expect(saved.granularity).toBe(21600);
 });
-test('slider has animated thumb feedback and concise split labels',async({page})=>{
-  await page.goto('/#/app/backtests');const slider=page.getByRole('slider');await slider.fill('70');await expect(page.getByText('Reserved validation 30%',{exact:true})).toBeVisible();await expect(page.getByText('Development 70%',{exact:true})).toBeVisible();const box=await slider.boundingBox();await page.mouse.move(box!.x+box!.width*.8,box!.y+box!.height/2);await page.mouse.down();await page.waitForTimeout(220);expect(await page.locator('.range-thumb').evaluate(e=>new DOMMatrix(getComputedStyle(e).transform).a)).toBeGreaterThan(1.2);await page.mouse.up();await expect(page.locator('.range-control')).not.toHaveClass(/held/);await expect(page.getByText(/Backtests use the first/)).toHaveCount(0);
+test("date and execution settings persist across simple and advanced forms", async ({
+  page,
+}) => {
+  await page.goto("/#/app/backtests");
+  await page.getByLabel("Start date", { exact: true }).fill("2025-01-02");
+  await page
+    .locator(".design-run-simple")
+    .getByRole("button", { name: "Settings", exact: true })
+    .click();
+  await expect(page.getByLabel("Start", { exact: true })).toHaveValue(
+    "2025-01-02T00:00",
+  );
+  await page.getByLabel("Start", { exact: true }).fill("2025-01-03T12:30");
+  await page.getByLabel("Fee (basis points)", { exact: true }).fill("4");
+  await page.reload();
+  await expect(page.getByLabel("Start", { exact: true })).toHaveValue(
+    "2025-01-03T12:30",
+  );
+  await expect(
+    page.getByLabel("Fee (basis points)", { exact: true }),
+  ).toHaveValue("4");
+});
+test("development slider and instrument checkboxes update the saved summary", async ({
+  page,
+}) => {
+  await page.goto("/#/app/runsettings");
+  await page.getByRole("slider", { name: "Development share" }).fill("60");
+  await expect(
+    page.getByText("Development 60% · Validation 40%", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Uncheck all", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Run 0 backtests", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("checkbox", { name: "COIN9-USD", exact: true }).check();
+  await expect(
+    page.getByRole("button", { name: "Run 1 backtests", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("checkbox", { name: "COIN9-USD", exact: true }),
+  ).toBeChecked();
 });

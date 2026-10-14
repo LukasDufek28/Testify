@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import "./landing.css";
-import EquityDemo from "./EquityDemo";
+import { DesignEquity, DesignMonthly, StrategyExample } from "./PenpotPrimitives";
 
 const steps = [
   ["01", "Describe your idea", "Explain your entry, exit,", "and risk rules."],
@@ -47,8 +47,8 @@ export default function Landing() {
               <span>An idea is <br className="landing-mobile-break" />a start.</span>
               <span>Evidence is <br className="landing-mobile-break" />an edge.</span>
             </h1>
-            <p className="landing-intro">Create and backtest trading strategies for free.</p>
-            <p className="landing-description">Turn your idea into clear rules. Test, review, and improve.</p>
+            <p className="landing-intro">Create and backtest<br className="landing-mobile-break"/> trading strategies for free.</p>
+            <p className="landing-description">Turn your idea into clear rules.<br className="landing-mobile-break"/> Test, review, and improve.</p>
             <div className="landing-actions">
               <a className="landing-button landing-primary" href="#/app/overview">Start for free</a>
               <a className="landing-button landing-secondary" href="#product-preview">Explore</a>
@@ -57,11 +57,12 @@ export default function Landing() {
           </div>
         </section>
         <section className="landing-preview" id="product-preview" aria-labelledby="preview-heading" data-reveal>
-          <h2 id="preview-heading" className="silver-text">Your strategy. A clearer picture.</h2>
-          <p className="landing-preview-caption">Historical results and every trade with the assumptions behind them.</p>
-          <figure className="landing-chart" aria-label="Illustrative strategy and benchmark equity chart">
-            <EquityDemo />
+          <h2 id="preview-heading" className="silver-text">Your strategy.<br className="landing-mobile-break"/> A clearer picture.</h2>
+          <p className="landing-preview-caption">Historical results, every trade, and the assumptions behind them.</p>
+          <figure className="landing-chart" aria-label="Illustrative equity and drawdown chart">
+            <DesignEquity responsivePreview />
           </figure>
+          <div className="landing-showcase-row"><DesignMonthly/><StrategyExample onOpen={()=>{location.hash="#/app/strategies";}}/></div>
         </section>
         <section className="landing-process" id="how-it-works" aria-labelledby="process-heading" data-reveal>
           <h2 id="process-heading" className="silver-text">Less friction. More clarity.</h2>
@@ -76,13 +77,13 @@ export default function Landing() {
           </div>
         </section>
         <section className="landing-final" aria-labelledby="final-heading" data-reveal>
-          <h2 id="final-heading" className="silver-text">Start with an idea. Make it testable.</h2>
+          <h2 id="final-heading" className="silver-text"><span className="landing-desktop-copy">Start with an idea. Make it testable.</span><span className="landing-mobile-copy">Make your idea testable.</span></h2>
           <a className="landing-button landing-primary" href="#/app/overview">Open free workspace</a>
         </section>
       </main>
       <footer className="landing-footer">
         <a className="landing-footer-logo silver-text" href="#" aria-label="Testify home">TESTIFY</a>
-        <p>Backtesting shows historical outcomes. Examples are not forecasts.</p>
+        <p><span className="landing-desktop-copy">Backtesting shows historical outcomes. Examples are not forecasts.</span><span className="landing-mobile-copy">Historical outcomes are not forecasts.</span></p>
         <span>© Testify</span>
       </footer>
     </div>
