@@ -6,13 +6,14 @@ import ReactECharts, { type EChartsOption } from "echarts-for-react";
 export default function ResponsiveResultChart({option,height}:{option:EChartsOption;height:number|string}) {
   const container=useRef<HTMLDivElement>(null);
   const chart=useRef<ReactECharts>(null);
+  const readyInstance=useRef<ReturnType<ReactECharts['getEchartsInstance']>|null>(null);
   const reduced=useReducedMotion();
   const animations=useRef<AnimationPlaybackControls[]>([]);
   const previousValues=useRef(new Map<string,number>());
   const cursorTime=useRef<number|null>(null);
   const lastPointer=useRef<{x:number;y:number}|null>(null);
   const detach=useRef<(()=>void)|null>(null);
-  useEffect(()=>()=>{animations.current.forEach(animation=>animation.stop());detach.current?.();},[]);
+  useEffect(()=>()=>{readyInstance.current=null;animations.current.forEach(animation=>animation.stop());detach.current?.();},[]);
   const animatedOption=useMemo(()=>{
     const original=Array.isArray(option.tooltip)?option.tooltip[0]:option.tooltip;
     if(!original)return {...option,animation:!reduced};
@@ -55,8 +56,8 @@ export default function ResponsiveResultChart({option,height}:{option:EChartsOpt
     }};
   },[option,reduced]);
   const resize=()=>{
-    const element=container.current,instance=chart.current?.getEchartsInstance();
-    if(element&&instance&&(instance.getWidth()!==element.clientWidth||instance.getHeight()!==element.clientHeight)) {
+    const element=container.current,instance=readyInstance.current;
+    if(element&&instance&&!instance.isDisposed()&&(instance.getWidth()!==element.clientWidth||instance.getHeight()!==element.clientHeight)) {
       instance.resize({width:element.clientWidth,height:element.clientHeight});
     }
   };
@@ -70,16 +71,18 @@ export default function ResponsiveResultChart({option,height}:{option:EChartsOpt
     return()=>{observer.disconnect();cancelAnimationFrame(frame);};
   },[]);
   return <div ref={container} style={{height,width:'100%',minWidth:0}} onPointerMoveCapture={event=>{
-    const instance=chart.current?.getEchartsInstance(),box=container.current?.getBoundingClientRect();
-    if(!instance||!box)return;
+    // The React wrapper briefly exposes an unconfigured measurement instance.
+    // Pointer conversion is safe only after onChartReady has supplied the real chart.
+    const instance=readyInstance.current,box=container.current?.getBoundingClientRect();
+    if(!instance||instance.isDisposed()||!box)return;
     const x=event.clientX-box.left,y=event.clientY-box.top;
     if(!instance.containPixel({gridIndex:0},[x,y]))return;
     const timestamp=Number(instance.convertFromPixel({xAxisIndex:0},x));
     if(Number.isFinite(timestamp)){cursorTime.current=timestamp;lastPointer.current={x,y};}
-  }}><ReactECharts ref={chart} autoResize={false} onChartReady={()=>{
-    resize();detach.current?.();
-    const instance=chart.current!.getEchartsInstance(),zr=instance.getZr();
-    const retain=()=>{if(lastPointer.current){const {x,y}=lastPointer.current;instance.dispatchAction({type:'updateAxisPointer',currTrigger:'mousemove',x,y});instance.dispatchAction({type:'showTip',x,y});}};
+  }}><ReactECharts ref={chart} autoResize={false} onChartReady={instance=>{
+    readyInstance.current=instance;resize();detach.current?.();
+    const zr=instance.getZr();
+    const retain=()=>{if(!instance.isDisposed()&&lastPointer.current){const {x,y}=lastPointer.current;instance.dispatchAction({type:'updateAxisPointer',currTrigger:'mousemove',x,y});instance.dispatchAction({type:'showTip',x,y});}};
     zr.on('globalout',retain);detach.current=()=>{if(!instance.isDisposed())zr.off('globalout',retain);};
   }} style={{height:'100%',width:'100%'}} option={animatedOption}/></div>;
 }

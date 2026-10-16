@@ -19,7 +19,7 @@ The current interface follows the approved neutral Penpot workspace. Older blue/
 - Review by the other developer and verification on the actual Vercel staging deployment remain unchecked in Notion.
 - Vercel previously rejected deployments because Git author `ravenus123` lacks access to the Testify project. The project owner must grant access or deploy the reviewed commit through an authorized account. Do not change commit authors or disable deployment checks to bypass this.
 - Apply `npm run db:init` to the deployment database and retain its server-only Gemini key. Local `.env.local` credentials and the demo database are ignored by Git.
-- Browser automation uses Chromium, including narrow responsive layouts. Physical mobile devices and other browser engines have not been certified.
+- Browser automation covers Chromium and core journeys in Firefox, WebKit and touch-device emulation. Physical mobile devices have not been certified.
 
 Automatic and batch calculations run in the browser worker. Closing the browser interrupts computation; saved job snapshots can resume remaining runs. Manual cursor and positions persist after every action.
 
@@ -33,3 +33,4 @@ No live orders are placed by this research application.
 - Dashboard metrics form one row; the equity chart and latest run share a row. Monthly returns and Continue working share their top edge and height, with the monthly title aligned to the other card title.
 - Real local Gemini created and saved a strategy and ran its backtest through the site. The saved result was $243.31 net profit over nine development trades. A later temporary provider failure appeared as a recoverable error without changing the saved result.
 - Core journey verification now has a separate cross-browser configuration and GitHub jobs for Firefox, WebKit, Android Chrome emulation and iPhone Safari emulation. Run with `npx playwright test --config=playwright.cross-browser.config.ts`. Physical-device certification and actual Vercel staging verification remain separate release requirements.
+- Cross-browser checks exposed pointer conversion before chart initialization and a mobile navigation layer beneath the chat. Chart interaction now waits for the configured instance, and an opened mobile menu stays above the assistant. Both affected journeys passed locally in desktop WebKit and both touch projects.
