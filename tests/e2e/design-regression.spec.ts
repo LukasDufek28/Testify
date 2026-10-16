@@ -13,7 +13,7 @@ test("copied font, icons, card glare and restrained profit gradients load", asyn
     "background-color",
     "rgb(24, 23, 31)",
   );
-  await expect(page.locator(".design-assistant")).toHaveCSS(
+  await expect(page.locator(".design-latest")).toHaveCSS(
     "border-radius",
     "24px",
   );

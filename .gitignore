@@ -9,6 +9,8 @@ output/playwright/
 
 playwright-report/
 test-results/
+test-results-cross/
+playwright-report-cross/
 
 # Local provider setup installed by Vercel CLI
 .agents/

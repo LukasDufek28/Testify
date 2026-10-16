@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, clickWorkspaceButton } from "./fixtures";
 import { exampleStrategy } from "../../src/types";
 const strategy = { ...exampleStrategy, name: "My crossover" };
 const rows = Array.from({length: 120},(_,i)=>`${1735689600+i*3600},${100+i},${102+i},${99+i},${101+i},20`);
@@ -21,7 +21,7 @@ test("strategy library imports, searches, duplicates, exports and opens persiste
   expect((await download).suggestedFilename()).toBe("My-crossover-copy.json");
   await page.getByRole("button",{name:"Open",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Strategy creation",exact:true})).toBeVisible();
-  await page.getByRole("button",{name:"Strategies",exact:true}).click();
+  await clickWorkspaceButton(page,'Strategies');
   await page.reload();
   await expect(page.locator(".strategy-card")).toHaveCount(2);
 });
@@ -32,7 +32,7 @@ test("CSV data import validates files and runs the real worker on stored candles
   await page.goto("/#/app/strategies");
   await page.locator('input[type=file]').setInputFiles({name:"strategy.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(strategy))});
   await expect(page.locator(".strategy-card")).toHaveCount(1);
-  await page.getByRole("button",{name:"Data",exact:true}).click();
+  await clickWorkspaceButton(page,'Data');
   await page.locator('input[type=file]').setInputFiles({name:"invalid.csv",mimeType:"text/csv",buffer:Buffer.from("bad,file")});
   await expect(page.locator(".banner.error")).toContainText("Expected CSV columns");
   await page.locator('input[type=file]').setInputFiles({name:"history.csv",mimeType:"text/csv",buffer:Buffer.from(csv)});
@@ -40,7 +40,7 @@ test("CSV data import validates files and runs the real worker on stored candles
   await expect(page.locator(".workspace-table")).toContainText("120");
   await page.getByRole("button",{name:"Details →",exact:true}).click();
   await expect(page.getByText("BTC-USD · 120 candles, sorted timestamps and valid prices.",{exact:true})).toBeVisible();
-  await page.getByRole("button",{name:"Backtests",exact:true}).click();
+  await clickWorkspaceButton(page,'Backtests');
   await page.getByRole("combobox",{name:"Market / dataset",exact:true}).selectOption({label:"BTC-USD · history.csv"});
   await page.reload();
   await expect(page.getByRole("combobox",{name:"Market / dataset",exact:true})).toContainText("history.csv");

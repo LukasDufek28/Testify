@@ -39,19 +39,12 @@ for (const route of ['overview','strategies','backtests','runsettings','trades']
 test('dashboard geometry and gradients match the live 1440px Penpot reference', async ({ page }) => {
   await page.setViewportSize({ width:1440,height:900 });
   await page.goto('/#/app/overview');
-  const reference = [
-    ['.design-assistant',266,178,290,343],
-    ['.design-latest',266,537,290,318],
-    ['.design-responsive-equity',572,321,836,336],
-    ['.design-monthly',572,675,390,210],
-    ['.design-continue',978,675,430,180],
-  ] as const;
-  for (const [selector,x,y,width,height] of reference) {
-    await expect.poll(async () => {
-      const b = await page.locator(selector).boundingBox();
-      return Math.max(Math.abs(b!.x-x),Math.abs(b!.y-y),Math.abs(b!.width-width),Math.abs(b!.height-height));
-    }, {message:`${selector} must match Penpot bounds`}).toBeLessThanOrEqual(1);
-  }
+  await expect(page.locator('.assistant-entry,.design-studio-assistant')).toHaveCount(0);
+  const chart=await page.locator('.design-responsive-equity').boundingBox(),latest=await page.locator('.design-latest').boundingBox();
+  expect(chart!.x).toBe(266);expect(Math.abs(chart!.y-latest!.y)).toBeLessThanOrEqual(1);expect(Math.abs(chart!.height-latest!.height)).toBeLessThanOrEqual(1);expect(latest!.width).toBe(290);
+  const monthly=await page.locator('.design-monthly').boundingBox(),continuation=await page.locator('.design-continue').boundingBox();
+  expect(Math.abs(monthly!.y-continuation!.y)).toBeLessThanOrEqual(1);expect(Math.abs(monthly!.height-continuation!.height)).toBeLessThanOrEqual(1);
+  const headers=await page.locator('.design-dashboard-bottom .design-card-title').evaluateAll(els=>els.map(el=>el.getBoundingClientRect().y));expect(Math.abs(headers[0]-headers[1])).toBeLessThanOrEqual(1);
   const balance = page.locator('.design-latest .design-final-balance');
   await expect(balance).toHaveCSS('background-color','rgb(34, 33, 40)');
   await expect(balance).toHaveCSS('background-image','linear-gradient(rgba(24, 23, 31, 0), rgba(145, 245, 171, 0.05))');

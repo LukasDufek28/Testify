@@ -8,7 +8,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { AssistantCard, useAssistantContext } from "./AssistantWorkspace";
+import { useAssistantContext } from "./AssistantWorkspace";
 import {
   CardTitle,
   DesignCard,
@@ -1359,9 +1359,10 @@ export default function PenpotWorkspace(p: Props) {
         {p.page === "studio" && p.studio}
         {["studio","runsettings"].includes(p.page) && p.page !== "studio" && p.researchTools}
         {p.page === "overview" && (
-          <div className="design-dashboard-grid">
-            <div className="design-side-column">
-              <AssistantCard />
+          <div className="design-dashboard-grid dashboard-unified">
+            {metrics()}
+            <div className="dashboard-chart-row">
+              <DesignEquity run={run}/>
               <DesignCard className="design-latest raised">
                 <CardTitle icon={designIcons.latest}>Latest backtest</CardTitle>
                 <div
@@ -1408,17 +1409,14 @@ export default function PenpotWorkspace(p: Props) {
                 </motion.button>
               </DesignCard>
             </div>
-            <div className="design-right-column">
-              {metrics()}
-              <DesignEquity run={run} />
               <div className="design-dashboard-bottom">
                 <DesignMonthly run={run} />
                 <DesignCard className="design-continue">
                   <CardTitle icon={designIcons.edit}>
                     Continue working
                   </CardTitle>
-                  <h2>{p.strategies[0]?.name || "Create your first strategy"}</h2>
-                  <p>{p.strategies[0]?`Saved version ${p.strategies[0].revision??1} · Ready to edit` : "Describe your idea, save the rules and run a backtest."}</p>
+                  <div className="design-continue-content"><div><h2>{p.strategies[0]?.name || "Create your first strategy"}</h2>
+                  <p>{p.strategies[0]?`Saved version ${p.strategies[0].revision??1} · Ready to edit` : "Describe your idea, save the rules and run a backtest."}</p></div>
                   <button
                     className="design-button"
                     onClick={() =>
@@ -1428,16 +1426,14 @@ export default function PenpotWorkspace(p: Props) {
                     }
                   >
                     Open
-                  </button>
+                  </button></div>
                 </DesignCard>
               </div>
-            </div>
           </div>
         )}
         {p.page === "strategies" && (
-          <div className="design-dashboard-grid">
+          <div className="design-dashboard-grid design-strategies-unified">
             <div className="design-side-column">
-              <AssistantCard />
               <DesignCard className="design-utilities raised">
                 <CardTitle icon={designIcons.layers}>Your library</CardTitle>
                 <div className="design-library-count">
@@ -1447,12 +1443,6 @@ export default function PenpotWorkspace(p: Props) {
                     Create strategy
                   </button>
                 </div>
-                <h2>Organize your ideas</h2>
-                <p>
-                  Keep the rules and test results
-                  <br />
-                  together for each strategy.
-                </p>
                 <button
                   className="design-button"
                   onClick={() => upload.current?.click()}

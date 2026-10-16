@@ -36,3 +36,38 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+  cross-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: firefox
+            browser: firefox
+          - project: webkit
+            browser: webkit
+          - project: mobile-chromium
+            browser: chromium
+          - project: mobile-webkit
+            browser: webkit
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:engine
+      - name: Install browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Core journeys with keyboard and touch
+        run: npx playwright test --config=playwright.cross-browser.config.ts --project=${{ matrix.project }}
+      - uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-${{ matrix.project }}
+          path: |
+            playwright-report-cross/
+            test-results-cross/
+          retention-days: 14

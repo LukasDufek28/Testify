@@ -24,3 +24,12 @@ The current interface follows the approved neutral Penpot workspace. Older blue/
 Automatic and batch calculations run in the browser worker. Closing the browser interrupts computation; saved job snapshots can resume remaining runs. Manual cursor and positions persist after every action.
 
 No live orders are placed by this research application.
+
+## UI revision — 16 October 2026
+
+- Adam requested one shared floating assistant. Duplicate dashboard, library and editor AI panels were removed. The editor remains full width, with a shortcut into the shared conversation.
+- The popup uses a restrained Motion spring and an anchored expansion beside the sidebar, inspired by Motion's public Clerk User Button example. Its content fades in without scaling the text. The launcher disappears while the popup is open and returns when it closes. Conversation, resizing, dragging, short activity messages and reduced-motion support remain available.
+- Assistant replies render paragraphs, emphasis, lists, links and code without visible speaker prefixes. User messages remain plain text in neutral bubbles. Raw HTML and images are not rendered; links use the Markdown renderer's protocol filtering.
+- Dashboard metrics form one row; the equity chart and latest run share a row. Monthly returns and Continue working share their top edge and height, with the monthly title aligned to the other card title.
+- Real local Gemini created and saved a strategy and ran its backtest through the site. The saved result was $243.31 net profit over nine development trades. A later temporary provider failure appeared as a recoverable error without changing the saved result.
+- Core journey verification now has a separate cross-browser configuration and GitHub jobs for Firefox, WebKit, Android Chrome emulation and iPhone Safari emulation. Run with `npx playwright test --config=playwright.cross-browser.config.ts`. Physical-device certification and actual Vercel staging verification remain separate release requirements.

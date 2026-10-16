@@ -1,0 +1,22 @@
+import { defineConfig, devices } from '@playwright/test';
+import base from './playwright.config';
+
+// Exercise the same core journeys in every engine, including touch input.
+// Keep the full visual and responsive regression suite in the primary config.
+const core = /registration opens|expired API|assistant grows|formats readable|global chat|assistant explains|creating an AI draft|commission and percentage|manual controls|saved defaults persist|batch preserves|strategy library imports|CSV data import|manual editing validates|editor opens the single|mobile editor|Improve uses|saved results show|trade selection and filters|history filters and comparison/;
+const touchCore = /registration opens|expired API|assistant grows|formats readable|global chat|assistant explains|creating an AI draft|commission and percentage|manual controls|saved defaults persist|batch preserves|strategy library imports|CSV data import|editor opens the single|mobile editor|saved results show|trade selection and filters|history filters and comparison/;
+export default defineConfig({
+  ...base,
+  timeout: 60000,
+  expect: {timeout:15000},
+  outputDir: 'test-results-cross',
+  reporter: [['list'], ['html', {outputFolder:'playwright-report-cross',open:'never'}]],
+  testMatch: /(?:auth-integration|assistant|run-modes|workspace|studio|results)\.spec\.ts/,
+  grep: core,
+  projects: [
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    { name: 'mobile-chromium', grep: touchCore, use: { ...devices['Pixel 7'] } },
+    { name: 'mobile-webkit', grep: touchCore, use: { ...devices['iPhone 13'] } },
+  ],
+});

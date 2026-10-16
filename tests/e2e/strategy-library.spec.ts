@@ -88,7 +88,7 @@ test("empty library creates a draft and invalid batches never partially import",
 }) => {
   await page.goto("/#/app/strategies");
   await expect(
-    page.getByRole("heading", { name: "Organize your ideas" }),
+    page.getByText("Your library", { exact: true }),
   ).toBeVisible();
   await importJson(page, [
     exampleStrategy,
@@ -368,7 +368,7 @@ test("loading and failed library reads show separate states and retry recovers",
   );
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Organize your ideas" }),
+    page.getByText("Your library", { exact: true }),
   ).toBeVisible();
 });
 

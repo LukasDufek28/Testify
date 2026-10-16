@@ -79,7 +79,7 @@ export default defineConfig(({ mode }) => {
   for (const [key, value] of Object.entries(env)) if (!key.startsWith("VITE_") && !process.env[key]) process.env[key] = value;
   return {
     cacheDir:process.env.PLAYWRIGHT_PORT?`node_modules/.vite-test-${process.env.PLAYWRIGHT_PORT}`:'node_modules/.vite',
-    optimizeDeps:{noDiscovery:true,include:['react','react-dom','react-dom/client','react/jsx-runtime','react/jsx-dev-runtime','echarts','echarts-for-react','lucide-react','motion/react','@monaco-editor/react','monaco-editor/editor/editor.api','monaco-editor/language/json/monaco.contribution','monaco-editor/languages/features/json/jsonMode','@jitl/quickjs-singlefile-browser-release-sync','quickjs-emscripten-core']},
+    optimizeDeps:{noDiscovery:true,include:['react','react-dom','react-dom/client','react/jsx-runtime','react/jsx-dev-runtime','react-markdown','echarts','echarts-for-react','lucide-react','motion/react','@monaco-editor/react','monaco-editor/editor/editor.api','monaco-editor/language/json/monaco.contribution','monaco-editor/languages/features/json/jsonMode','@jitl/quickjs-singlefile-browser-release-sync','quickjs-emscripten-core']},
     worker: {format:"es"}, plugins: [react(), localApi()], server:{watch:{ignored:['**/playwright-report/**','**/test-results/**','**/.playwright-cli/**','**/.local/**']}}, build: { target: "es2022" }
   };
 });

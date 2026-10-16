@@ -1,4 +1,11 @@
-import {test as base, expect} from '@playwright/test';
+import {test as base, expect, type Page} from '@playwright/test';
+export async function clickWorkspaceButton(page:Page,name:string){
+ await expect(page.locator('.penpot-workspace')).toBeVisible();
+ const button=page.getByRole('button',{name,exact:true});
+ if(!await button.isVisible())await page.getByRole('button',{name:'Open navigation',exact:true}).click();
+ await button.click();
+ if(name==='Open AI assistant'&&await page.getByRole('button',{name:'Close navigation',exact:true}).isVisible())await page.getByRole('button',{name:'Close navigation',exact:true}).click();
+}
 export * from '@playwright/test';
 export const test=base.extend<{signedIn:boolean}>({
  signedIn:[true,{option:true}],

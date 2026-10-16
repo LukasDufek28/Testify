@@ -1,9 +1,8 @@
 import {ChartNoAxesCombined,ChevronLeft,Database,House,Square} from 'lucide-react';
 import type {ReactNode} from 'react';
 import type {WorkspacePage} from './WorkspaceShell';
-import {useAssistantContext} from './AssistantWorkspace';
+import {AssistantLauncher} from './AssistantWorkspace';
 export default function WorkspaceSidebar({active,nav,navOpen,setNavOpen,accountControls}:{active:string;nav:(page:WorkspacePage)=>void;navOpen:boolean;setNavOpen:(open:boolean)=>void;accountControls?:ReactNode}) {
-const assistant=useAssistantContext();
 return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
         <div className="design-sidebar-top">
           <a
@@ -104,13 +103,7 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
           </nav>
         </div>
         <div className="design-sidebar-bottom">
-          <button
-            className="design-ai-launcher"
-            aria-label="Open AI assistant"
-            onClick={() => assistant.setOpen(!assistant.open)}
-          >
-            <img src="/design/ai-wall.svg" alt="" />
-          </button>
+          <AssistantLauncher/>
           {accountControls || <div className="design-user">
             <span>A</span>
             <div>

@@ -9,7 +9,7 @@ test('static cards tilt slightly with a mouse, settle on leave, and stay flat fo
  expect(await rotation()).toBeLessThan(.04);
  await page.mouse.move(0,0);await expect.poll(rotation).toBeLessThan(.0001);
  await card.dispatchEvent('pointermove',{pointerType:'touch',clientX:200,clientY:20});await expect.poll(rotation).toBeLessThan(.0001);
- const assistant=page.locator('.design-assistant').first();await assistant.hover({position:{x:20,y:20}});
+ await page.getByRole('button',{name:'Open AI assistant',exact:true}).click();const assistant=page.locator('.assistant-chat');await assistant.hover({position:{x:20,y:20}});
  expect(await assistant.evaluate(el=>{const m=new DOMMatrix(getComputedStyle(el).transform);return Math.abs(m.m13)+Math.abs(m.m23);})).toBeLessThan(.0001);
  await page.emulateMedia({reducedMotion:'reduce'});await card.hover({position:{x:200,y:20}});await expect(card).toHaveCSS('transform','none');
 });
@@ -27,7 +27,7 @@ test('account popup opens above the profile, closes with Escape or outside click
  await page.keyboard.press('Escape');await expect(menu).toHaveCount(0);await expect(trigger).toBeFocused();
  await page.keyboard.press('ArrowDown');await expect(menu).toBeVisible();
  await page.getByRole('heading',{level:1}).click();await expect(menu).toHaveCount(0);
- const input=page.getByRole('textbox',{name:'Ask the AI assistant',exact:true});await input.focus();await input.fill('Check this idea');
+ await page.getByRole('button',{name:'Open AI assistant',exact:true}).click();const input=page.getByRole('textbox',{name:'Message AI assistant',exact:true});await input.focus();await input.fill('Check this idea');
  await expect(input).toHaveCSS('outline-style','none');
  expect(await input.evaluate(el=>getComputedStyle(el.closest('form')!).outlineStyle)).toBe('none');
 });
