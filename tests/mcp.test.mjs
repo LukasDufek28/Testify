@@ -5,13 +5,18 @@ import { randomUUID, createHash } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 import { registerClient,beginAuthorization,grantConsent,exchangeToken,authenticateToken,revokeGrant,validPkce,resource,hash } from "../lib/mcp/oauth.js";
 import { idempotent,getRunSummary,requestApproval,consumeApproval } from "../lib/mcp/store.js";
-import { createJob,validateJob,getJob,cancelJob } from "../lib/mcp/jobs.js";
+import { createJob,validateJob,getJob,cancelJob,resumeJob,reserveBudget } from "../lib/mcp/jobs.js";
+import { BudgetError,errorDetails,getCapacity } from "../lib/mcp/capacity.js";
+import { cleanup } from "../lib/mcp/maintenance.js";
 import { fetchPage,executeMarket,finishJob,aggregateCandles,reserveProviderSlot } from "../lib/mcp/execution.js";
 import { summarizeRun,summarizePortfolio } from "../lib/mcp/summaries.js";
 import { exampleStrategy } from "../lib/shared/types.js";
 import { runBacktest } from "../lib/shared/engine.js";
 import { runServerBacktest,validateGeneratedStrategy } from "../lib/server-execution.js";
 import { createCloudHandler } from "../api/research-cloud.js";
+import { getProgress,waitForProgress } from "../lib/mcp/progress.js";
+import { marketProgress,loadMarketChunk } from "../lib/mcp/execution.js";
+import { writeCache,cacheLease,readCache } from "../lib/mcp/candle-cache.js";
 process.env.MCP_PUBLIC_URL="http://localhost:3001";
 process.env.MCP_JOBS_ENABLED="true";
 async function fixture(){
@@ -28,6 +33,107 @@ async function fixture(){
 }
 const input=()=>({name:"MCP run",strategyId:"sample",strategyRevision:1,markets:["BTC-USD"],granularity:3600,settings:{capital:10000,feeBps:2,feePerTrade:1,slippageBps:1,start:0,end:21*3600},research:{phase:"development",fullStart:0,boundary:21*3600,fullEnd:42*3600,splitPct:50}});
 const rows=Array.from({length:21},(_,i)=>[i*3600,90+i,110+i,100+i,102+i,10]);
+test("active batch pauses for estimated capacity and continues unchanged after reset",async()=>{
+ const f=await fixture();try{
+  const j=await createJob(f.sql,f.identity,input()),month=new Date().toISOString().slice(0,7);
+  await f.sql`UPDATE testify_mcp_budgets SET value=39990 WHERE key=${`events:${month}`}`;
+  let fetched=0;const request=async()=>{fetched++;return Response.json(rows);};
+  const paused=await loadMarketChunk(j.jobId,'BTC-USD',0,0,f.sql,request);
+  assert.ok(paused.budgetWait>0);assert.equal(fetched,0);
+  const progress=await getProgress(f.sql,f.userId,j.jobId);assert.equal(progress.status,'waiting_retry');assert.equal(progress.paymentRequired,false);assert.ok(Date.parse(progress.retryAt)>Date.now());
+  await f.sql`UPDATE testify_mcp_budgets SET value=0 WHERE key=${`events:${month}`}`;
+  const resumed=await loadMarketChunk(j.jobId,'BTC-USD',paused.cursor,0,f.sql,request);assert.equal(resumed.done,true);assert.equal(fetched,1);
+  await executeMarket(j.jobId,'BTC-USD',f.sql,0);await finishJob(j.jobId,[],f.sql);
+  assert.equal((await getJob(f.sql,f.userId,j.jobId)).status,'completed');
+ }finally{await f.db.close();}
+});
+test("monthly capacity returns a reset and no-payment recovery without consuming a rejected job",async()=>{
+ const f=await fixture();try{
+  const month=new Date().toISOString().slice(0,7),key=`events:${month}`;
+  await f.sql`INSERT INTO testify_mcp_budgets(key,value) VALUES (${key},39990)`;
+  await assert.rejects(()=>createJob(f.sql,f.identity,input()),e=>{assert.ok(e instanceof BudgetError);const d=errorDetails(e);assert.equal(d.code,"CONFIGURED_BUDGET_EXHAUSTED");assert.equal(d.paymentRequired,false);assert.equal(d.resource,"events");assert.equal(d.used,39990);assert.ok(Date.parse(d.retryAt)>Date.now());return true;});
+  assert.equal((await f.sql`SELECT * FROM testify_mcp_budgets WHERE key=${`jobs:${month}`}`).length,0);
+  assert.equal((await getCapacity(f.sql)).resources.find(r=>r.resource==='events').remaining,10);
+  const rate=errorDetails(Object.assign(new Error("Provider busy"),{status:429,retryAfter:90}));assert.equal(rate.retryAfterSeconds,90);assert.equal(rate.code,"REQUEST_RATE_LIMIT");assert.equal(rate.paymentRequired,false);
+ }finally{await f.db.close();}
+});
+test("resume retains frozen strategy and successful markets without duplicating active work",async()=>{
+ const f=await fixture();try{
+  const j=await createJob(f.sql,f.identity,{...input(),markets:["BTC-USD","ETH-USD"]});
+  await fetchPage(j.jobId,"BTC-USD",0,f.sql,async()=>Response.json(rows));await executeMarket(j.jobId,"BTC-USD",f.sql);
+  await finishJob(j.jobId,[{market:"ETH-USD",error:"Temporary interruption"}],f.sql);
+  await assert.rejects(()=>resumeJob(f.sql,{...f.identity,userId:f.other},j.jobId));
+  const resumed=await resumeJob(f.sql,f.identity,j.jobId);assert.equal(resumed.resumed,true);
+  assert.equal(resumed.executionVersion,1);
+  assert.equal((await fetchPage(j.jobId,"ETH-USD",0,f.sql,async()=>{throw Error("Superseded execution must not fetch");},0)).cancelled,true);
+  assert.equal((await executeMarket(j.jobId,"ETH-USD",f.sql,0)).cancelled,true);
+  assert.equal((await resumeJob(f.sql,f.identity,j.jobId)).alreadyActive,true);
+  const [job]=await f.sql`SELECT config,progress FROM testify_mcp_jobs WHERE id=${j.jobId}`;
+  assert.equal(job.config.strategySource,JSON.stringify(exampleStrategy));assert.deepEqual(job.config.settings.start,0);assert.equal(job.progress.markets['BTC-USD'].status,'completed');assert.equal(job.progress.markets['ETH-USD'].status,'queued');
+  assert.equal((await f.sql`SELECT * FROM testify_run_summaries WHERE job_id=${j.jobId}`).length,1);
+ }finally{await f.db.close();}
+});
+test("maintenance preserves jobs sleeping for a capacity reset while expiring candle checkpoints",async()=>{
+ const f=await fixture();try{
+  const j=await createJob(f.sql,f.identity,input());
+  await marketProgress(f.sql,j.jobId,'BTC-USD','waiting_retry',{waitKind:'budget',retryAt:Date.now()+7*86400000});
+  await f.sql`UPDATE testify_mcp_jobs SET updated_at=now()-interval '2 days' WHERE id=${j.jobId}`;
+  await cleanup(f.sql);assert.equal((await getJob(f.sql,f.userId,j.jobId)).status,'waiting_retry');
+  await cancelJob(f.sql,f.userId,j.jobId);await f.sql`UPDATE testify_mcp_jobs SET updated_at=now()-interval '2 days' WHERE id=${j.jobId}`;
+  await cleanup(f.sql);assert.equal((await getJob(f.sql,f.userId,j.jobId)).status,'cancelled');
+ }finally{await f.db.close();}
+});
+test("cache leases deduplicate downloads and LRU admissions enforce compressed byte budget",async()=>{
+ const f=await fixture(),original=process.env.MCP_CANDLE_CACHE_BYTES;try{
+  const claimed=await Promise.all([cacheLease(f.sql,"BTC-USD",3600,0,"one"),cacheLease(f.sql,"BTC-USD",3600,0,"two")]);assert.equal(claimed.filter(Boolean).length,1);
+  const bars=rows.map(([time,low,high,open,close,volume])=>({time,low,high,open,close,volume}));
+  await writeCache(f.sql,"BTC-USD",3600,0,bars,false,21*3600);
+  const [{bytes}]=await f.sql`SELECT octet_length(payload) AS bytes FROM testify_candle_cache`;
+  process.env.MCP_CANDLE_CACHE_BYTES=String(Number(bytes)+10);
+  await writeCache(f.sql,"ETH-USD",3600,0,bars,false,21*3600);
+  assert.equal(await readCache(f.sql,"BTC-USD",3600,0),null);assert.ok(await readCache(f.sql,"ETH-USD",3600,0));
+  const [{total}]=await f.sql`SELECT sum(octet_length(payload)) AS total FROM testify_candle_cache`;assert.ok(Number(total)<=Number(process.env.MCP_CANDLE_CACHE_BYTES));
+ }finally{if(original===undefined)delete process.env.MCP_CANDLE_CACHE_BYTES;else process.env.MCP_CANDLE_CACHE_BYTES=original;await f.db.close();}
+});
+test("shared canonical cache reuses overlapping history and refreshes only missing candles",async()=>{
+ const f=await fixture();try{
+  const config={...input(),settings:{...input().settings,end:299*3600},research:{phase:"development",fullStart:0,boundary:600*3600,fullEnd:900*3600}};
+  const all=Array.from({length:299},(_,i)=>[i*3600,90+i,110+i,100+i,102+i,10]);
+  let requests=0;
+  const first=await createJob(f.sql,f.identity,config);
+  await fetchPage(first.jobId,"BTC-USD",0,f.sql,async()=>{requests++;return Response.json(all.filter((_,i)=>i!==149));});
+  await finishJob(first.jobId,[{market:"BTC-USD",error:"fixture finished"}],f.sql);
+  const second=await createJob(f.sql,f.identity,{...config,settings:{...config.settings,start:10*3600,end:200*3600}});
+  await fetchPage(second.jobId,"BTC-USD",10*3600,f.sql,async()=>{throw Error("Fresh cached page must not hit provider");});
+  const p=await getProgress(f.sql,f.userId,second.jobId);assert.equal(p.data.cachedPages,1);assert.equal(p.data.providerRequests,0);
+  await finishJob(second.jobId,[],f.sql);
+  await f.sql`UPDATE testify_candle_cache SET expires_at=now()-interval '1 second'`;
+  await f.sql`UPDATE testify_mcp_budgets SET value=0 WHERE key='coinbase-slot'`;
+  const third=await createJob(f.sql,f.identity,config);
+  await fetchPage(third.jobId,"BTC-USD",0,f.sql,async url=>{requests++;const q=new URL(url).searchParams;assert.equal(Date.parse(q.get("start"))/1000,149*3600);assert.equal(Date.parse(q.get("end"))/1000,150*3600);return Response.json([all[149]]);});
+  assert.equal(requests,2);
+  const [cache]=await f.sql`SELECT complete FROM testify_candle_cache`;assert.equal(cache.complete,true);
+ }finally{await f.db.close();}
+});
+test("compact progress merges concurrent markets, waits for revision and enforces ownership",async()=>{
+ const f=await fixture();try{
+  const job=await createJob(f.sql,f.identity,{...input(),markets:["BTC-USD","ETH-USD","SOL-USD"]});
+  await Promise.all([marketProgress(f.sql,job.jobId,"BTC-USD","completed",{loadedSlots:21,receivedCandles:21}),marketProgress(f.sql,job.jobId,"ETH-USD","running",{loadedSlots:21,receivedCandles:20})]);
+  let p=await getProgress(f.sql,f.userId,job.jobId);assert.equal(p.counts.completed,1);assert.equal(p.counts.running,1);assert.equal(p.counts.queued,1);assert.equal(p.data.receivedCandles,41);assert.equal(p.revision,2);
+  await assert.rejects(()=>getProgress(f.sql,f.other,job.jobId));
+  const wait=waitForProgress(f.sql,f.userId,job.jobId,p.revision,2);
+  await marketProgress(f.sql,job.jobId,"SOL-USD","loading",{loadedSlots:10});
+  p=await wait;assert.equal(p.changed,true);assert.equal(p.counts.loading,1);assert.ok(p.progressPct<100);
+  await cancelJob(f.sql,f.userId,job.jobId);await finishJob(job.jobId,[],f.sql);
+  p=await waitForProgress(f.sql,f.userId,job.jobId,p.revision,2,undefined,"completed");assert.equal(p.status,"cancelled");assert.equal(p.counts.cancelled,2);
+ }finally{await f.db.close();}
+});
+test("provider slot reservations do not queue burst-producing future permits",async()=>{
+ const f=await fixture();try{
+  const waits=await Promise.all(Array.from({length:4},()=>reserveProviderSlot(f.sql)));
+  assert.equal(waits.filter(w=>w===0).length,1);assert.ok(waits.filter(w=>w>0).every(w=>w<=334));
+ }finally{await f.db.close();}
+});
 
 test("OAuth PKCE, exact redirects, resource binding, code replay, refresh rotation and revocation",async()=>{
  const f=await fixture();try{
@@ -96,6 +202,8 @@ test("provider 429 waits at least a minute, honors Retry-After, and retries the 
   const retry=await fetchPage(job.jobId,"BTC-USD",0,f.sql,async()=>new Response("",{status:429,headers:{"Retry-After":"90"}}));assert.equal(retry.retryAfter,90);
   assert.equal((await getJob(f.sql,f.userId,job.jobId)).status,"waiting_retry");
   assert.ok(await reserveProviderSlot(f.sql)>80000);
+  assert.ok((await fetchPage(job.jobId,"BTC-USD",0,f.sql,async()=>{throw Error("Must not request during cooldown");})).rateWait>80000);
+  await f.sql`UPDATE testify_mcp_budgets SET value=0 WHERE key='coinbase-slot'`;
   const result=await fetchPage(job.jobId,"BTC-USD",0,f.sql,async()=>Response.json(rows));assert.equal(result.next,21*3600);
   let called=false;await fetchPage(job.jobId,"BTC-USD",0,f.sql,async()=>{called=true;throw Error();});assert.equal(called,false);
   await cancelJob(f.sql,f.userId,job.jobId);assert.equal((await fetchPage(job.jobId,"BTC-USD",0,f.sql)).cancelled,true);

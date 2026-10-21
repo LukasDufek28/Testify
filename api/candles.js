@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ symbol: product, granularity: Number(granularity), bars, source: "Coinbase Exchange" });
   } catch (error) {
     const invalid = /Choose|supported/.test(error.message || "");
-    if (error?.status === 429) res.setHeader("Retry-After", "60");
+    if (error?.status === 429) res.setHeader("Retry-After", String(error.retryAfter||60));
     return res.status(invalid ? 400 : error?.status === 429 ? 429 : 502).json({ error: error.message || "Could not load crypto candles." });
   }
 }

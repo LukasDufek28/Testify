@@ -20,6 +20,7 @@ try{
  const init=await rpc("initialize",{protocolVersion:"2025-11-25",capabilities:{},clientInfo:{name:"testify-local-check",version:"1.0"}});console.log(`MCP initialized: ${init.serverInfo.name}`);
  const catalog=await rpc("tools/list",{});console.log(`Tool discovery: ${catalog.tools.length} tools`);
  await tool("workspace_info");
+ const capacity=await tool("capacity_status");if(capacity.paymentRequired!==false)throw Error("Capacity must not imply a paid Testify plan.");
  await tool("validate_strategy",{source:JSON.stringify(adaptiveTrendStrategy)});console.log("Custom strategy sandbox validation passed.");
  const strategy=process.env.TESTIFY_VERIFY_CUSTOM === "true" ? adaptiveTrendStrategy : exampleStrategy;
  const saved=await tool("save_strategy",{idempotencyKey:randomUUID(),id:"verify-strategy",source:JSON.stringify(strategy),expectedRevision:0});console.log(`Strategy save/revision: ${saved.strategy.revision}`);
@@ -27,10 +28,22 @@ try{
  const start=Date.parse("2026-09-01T00:00:00Z")/1000,end=Date.parse("2026-09-08T00:00:00Z")/1000;
  const job=await tool("start_backtest_batch",{idempotencyKey:randomUUID(),name:"Local MCP verification",markets:["BTC-USD","ETH-USD"],granularity:3600,strategyId:"verify-strategy",strategyRevision:2,settings:{capital:10000,feeBps:2,feePerTrade:1,slippageBps:1,start,end},research:{phase:"development",fullStart:start,boundary:end,fullEnd:end+7*86400,splitPct:50}});console.log("Background job submitted; no browser session is needed from here.");
  let completed;
- for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,2000));const result=await tool("get_job",{id:job.jobId});if(["completed","partial","failed","cancelled"].includes(result.status)){completed=result;break;}}
+ for(let i=0;i<4;i++){const progress=await tool("wait_for_job",{id:job.jobId,until:"completed",waitSeconds:45});console.log(progress.summary);if(["completed","partial","failed","cancelled"].includes(progress.status)){console.log(`Provider requests: ${progress.data.providerRequests}; cached pages: ${progress.data.cachedPages}`);completed=await tool("get_job",{id:job.jobId,detail:"full"});break;}}
  if(!completed)throw Error("Local workflow did not finish within two minutes.");
  if(completed.status!=="completed")throw Error(`Job ${completed.status}: ${JSON.stringify(completed.errors)}`);
  console.log(`Background batch completed: ${completed.runs.length} market summaries`);
+ if(process.env.TESTIFY_VERIFY_RECOVERY==='true'){
+  const kept=completed.runs.find(r=>r.symbol==='BTC-USD');
+  // Simulate a partial failure only inside this disposable verification account.
+  await sql`DELETE FROM testify_run_summaries WHERE user_id=${userId} AND job_id=${job.jobId} AND payload->>'symbol'='ETH-USD'`;
+  await sql`UPDATE testify_mcp_jobs SET status='partial',errors='[{"market":"ETH-USD","error":"Verification interruption"}]'::jsonb WHERE id=${job.jobId} AND user_id=${userId}`;
+  await tool('resume_job',{idempotencyKey:randomUUID(),id:job.jobId});
+  const recovery=await tool('wait_for_job',{id:job.jobId,until:'completed',waitSeconds:45});
+  if(recovery.status!=='completed')throw Error(`Recovery ${recovery.status}`);
+  const recovered=await tool('get_job',{id:job.jobId,detail:'full'});
+  if(recovered.runs.length!==2||recovered.runs.find(r=>r.symbol==='BTC-USD').createdAt!==kept.createdAt)throw Error('Recovery duplicated a successful market.');
+  console.log('Frozen-batch recovery passed; successful BTC market was preserved.');
+ }
  const portfolio=await tool("portfolio_summary",{name:"Local MCP verification",purpose:"improve"});console.log(`Portfolio summary: ${portfolio.runCount} runs; sampling disclosure present: ${!!portfolio.sampling}`);
  const cloud=await siteCall("/api/research-cloud");if(cloud.runs.length!==2)throw Error("Website did not receive both summaries.");console.log("Website history API receives both summaries.");
  await tool("rename_run",{idempotencyKey:randomUUID(),id:cloud.runs[0].id,name:"Renamed verification"});
