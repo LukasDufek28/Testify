@@ -39,9 +39,13 @@ Read workspace info → inspect strategy format → create and validate a strate
 
 `research` defines `fullStart`, `boundary` (development end), and `fullEnd`. If a final untouched holdout is required, define `holdoutStart` during development. Validation ends before that value; holdout starts at or after it. Evaluation dates are never silently shortened. Warm-up is allowed before start but cannot place trades or contribute scored returns.
 
-Use unique idempotency keys for mutations and reuse the same key when retrying the same operation. If an uncertain action stays pending, check activity/history rather than assigning a new key and duplicating it. Long jobs return an ID immediately. One batch per account runs at a time. Coinbase throttling waits at least a minute; persistent outages terminate the market after ten consecutive retries. Successful markets remain saved if another fails.
+Use unique idempotency keys for mutations and reuse the same key when retrying the same operation. If an uncertain action stays pending, check activity/history rather than assigning a new key and duplicating it. Long jobs return an ID immediately. One batch per account runs at a time. Coinbase throttling waits at least a minute and retries with backoff. Successful markets remain saved if another fails.
 
 ### Faster batches and progress
+
+MCP initialization and workspace guidance distinguish provider throttling from configured budgets; neither is evidence of a paid Testify subscription. `capacity_status` reports remaining guards and UTC reset times. Tool errors include a code, retry time, paymentRequired=false and the next action. Do not bypass a guard or silently switch execution engines.
+
+Provider outages now retry with backoff instead of failing after ten attempts. If a configured page/event budget is exhausted inside an active batch, its market pauses until the next UTC month and resumes automatically. Candle checkpoints can expire during that wait; the requested period is reloaded on resume and is never shortened. `resume_job` recovers partial, failed or cancelled batches with their frozen source/settings and skips already successful markets. Starting a brand-new batch still requires the admission budgets to have capacity.
 
 - `MCP_MARKET_CONCURRENCY` defaults to three simultaneous market lanes (maximum four). Each lane loads up to six pages per workflow step, then executes its market; slow markets do not block the other lanes.
 - `MCP_PROVIDER_RPS` defaults to three, capped at three requests per second globally across website and MCP provider calls using the same database. There are no pre-issued future permits that can burst after a delay. 429 and 5xx responses establish a shared cooldown of at least 60 seconds, respecting longer `Retry-After` values.

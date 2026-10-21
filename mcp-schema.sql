@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS testify_mcp_budgets (
  key text PRIMARY KEY, value bigint NOT NULL DEFAULT 0
 );
 ALTER TABLE testify_mcp_jobs ADD COLUMN IF NOT EXISTS progress_revision bigint NOT NULL DEFAULT 0;
+ALTER TABLE testify_mcp_jobs ADD COLUMN IF NOT EXISTS execution_version integer NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS testify_candle_cache (
  market text NOT NULL, interval_seconds integer NOT NULL, bucket bigint NOT NULL,
  payload text NOT NULL, complete boolean NOT NULL, expires_at timestamptz NOT NULL,

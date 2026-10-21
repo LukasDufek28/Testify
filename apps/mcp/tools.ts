@@ -5,7 +5,8 @@ import { parseStrategy } from "../../lib/shared/types.js";
 import { validateGeneratedStrategy } from "../../lib/server-execution.js";
 import { listStrategies, getStrategy, saveStrategy } from "../../lib/services/strategies.js";
 import { idempotent, event, listRunSummaries, getRunSummary, requestApproval, consumeApproval } from "../../lib/mcp/store.js";
-import { createJob, getJob, cancelJob } from "../../lib/mcp/jobs.js";
+import { createJob, getJob, cancelJob, resumeJob } from "../../lib/mcp/jobs.js";
+import { errorDetails,getCapacity } from "../../lib/mcp/capacity.js";
 import { summarizePortfolio } from "../../lib/mcp/summaries.js";
 import { start } from "workflow/api";
 import { backtestWorkflow } from "./workflows/backtest";
@@ -31,16 +32,23 @@ export function registerTools(server: any, identity: Identity) {
         const result=readOnly?await fn(sql,args):await idempotent(sql,identity.userId,args.idempotencyKey,{tool:toolName,...args},async()=>{
           const result=await fn(sql,args);await event(sql,identity,toolName,{id:result?.id || result?.jobId || result?.approvalId || null});return result;
         });
+        if(toolName==="workspace_info")result.operatingPolicy={paymentRequired:false,capacityTool:"capacity_status",progressTool:"wait_for_job",recoveryTool:"resume_job",instructions:"Coinbase throttling pauses jobs automatically. Do not repeatedly submit batches or infer a paid Testify plan. Configured budgets are owner safety guards, not provider bills. If a job is waiting_retry, respect retryAt and keep it in Testify; if interrupted, resume the same job to preserve frozen dates, strategy and successful results. For exhausted admission budgets, explain the exact reset time; do not promise unlimited free compute or propose payment or a replacement engine without the user asking."};
         return {content:[{type:"text",text:JSON.stringify(result)}],structuredContent:result};
-      }catch(error:any){console.error("Testify MCP action failed",toolName,error?.code || error?.name || "unknown");return {isError:true,content:[{type:"text",text:JSON.stringify({error:error instanceof AuthError?error.message:"The action could not complete. Check Testify activity and retry safely.",status:error instanceof AuthError?error.status:503})}]};}
+      }catch(error:any){console.error("Testify MCP action failed",toolName,error?.code || error?.name || "unknown");const result=errorDetails(error);return {isError:true,content:[{type:"text",text:JSON.stringify(result)}],structuredContent:result};}
     });
   };
   const launch=async(sql:any,input:any)=>{
     const job=await createJob(sql,identity,input);
-    try {const run=await start(backtestWorkflow,[job.jobId]);await sql`UPDATE testify_mcp_jobs SET workflow_id=${run.runId} WHERE id=${job.jobId} AND user_id=${identity.userId}`;}
+    try {const run=await start(backtestWorkflow,[job.jobId,job.executionVersion]);await sql`UPDATE testify_mcp_jobs SET workflow_id=${run.runId} WHERE id=${job.jobId} AND user_id=${identity.userId}`;}
     catch(error){await sql`UPDATE testify_mcp_jobs SET status='failed',errors='[{"error":"Background dispatcher unavailable; no results were created."}]'::jsonb WHERE id=${job.jobId} AND status='queued'`;throw error;}
     return job;
   };
+  add("capacity_status","Inspect owner-configured resource guards and reset times. These are not Testify paid-tier quotas; do not recommend payment or a replacement platform based on these counters.",z.object({}),"testify:read",true,async(sql)=>getCapacity(sql));
+  add("resume_job","Resume a failed/partial/cancelled batch with its ORIGINAL frozen strategy, costs and research dates. Successful markets are skipped. Active jobs are not duplicated. Holdout resumption requires approval.",z.object({idempotencyKey:key,id:z.string().uuid(),approvalId:z.string().uuid().optional()}),"testify:backtests",false,async(sql,args)=>{
+    const job=await resumeJob(sql,identity,args.id,args.approvalId);if(job.alreadyActive||job.alreadyCompleted)return job;
+    try{const run=await start(backtestWorkflow,[job.jobId,job.executionVersion]);await sql`UPDATE testify_mcp_jobs SET workflow_id=${run.runId} WHERE id=${job.jobId} AND user_id=${identity.userId}`;return job;}
+    catch(e){await sql`UPDATE testify_mcp_jobs SET status='failed' WHERE id=${job.jobId} AND status='queued'`;throw e;}
+  });
   add("workspace_info","Use first to discover exact strategy grammar/runtime instructions, research restrictions and cloud-storage capabilities.",z.object({}),"testify:read",true,async()=>({strategyFormats:[1,2,3],customLanguage:"JavaScript in QuickJS, not Rust or Python",strategyExample:exampleStrategy,programmableInstructions,timeframes:[60,300,900,1800,3600,14400,21600,86400],tradeLogs:"not_stored",curves:"daily-sampled",jobExecutionEnabled:process.env.MCP_JOBS_ENABLED==="true",instructions:"Use development results only to revise strategies. Freeze revision before submitting jobs. Never infer absent trade logs. Fixed feePerTrade is the entire round-trip fee."}));
   add("list_markets","List supported Coinbase online markets. Use actual product IDs, not invented symbols.",z.object({search:z.string().max(50).default(""),...paging}),"testify:read",true,async(_sql,args)=>{
     const products=await coinbase("/products");
