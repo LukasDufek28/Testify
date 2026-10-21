@@ -47,6 +47,7 @@ test("secondary buttons brighten without moving", async ({ page }) => {
     .locator(".design-run-simple")
     .getByRole("button", { name: "Settings", exact: true });
   await b.scrollIntoViewIfNeeded();
+  await expect(page.locator('.design-run-simple')).toHaveCSS('translate','0px');
   const before = await b.boundingBox();
   await b.hover();
   await expect(b).toHaveCSS("filter", "brightness(1.12)");
