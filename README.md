@@ -69,10 +69,10 @@ Browser regression tests mock the authenticated API contract; server ownership,
 session, revision, OAuth and execution tests run against isolated PGlite databases.
 Use `PLAYWRIGHT_PORT` to test on another port without connecting to a running checkout.
 
-## Assistant, manual replay and batches
+## Assistant, backtests and batches
 
 The small assistant is available across workspace pages. It can read selected strategies and development results, update requested settings, prepare strategy drafts, save a new strategy only when explicitly asked, and run the existing backtest flow. Revisions require review and Save. Gemini uses server-only credentials through the AI SDK; the popup contains conversation and short activity text, while calculations stay on the Backtests page.
 
-Manual replay starts from an imported or saved dataset and reveals one candle at a time. Market orders and manual closes fill at the next open; limit/stop orders honor adverse gaps. A stop wins if both stop and target are touched in one candle. One position or pending order is supported. Every command uses a revision and idempotency key; cursor, orders, positions and completion results persist on the server.
+Completed automatic tests and saved runs open in the existing Backtests Overview. Additional measured statistics, immutable settings, strategy snapshots and exports are available in Run details & exports. Trades & chart inspects saved entries, exits, stops and targets with original candles, filters and pagination. The separate Manual replay frontend was retired at Adam's request; its execution engine, persistence API and regression tests remain for compatibility.
 
-Run settings includes saved defaults and parameter/period batches. Batches contain up to 24 children and execute sequentially in the browser worker. Each child has independent settings and a strategy snapshot. Failures preserve completed siblings. Leaving the browser interrupts automatic calculation; reopen Run settings and Resume remaining runs to continue without duplicating completed results. Manual positions resume directly.
+Run settings includes saved defaults and parameter/period batches. Batches contain up to 24 children and execute sequentially in the browser worker. Each child has independent settings and a strategy snapshot. Failures preserve completed siblings. Leaving the browser interrupts automatic calculation; reopen Run settings and Resume remaining runs to continue without duplicating completed results.
