@@ -1,4 +1,4 @@
-import {test,expect} from './fixtures';
+import {test,expect,clickWorkspaceButton} from './fixtures';
 import {runBacktest} from '../../src/engine';
 import {exampleStrategy} from '../../src/types';
 const base=1735689600;
@@ -13,97 +13,79 @@ test.beforeEach(async({page})=>{
   await page.goto('/#/app/history');await expect(page.getByRole('heading',{name:'Backtests',exact:true})).toBeVisible();
   await page.evaluate(async({dataset,a,b,strategy})=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-user-e2e-user',1);req.onsuccess=()=>{const db=req.result;const tx=db.transaction(['runs','datasets','strategies'],'readwrite');tx.objectStore('runs').put(a);tx.objectStore('runs').put(b);tx.objectStore('datasets').put(dataset);tx.objectStore('strategies').put({id:'s',name:strategy.name,source:JSON.stringify(strategy),updatedAt:Date.now()});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};req.onerror=()=>reject(req.error);});},{dataset,a,b,strategy});await page.reload();
 });
+
+
+
+async function openRun(page:any,name='Run A',details=true){
+ await page.getByRole('button',{name:'View results for '+name,exact:true}).click();
+ await expect(page).toHaveURL(/#\/app\/backtests$/);
+ await expect(page.getByRole('heading',{name:'Backtests',exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toHaveCount(0);
+ if(details)await page.getByText('Run details & exports',{exact:false}).click();
+}
 test('saved results show real metrics, charts, snapshot settings and full trade exports',async({page})=>{
-  await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible();await expect(page.locator('.result-metric')).toHaveCount(7);expect(await page.locator('.result-metric').evaluateAll(elements=>elements.map(el=>getComputedStyle(el).animationDelay))).toEqual(['0s','0.045s','0.09s','0.135s','0.18s','0.225s','0.27s']);expect(await page.locator('.result-metric strong .animated-value > span').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(17);await expect(page.locator('.result-metrics')).toContainText(String(a.metrics.tradeCount));await expect(page.locator('.result-metric').filter({hasText:'Max drawdown'}).locator('strong')).toHaveAttribute('data-tone',String(-a.metrics.maxDrawdownPct/10));await expect(page.locator('.result-metric').filter({hasText:'Trades'}).locator('strong')).toHaveCSS('color','rgb(255, 255, 255)');await expect(page.locator('.result-chart-grid canvas')).toHaveCount(2);
-  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();const file=await download;expect(file.suggestedFilename()).toBe('Run-A-trades.csv');const content=await (await import('node:fs/promises')).readFile((await file.path())!,'utf8');expect(content.split('\r\n')).toHaveLength(a.trades.length+1);
-  await page.getByRole('tab',{name:'Settings',exact:true}).click();await expect(page.locator('.saved-settings').first()).toContainText('10,000');await page.getByRole('button',{name:'Use these settings',exact:true}).click();await page.goto('/#/app/runsettings');await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Run A copy');await expect(page.getByLabel('Starting capital',{exact:true})).toHaveValue('10000');await expect(page.getByRole('combobox',{name:'Market / dataset',exact:true})).toContainText(dataset.fileName);
-  await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await page.reload();await expect(page.locator('.workspace-page-heading')).toContainText('Result strategy');await page.getByRole('button',{name:'Improve strategy',exact:true}).click();await expect(page.getByRole('heading',{name:'Strategy creation',exact:true})).toBeVisible();
+ await openRun(page);await expect(page.locator('.design-metric')).toHaveCount(3);await expect(page.locator('.responsive-equity-plot svg')).toBeVisible();
+ await expect(page.locator('.design-run-statistics')).toContainText(String(a.metrics.tradeCount));await expect(page.locator('.saved-settings')).toContainText('10,000');
+ const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();const file=await download;expect(file.suggestedFilename()).toBe('Run-A-trades.csv');const content=await(await import('node:fs/promises')).readFile((await file.path())!,'utf8');expect(content.split('\r\n')).toHaveLength(a.trades.length+1);
+ await page.getByRole('button',{name:'Use these settings',exact:true}).click();await clickWorkspaceButton(page,'Run settings');await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Run A copy');await expect(page.getByLabel('Starting capital',{exact:true})).toHaveValue('10000');
+ await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await openRun(page);await page.reload();await page.getByText('Run details & exports',{exact:false}).click();await page.getByRole('button',{name:'Improve strategy',exact:true}).click();await expect(page.getByRole('heading',{name:'Strategy creation',exact:true})).toBeVisible();
 });
 test('trade selection and filters use saved candles without network and paginate all trades',async({page})=>{
-  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/candles?**',route=>route.abort());await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await page.getByRole('tab',{name:'Trades & chart',exact:true}).click();await expect(page.locator('.trade-price-chart canvas')).toBeVisible();await page.getByRole('button',{name:'View trade 2',exact:true}).click();await expect(page.getByRole('heading',{name:'Selected trade · #2',exact:true})).toBeVisible();await expect(page.locator('.selected-trade')).toContainText(a.trades[1].reason);await page.getByRole('combobox',{name:'Trade direction',exact:true}).click();await page.getByRole('option',{name:'Short',exact:true}).click();await expect(page.getByText('No trades match these filters.',{exact:true})).toBeVisible();expect(errors).toEqual([]);
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/candles?**',r=>r.abort());await openRun(page,'Run A',false);await clickWorkspaceButton(page,'Trades & chart');
+ await expect(page.locator('.design-candles')).toBeVisible();await expect(page.locator('[data-marker="entry"]')).toBeVisible();await page.getByRole('button',{name:'View trade 2',exact:true}).click();await expect(page.getByRole('heading',{name:'Selected trade · #2',exact:true})).toBeVisible();await expect(page.locator('.design-trade-detail')).toContainText(a.trades[1].reason);
+ await page.getByRole('combobox',{name:'Trade direction',exact:true}).click();await page.getByRole('option',{name:'Short',exact:true}).click();await expect(page.getByText('No trades match these filters.',{exact:true})).toBeVisible();await page.getByRole('combobox',{name:'Trade direction',exact:true}).click();await page.getByRole('option',{name:'All directions',exact:true}).click();await expect(page.locator('.design-trade-history tbody tr')).toHaveCount(Math.min(25,a.trades.length));if(a.trades.length>25){await page.getByRole('button',{name:'Next',exact:true}).click();await expect(page.locator('.design-trade-pagination')).toContainText('26–');}expect(errors).toEqual([]);
 });
+
+
 test('history filters and comparison retain context and export both runs',async({page})=>{
   await page.getByPlaceholder('Search runs or strategy names').fill('Run A');await expect(page.locator('.history-table tbody tr')).toHaveCount(1);await page.getByPlaceholder('Search runs or strategy names').fill('');await page.getByRole('checkbox',{name:'Select run Run A',exact:true}).check();await page.getByRole('checkbox',{name:'Select run Run B',exact:true}).check();await page.getByRole('button',{name:'Compare selected',exact:true}).click();await expect(page.getByRole('heading',{name:'Compare backtests',exact:true})).toBeVisible();await expect(page.locator('.comparison-page')).toContainText('different costs');await page.getByRole('row').filter({has:page.getByRole('rowheader',{name:'Starting capital',exact:true})}).scrollIntoViewIfNeeded();await expect(page.locator('.comparison-table')).toContainText('20,000');const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export comparison',exact:true}).click();expect((await download).suggestedFilename()).toBe('testify-comparison.csv');await page.reload();await expect(page.locator('.comparison-table')).toContainText('Run A');
 });
+
+
 test('results, trades, settings, history and compare resize without outer overflow',async({page})=>{
-  await page.getByRole('checkbox',{name:'Select run Run A',exact:true}).check();await page.getByRole('checkbox',{name:'Select run Run B',exact:true}).check();await page.getByRole('button',{name:'Compare selected',exact:true}).click();
-  for(const route of ['compare','history','results']){await page.goto(`/#/app/${route}`);await expect(page.getByRole('heading',{level:1})).toBeVisible();for(const width of [320,390,768,1024,1440,1920]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}if(route==='results'){for(const tab of ['Trades & chart','Settings']){await page.getByRole('tab',{name:tab,exact:true}).click();for(const width of [320,768,1440]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}}}}
+ await page.getByRole('checkbox',{name:'Select run Run A',exact:true}).check();await page.getByRole('checkbox',{name:'Select run Run B',exact:true}).check();await page.getByRole('button',{name:'Compare selected',exact:true}).click();
+ for(const route of ['compare','history','results','trades','runsettings']){await page.goto('/#/app/'+route);await expect(page.getByRole('heading',{level:1})).toBeVisible();for(const width of [320,390,768,1024,1440,1920]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}}
 });
+
+
 test('cancelled online backtest preserves settings and saves no partial run',async({page})=>{
   await page.goto('/#/app/backtests');await page.route('**/api/candles?**',async route=>{await new Promise(resolve=>setTimeout(resolve,1500));try{await route.fulfill({json:{bars}});}catch{/* Request was cancelled. */}});await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Running backtest',exact:true})).toBeVisible();await page.getByRole('button',{name:'Cancel backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtests',exact:true})).toBeVisible();await expect(page.locator('.design-notice')).toContainText('Backtest cancelled');await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(2);
 });
 
+
+
 test('online run stores original candles for offline trade inspection after reload',async({page})=>{
-  await page.getByRole('button',{name:'View results for Run A',exact:true}).click();await page.getByRole('tab',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Use these settings',exact:true}).click();await page.getByRole('combobox',{name:'Market / dataset',exact:true}).selectOption('online');await page.route('**/api/candles?**',route=>{const q=new URL(route.request().url()).searchParams;return route.fulfill({json:{bars:bars.filter(bar=>bar.time>=Number(q.get('start'))&&bar.time<=Number(q.get('end')))}});});await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toBeVisible();await page.route('**/api/candles?**',route=>route.abort());await page.reload();await page.getByRole('tab',{name:'Trades & chart',exact:true}).click();await expect(page.locator('.trade-price-chart canvas')).toBeVisible();await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(3);
+ await openRun(page);await page.getByRole('button',{name:'Use these settings',exact:true}).click();await page.getByRole('combobox',{name:'Market / dataset',exact:true}).selectOption('online');await page.route('**/api/candles?**',route=>{const q=new URL(route.request().url()).searchParams;return route.fulfill({json:{bars:bars.filter(bar=>bar.time>=Number(q.get('start'))&&bar.time<=Number(q.get('end')))}});});await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.locator('.design-notice')).toContainText('1 backtest saved');await expect(page).toHaveURL(/#\/app\/backtests$/);await page.route('**/api/candles?**',r=>r.abort());await page.reload();await clickWorkspaceButton(page,'Trades & chart');await expect(page.locator('[data-marker="entry"]')).toBeVisible();await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(3);
 });
+
+
 test('failed run returns to configuration and preserves its settings',async({page})=>{
   await page.goto('/#/app/runsettings');await page.getByLabel('Run name',{exact:true}).fill('Preserve my test');await page.route('**/api/candles?**',route=>route.fulfill({status:503,json:{error:'Historical data temporarily unavailable'}}));await page.getByRole('button',{name:/Run 1 backtests/}).click();await expect(page.locator('.design-error')).toContainText('Historical data temporarily unavailable');await expect(page.getByRole('heading',{name:'Run settings',exact:true})).toBeVisible();await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Preserve my test');
 });
 
-test('only headline profit and return count up while secondary metrics stay still',async({page})=>{
- await page.emulateMedia({reducedMotion:'reduce'});await page.clock.install();
- await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
- const values=page.locator('.result-metric .animated-value');await expect(values).toHaveCount(7);
- await page.clock.runFor(150);
- const samples=await values.evaluateAll(elements=>elements.map(el=>({text:el.textContent,final:el.getAttribute('aria-label')})));
- expect(samples[0].text).not.toBe(samples[0].final);
- expect(samples[1].text).not.toBe(samples[1].final);
- for(let index=2;index<samples.length;index++)expect(samples[index].text).toBe(samples[index].final);
- await expect(page.locator('.result-metric [data-countup="true"]')).toHaveCount(2);
- await page.clock.runFor(400);expect(await values.first().textContent()).not.toBe(samples[0].text);
- await page.clock.runFor(1800);
- for(let index=0;index<samples.length;index++)await expect(values.nth(index)).toHaveText(samples[index].final!);
-});
 
-test('hovering equity retains both visible profit and loss colors and formats tooltip values',async({page})=>{
- await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
- const canvas=page.locator('.result-chart-grid canvas').first();await expect(canvas).toBeVisible();
- const colors=()=>canvas.evaluate(el=>{const c=el as HTMLCanvasElement,pixels=c.getContext('2d')!.getImageData(0,0,c.width,c.height).data;let orange=0,blue=0;for(let i=0;i<pixels.length;i+=4){if(pixels[i]>225&&pixels[i+1]>115&&pixels[i+1]<250&&pixels[i+2]<pixels[i+1]-4)orange++;if(pixels[i]>247&&pixels[i+1]>247&&pixels[i+2]>247)blue++;}return {orange,blue};});
- await expect.poll(async()=>{const result=await colors();return result.orange>20&&result.blue>20;}).toBe(true);
- await page.waitForTimeout(700);const before=await colors();const bounds=await canvas.boundingBox();
- await page.mouse.move(bounds!.x+bounds!.width*.4,bounds!.y+bounds!.height*.5);
- await expect.poll(async()=>(await colors()).orange).toBeGreaterThan(before.orange*.8);
- await expect.poll(async()=>(await colors()).blue).toBeGreaterThan(before.blue*.8);
- await expect(page.locator('.result-chart-grid').first()).toContainText(/\$[\d,.]+/);
-});
 
+test('only the headline balance counts up while secondary saved metrics stay still',async({page})=>{
+ await page.clock.install();await openRun(page);await expect(page.locator('.design-metric [data-countup="true"]')).toHaveCount(1);await expect(page.locator('.design-run-statistics [data-countup="true"]')).toHaveCount(0);const secondary=await page.locator('.design-run-statistics').innerText();await page.clock.runFor(1800);await expect(page.locator('.design-run-statistics')).toHaveText(secondary,{useInnerText:true});
+});
+test('hovering equity retains both visible equity and drawdown colors and formats tooltip values',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});await openRun(page,'Run A',false);const plot=page.locator('.responsive-equity-plot');await plot.scrollIntoViewIfNeeded();const box=(await plot.boundingBox())!;await page.mouse.move(box.x+box.width*.6,box.y+70);await expect(plot.locator('[data-chart="strategy"]')).toHaveAttribute('stroke',/url/);await expect(plot.locator('[data-chart="benchmark"]')).toHaveAttribute('stroke','#e69a9a');await expect(plot.locator('.responsive-equity-tooltip')).toContainText('$');await expect(plot.locator('.responsive-equity-tooltip')).toContainText('%');
+});
 test.describe('decimal formatting with a Slovak browser locale',()=>{
- test.use({locale:'sk-SK',reducedMotion:'reduce'});
- test('animated and settled result values both keep dot decimals',async({page})=>{
-  await page.clock.install();await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
-  const value=page.locator('.result-metric').filter({hasText:'Return'}).locator('.animated-value');
-  await page.clock.runFor(400);await expect(value).toHaveText(/^[+-]?\d+\.\d{2}%$/);
-  const intermediate=await value.textContent();await page.clock.runFor(2000);
-  await expect(value).toHaveText(/^[+-]?\d+\.\d{2}%$/);await expect(value).toHaveText(await value.getAttribute('aria-label') as string);
-  expect(await value.textContent()).not.toBe(intermediate);
+ test.use({locale:'sk-SK'});
+ test('saved percentages keep dot decimals in the overview and run details',async({page})=>{
+  await openRun(page);await expect(page.locator('.design-metric-value small').first()).toHaveText((a.metrics.netReturnPct>=0?'+':'')+a.metrics.netReturnPct.toFixed(2)+'%');await expect(page.locator('.design-run-statistics')).toContainText(a.metrics.netReturnPct.toFixed(2)+'%');
  });
 });
-
-
 test('dense history, comparison, trade details and settings never count up',async({page})=>{
- await page.clock.install();
- await expect(page.locator('[data-countup="true"]')).toHaveCount(0);
- const historyValues=page.locator('.history-table .animated-value');
- for(const value of await historyValues.all())await expect(value).toHaveText((await value.getAttribute('aria-label'))!);
- await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
- await page.getByRole('tab',{name:'Trades & chart',exact:true}).click();
- await expect(page.locator('.result-trades tbody tr').first()).toBeVisible();
- await expect(page.locator('[data-countup="true"]')).toHaveCount(0);
- for(const value of await page.locator('.result-trades .animated-value, .selected-trade .animated-value').all())await expect(value).toHaveText((await value.getAttribute('aria-label'))!);
- await page.getByRole('tab',{name:'Settings',exact:true}).click();
- await expect(page.locator('[data-countup="true"]')).toHaveCount(0);
- await page.getByRole('button',{name:'Saved backtests',exact:true}).click();
- await page.getByRole('checkbox',{name:'Select run Run A',exact:true}).check();
- await page.getByRole('checkbox',{name:'Select run Run B',exact:true}).check();
- await page.getByRole('button',{name:'Compare selected',exact:true}).click();
- await expect(page.locator('.comparison-table')).toBeVisible();
- await expect(page.locator('[data-countup="true"]')).toHaveCount(0);
+ await expect(page.locator('.history-table [data-countup="true"]')).toHaveCount(0);await openRun(page);await expect(page.locator('.design-saved-run [data-countup="true"]')).toHaveCount(0);await clickWorkspaceButton(page,'Trades & chart');await expect(page.locator('.design-trade-history [data-countup="true"],.design-trade-detail [data-countup="true"]')).toHaveCount(0);await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await page.getByRole('checkbox',{name:'Select run Run A',exact:true}).check();await page.getByRole('checkbox',{name:'Select run Run B',exact:true}).check();await page.getByRole('button',{name:'Compare selected',exact:true}).click();await expect(page.locator('.comparison-table')).toBeVisible();await expect(page.locator('[data-countup="true"]')).toHaveCount(0);
 });
+
 
 test('long monthly histories fill each row and keep positive and zero returns white',async({page})=>{
  const curve=Array.from({length:10},(_,i)=>({time:Date.UTC(2025,i,1)/1000,equity:10000+[0,266,104,200,-100,100,-400,-800,-800,-600][i]}));
  await page.evaluate(async curve=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-user-e2e-user',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction('runs','readwrite'),store=tx.objectStore('runs'),read=store.get('result-a');read.onsuccess=()=>store.put({...read.result,curve});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});},curve);
- await page.reload();await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
+ await page.reload();await openRun(page);
  await expect(page.locator('.monthly-returns article')).toHaveCount(10);
  for(const width of [390,768,1024,1440]){
   await page.setViewportSize({width,height:900});
@@ -114,34 +96,41 @@ test('long monthly histories fill each row and keep positive and zero returns wh
  for(const value of values){if(value.value.startsWith('+'))expect(value.color).toBe('rgb(255, 255, 255)');else expect(value.color).not.toBe('rgb(255, 255, 255)');}
 });
 
-test('equity stays dominant and drawdown remains readable as chart canvases resize',async({page})=>{
- await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
- const charts=page.locator('.result-equity-panel .echarts-for-react');await expect(charts).toHaveCount(2);
- const sizes:number[]=[];
- for(const width of [390,768,1440,1920]){
-  await page.setViewportSize({width,height:900});
-  await expect.poll(async()=>charts.evaluateAll(elements=>elements.every(el=>{const canvas=el.querySelector('canvas');return !!canvas&&Math.abs(canvas.getBoundingClientRect().width-el.getBoundingClientRect().width)<2&&Math.abs(canvas.getBoundingClientRect().height-el.getBoundingClientRect().height)<2;}))).toBe(true);
-  const boxes=await charts.evaluateAll(elements=>elements.map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height})));
-  expect(boxes[0].height).toBeGreaterThan(boxes[1].height*1.4);expect(boxes[1].height).toBeGreaterThanOrEqual(179);sizes.push(boxes[0].width);
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+
+test('short monthly histories use centered columns instead of stretching across the dashboard card',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ for(const count of [1,2,3,7]){
+  const curve=Array.from({length:count},(_,i)=>({time:Date.UTC(2025,i,15)/1000,equity:10000+(i+1)*100}));
+  await page.evaluate(async run=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-user-e2e-user',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction('runs','readwrite');tx.objectStore('runs').put(run);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});},{...b,curve});
+  await page.goto('/#/app/overview');await page.reload();
+  const row=page.locator('.design-monthly-bars');
+  await expect(row.getByRole('button')).toHaveCount(count);
+  for(const width of [390,1440,2560]){
+   await page.setViewportSize({width,height:1000});
+   const geometry=await row.evaluate(el=>{const parent=el.getBoundingClientRect(),bars=[...el.children].map(child=>child.getBoundingClientRect());return {parentWidth:parent.width,parentCenter:parent.x+parent.width/2,left:bars[0].left,right:bars.at(-1)!.right,widths:bars.map(box=>box.width)};});
+   expect(Math.abs((geometry.left+geometry.right)/2-geometry.parentCenter)).toBeLessThan(1);
+   expect(Math.max(...geometry.widths)).toBeLessThan(100);
+   if(count===1)expect(geometry.right-geometry.left).toBeLessThan(geometry.parentWidth/2);
+  }
  }
- expect(sizes[3]).toBeGreaterThan(sizes[0]*2);
 });
 
-test('summary cards animate and keep their proportions in centered ultrawide workspaces',async({page})=>{
- await page.clock.install();await page.getByRole('button',{name:'View results for Run A',exact:true}).click();
- const strip=page.locator('.result-metrics');await expect(strip).toHaveCSS('animation-name','testify-pop');await page.clock.runFor(100);
- expect(await strip.evaluate(el=>{const animation=el.getAnimations()[0];animation.pause();animation.currentTime=100;return Number(getComputedStyle(el).opacity);})).toBeLessThan(1);await strip.evaluate(el=>el.getAnimations().forEach(animation=>animation.finish()));
- await page.clock.runFor(1800);await expect(strip).toHaveCSS('opacity','1');
- let desktopSize=0;
- for(const width of [390,1440,2560,3440]){
-  await page.setViewportSize({width,height:1440});await page.clock.runFor(300);
-  const geometry=await page.locator('.results-page').evaluate(el=>{const main=el.closest('.workspace-content')!.getBoundingClientRect(),bar=el.querySelector('.result-metrics')!.getBoundingClientRect(),cards=[...el.querySelectorAll('.result-metric')];return {mainWidth:main.width,barWidth:bar.width,left:bar.left-main.left,profitWidth:cards[0].getBoundingClientRect().width,tradesWidth:cards[3].getBoundingClientRect().width,font:parseFloat(getComputedStyle(cards[0].querySelector('strong')!).fontSize)};});
-  if(width>=1440){expect(geometry.barWidth/geometry.mainWidth).toBeGreaterThan(.9);expect(geometry.left).toBeLessThanOrEqual(50);expect(geometry.profitWidth).toBeGreaterThan(geometry.tradesWidth);}
-  if(width===1440)desktopSize=geometry.font;
-  if(width===3440){expect(geometry.font).toBeCloseTo(desktopSize,0);expect(geometry.mainWidth).toBeLessThanOrEqual(1206);}
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+
+
+test('approved equity and drawdown stay readable as the overview resizes',async({page})=>{
+ await openRun(page,'Run A',false);const plot=page.locator('.responsive-equity-plot');for(const width of [390,768,1440,1920]){await page.setViewportSize({width,height:900});await expect.poll(()=>plot.evaluate(el=>{const svg=el.querySelector('svg')!,view=svg.viewBox.baseVal;return Math.abs(view.width-el.clientWidth)<2;})).toBe(true);expect(await plot.locator('text').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(10);const box=(await plot.boundingBox())!;expect(box.height).toBeGreaterThan(200);}
+});
+
+test('equity axis distinguishes small moves around the starting balance',async({page})=>{
+ const curve=Array.from({length:20},(_,i)=>({time:base+i*3600,equity:10000+Math.sin(i)*150}));
+ await page.evaluate(async run=>new Promise<void>((resolve,reject)=>{const request=indexedDB.open('testify-user-e2e-user',1);request.onsuccess=()=>{const db=request.result,tx=db.transaction('runs','readwrite');tx.objectStore('runs').put(run);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};request.onerror=()=>reject(request.error);}),{...a,curve});await page.reload();await openRun(page,'Run A',false);
+ for(const width of [390,1440]){
+  await page.setViewportSize({width,height:900});const labels=page.locator('[data-axis="equity"]');await expect(labels).toHaveCount(4);const text=await labels.allTextContents();expect(new Set(text).size).toBe(4);const values=text.map(label=>Number(label.replace(/,/g,'').replace(/k$/,''))*(label.endsWith('k')?1000:1));expect(values.every((value,i)=>i===0||value<values[i-1])).toBe(true);
+  await expect.poll(()=>labels.evaluateAll(elements=>elements.every(el=>{const box=(el as SVGGraphicsElement).getBBox(),svg=el.closest('svg')!;return box.x>=0&&box.x+box.width<svg.viewBox.baseVal.width;}))).toBe(true);
  }
+});
+test('summary cards keep their proportions in centered ultrawide workspaces',async({page})=>{
+ await openRun(page,'Run A',false);let font=0;for(const width of [390,1440,2560,3440]){await page.setViewportSize({width,height:1440});const layout=await page.locator('.design-main').evaluate(el=>({width:el.getBoundingClientRect().width,cards:[...el.querySelectorAll('.design-metric')].map(card=>card.getBoundingClientRect().width),font:parseFloat(getComputedStyle(el.querySelector('.design-metric strong')!).fontSize)}));expect(layout.width).toBeLessThanOrEqual(1142);if(width>=1440)expect(Math.max(...layout.cards)-Math.min(...layout.cards)).toBeLessThan(1);if(width===1440)font=layout.font;if(width===3440)expect(layout.font).toBeCloseTo(font,0);expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);}
 });
 
 
@@ -160,7 +149,7 @@ test('Penpot replay reads stored candles, plots saved risk levels and exports ac
  await expect(details.locator('dl>div').filter({hasText:'Stop loss'})).toContainText((b.trades[0].entry*.98).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}));
  await page.getByRole('button',{name:'Next trade',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Selected trade · #2',exact:true})).toBeVisible();
- await expect(range).toHaveValue('1');
+ await expect.poll(async()=>Number(await range.inputValue())).toBeGreaterThan(1);await range.press('Home');
  await expect(page.getByRole('button',{name:'Previous trade',exact:true})).toBeEnabled();
  await page.getByRole('button',{name:'Next bar',exact:true}).click();await expect(range).toHaveValue('2');
  await page.getByRole('button',{name:'Play',exact:true}).click();await expect(page.getByRole('button',{name:'Pause',exact:true})).toBeVisible();

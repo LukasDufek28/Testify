@@ -1,4 +1,5 @@
 import RunDefaultsPanel, {getDisplayTimezone} from "./RunDefaults";
+import {AnimatedSelect} from './AnimatedControls';
 import WorkspaceSidebar from "./WorkspaceSidebar";
 import type { ApiFetch } from "./api-client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -47,6 +48,7 @@ export type RunOptions = {
 type Props = {
   apiFetch: ApiFetch; accountControls?: ReactNode; researchTools?: ReactNode; batchTools?:ReactNode; content?: ReactNode;
   studio?: ReactNode;
+  resultDetails?: ReactNode;
   loading: boolean;
   loadError: string;
   onRetry: () => Promise<void>;
@@ -568,6 +570,8 @@ function Replay({ p }: { p: Props }) {
     [speed, setSpeed] = useState(1),
     [bars, setBars] = useState<Bar[]>([]),
     [loadError, setLoadError] = useState("");
+  const [direction,setDirection]=useState(''),[reason,setReason]=useState(''),[tablePage,setTablePage]=useState(0);
+  const filtered=trades.map((trade,index)=>({trade,index})).filter(({trade})=>(!direction||String(trade.side)===direction)&&(!reason||trade.reason===reason));
   const trade = trades[Math.min(index, trades.length - 1)];
   useEffect(() => {
     if (!p.selectedRun || !trade) return;
@@ -575,7 +579,7 @@ function Replay({ p }: { p: Props }) {
     setLoadError("");
     setBars([]);
     p.loadBars(p.selectedRun, trade, abort.signal)
-      .then(setBars)
+      .then(loaded=>{if(!abort.signal.aborted){setBars(loaded);setBar(loaded.length);}})
       .catch((e) => {
         if (!abort.signal.aborted) setLoadError(String(e));
       });
@@ -604,6 +608,7 @@ function Replay({ p }: { p: Props }) {
   }
   useEffect(() => {
     setIndex(0);
+    setDirection('');setReason('');setTablePage(0);
     setBar(p.selectedRun ? 1 : 37);
     setPlaying(false);
   }, [p.selectedRun?.id]);
@@ -708,7 +713,7 @@ function Replay({ p }: { p: Props }) {
                   disabled={!count}
                   onClick={() =>
                     key === "play"
-                      ? setPlaying((v) => !v)
+                      ? (()=>{if(!playing&&bar>=count)setBar(1);setPlaying((v) => !v);})()
                       : key === "next"
                         ? setBar((v) => Math.min(count, v + 1))
                         : setSpeed((v) => (v === 4 ? 1 : v * 2))
@@ -1045,9 +1050,7 @@ function Replay({ p }: { p: Props }) {
               {p.selectedRun ? index + 1 : 24 + index} selected
             </p>
           </div>
-          <button className="design-button" onClick={exportTrades}>
-            Export trades
-          </button>
+          <div className="design-trade-filters"><AnimatedSelect aria-label="Trade direction" value={direction} onChange={e=>{setDirection(e.target.value);setTablePage(0);}}><option value="">All directions</option><option value="1">Long</option><option value="-1">Short</option></AnimatedSelect><AnimatedSelect aria-label="Exit reason" value={reason} onChange={e=>{setReason(e.target.value);setTablePage(0);}}><option value="">All exit reasons</option>{[...new Set(trades.map(t=>t.reason))].map(reason=><option key={reason}>{reason}</option>)}</AnimatedSelect><button className="design-button" onClick={exportTrades}>Export trades</button></div>
         </header>
         <div className="design-table-scroll">
           <table>
@@ -1068,7 +1071,7 @@ function Replay({ p }: { p: Props }) {
               </tr>
             </thead>
             <tbody>
-              {trades.map((t, i) => (
+              {filtered.slice(tablePage*25,tablePage*25+25).map(({trade:t,index:i}) => (
                 <tr key={i} aria-selected={index === i}>
                   <td>{tradeDate(t.entryTime)}</td>
                   <td>{t.side === 1 ? "Long" : "Short"}</td>
@@ -1089,6 +1092,7 @@ function Replay({ p }: { p: Props }) {
                   <td>
                     <button
                       className="design-chart-link"
+                      aria-label={`View trade ${i+1}`}
                       onClick={() => select(i)}
                     >
                       View on chart ↗
@@ -1099,6 +1103,8 @@ function Replay({ p }: { p: Props }) {
             </tbody>
           </table>
         </div>
+        {!filtered.length&&<p>No trades match these filters.</p>}
+        <div className="design-trade-pagination"><span>{filtered.length?`${tablePage*25+1}–${Math.min((tablePage+1)*25,filtered.length)} of ${filtered.length} trades`:'0 trades'}</span><button className="design-button secondary" disabled={!tablePage} onClick={()=>setTablePage(n=>n-1)}>Previous</button><button className="design-button secondary" disabled={(tablePage+1)*25>=filtered.length} onClick={()=>setTablePage(n=>n+1)}>Next</button></div>
       </DesignCard>
       <p className="design-bottom-note">
         {p.selectedRun
@@ -1483,7 +1489,7 @@ export default function PenpotWorkspace(p: Props) {
           </div>
         )}
         {p.page === "backtests" && (
-          <div className="design-dashboard-grid">
+          <div className={"design-dashboard-grid" + (run ? " backtest-result" : "")}>
             <DesignCard
               className={
                 "design-run-simple raised " +
@@ -1514,7 +1520,7 @@ export default function PenpotWorkspace(p: Props) {
                 <CardTitle icon={designIcons.trades}>Trades</CardTitle>
                 <h2>
                   {run?.metrics.tradeCount ?? 3} trades ·{" "}
-                  {run?.metrics.winRatePct?.toFixed(2) || "33.33"}% win rate
+                  {run?.metrics.winRatePct?.toFixed(2) ?? "33.33"}% win rate
                 </h2>
                 <p>
                   {run?.symbol || "RNBW-USD"} ·{" "}
@@ -1525,6 +1531,7 @@ export default function PenpotWorkspace(p: Props) {
                   View trades
                 </motion.button>
               </DesignCard>
+              {p.resultDetails}
             </div>
           </div>
         )}

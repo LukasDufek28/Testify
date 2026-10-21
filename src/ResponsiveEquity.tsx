@@ -66,7 +66,12 @@ export default function ResponsiveEquity({ run, className = "" }: { run?: Run; c
   const loss = data ? interpolate(data.losses[index],data.losses[next]) : selected===null ? 20.6 : Math.max(0, (bottom - previewY.loss) / (bottom - top) * maxLoss);
   const timestamp = data ? interpolate(data.points[index].time,data.points[next].time)*1000 : Date.UTC(2026,0,1)+ratio*(Date.UTC(2026,11,31)-Date.UTC(2026,0,1));
   const date = !data && selected===null ? 'May 2026' : new Date(timestamp).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric", timeZone: getDisplayTimezone() });
-  const gutter = width < 480 ? 34 : 49;
+  const equityStep=(max-min)/3;
+  const magnitude=Math.max(Math.abs(min),Math.abs(max));
+  const axisUnit=magnitude>=1000000?1000000:magnitude>=1000&&equityStep>=100?1000:1;
+  const axisDigits=Math.max(0,Math.min(8,Math.ceil(-Math.log10(equityStep/axisUnit))));
+  const equityLabels=Array.from({length:4},(_,i)=>( (max-i*equityStep)/axisUnit).toLocaleString('en-US',{maximumFractionDigits:axisDigits})+(axisUnit===1000000?'m':axisUnit===1000?'k':''));
+  const gutter = Math.max(width < 480 ? 34 : 49,Math.max(...equityLabels.map(label=>label.length))*6+9);
   const rightGutter = width < 480 ? 34 : 15;
   const plotWidth = Math.max(1, width - gutter - rightGutter);
   const height = width < 480 ? 194 : Math.min(320, Math.max(210, width * .27875));
@@ -111,7 +116,7 @@ export default function ResponsiveEquity({ run, className = "" }: { run?: Run; c
           <mask id={`${id}-mask`}><rect x={left} y={top} width={right - left} height={bottom - top} fill={`url(#${id}-fade)`} /></mask>
           <pattern id={`${id}-stripes`} width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(42)"><rect width="4" height="10" fill="#e69a9a" opacity=".45" /></pattern>
         </defs>
-        {[0, 1, 2, 3].map(i => <text key={i} x="1" y={5 + i * (height - 10) / 3} fill="#66636e" fontSize="11">{((max - i * (max - min) / 3) / 1000).toFixed(max >= 10000 ? 0 : 1)}k</text>)}
+        {equityLabels.map((label,i) => <text key={i} data-axis="equity" x="1" y={5 + i * (height - 10) / 3} fill="#66636e" fontSize="11">{label}</text>)}
         {[0, 1, 2, 3, 4].map(i => <text key={i} x={width - 1} y={5 + i * (height - 10) / 4} textAnchor="end" fill="#66636e" fontSize="11">{Math.round(maxLoss - i * maxLoss / 4)}%</text>)}
         <g transform={`translate(${gutter} 0) scale(${plotWidth / (right - left)} ${height / (bottom - top)}) translate(${-left} ${-top})`}>
           <path d={`${lossD}L${right},${bottom}L${left},${bottom}Z`} fill={`url(#${id}-stripes)`} mask={`url(#${id}-mask)`} />

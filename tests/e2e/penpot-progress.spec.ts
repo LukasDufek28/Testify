@@ -80,11 +80,11 @@ test("backtest progress advances with loaded candles, estimates remaining time a
   await expect(bar).toBeVisible();
   release();
   await expect(
-    page.getByRole("heading", { name: "Backtest results", exact: true }),
+    page.locator(".backtest-result"),
   ).toBeVisible({ timeout: 20000 });
-  await expect(page.getByRole('status').filter({hasText:'Done'})).toBeVisible();
+  await expect(page.getByRole('status').filter({hasText:'1 backtest saved'})).toBeVisible();
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Backtest results", exact: true }),
+    page.locator(".backtest-result"),
   ).toBeVisible();
 });

@@ -47,8 +47,9 @@ test("CSV data import validates files and runs the real worker on stored candles
 
   await page.getByRole("button",{name:"Run backtest",exact:true}).click();
   await expect(page.locator(".backtest-result")).toBeVisible();
-  await expect(page.locator(".banner.success")).toContainText("1 backtest saved");
+  await expect(page.locator(".design-notice")).toContainText("1 backtest saved");
   await page.route("**/api/candles?**", route=>route.abort());
+  await page.getByText("Run details & exports",{exact:false}).click();
   await page.getByRole("button",{name:"Validate holdout",exact:true}).click();
 
   await page.getByRole("button",{name:"Validate 1 run",exact:true}).click();
