@@ -1719,7 +1719,7 @@
 .design-strategies-unified > .design-side-column {display:block;}
 .design-strategies-unified .design-utilities {height:auto;display:flex;align-items:center;gap:24px;flex-wrap:wrap;padding:20px;}
 .design-strategies-unified .design-library-count {display:flex;align-items:center;gap:12px;flex:1;margin:0;}
-.design-strategies-unified .design-library-count strong {font-size:28px;}
+.design-strategies-unified .design-library-count strong {font-size:28px;line-height:34px;}
 .design-strategies-unified .design-library-count span {margin:0;}
 .design-strategies-unified .design-create-link {margin-left:auto;}
 .design-strategies-unified .design-utilities > button {width:auto;margin:0;}
