@@ -1,5 +1,6 @@
 import {test,expect,clickWorkspaceButton} from './fixtures';
 import {runBacktest} from '../../src/engine';
+import {runStrategyBacktest} from '../../src/programmable-engine';
 import {exampleStrategy} from '../../src/types';
 const base=1735689600;
 const bars=Array.from({length:300},(_,i)=>{const price=100+Math.sin(i/8)*8+i*.02;return {time:base+i*3600,open:price,high:price+1,low:price-1,close:price+.5,volume:100,spread:0};});
@@ -34,6 +35,21 @@ test('trade selection and filters use saved candles without network and paginate
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/candles?**',r=>r.abort());await openRun(page,'Run A',false);await clickWorkspaceButton(page,'Trades & chart');
  await expect(page.locator('.design-candles')).toBeVisible();await expect(page.locator('[data-marker="entry"]')).toBeVisible();await page.getByRole('button',{name:'View trade 2',exact:true}).click();await expect(page.getByRole('heading',{name:'Selected trade · #2',exact:true})).toBeVisible();await expect(page.locator('.design-trade-detail')).toContainText(a.trades[1].reason);
  await page.getByRole('combobox',{name:'Trade direction',exact:true}).click();await page.getByRole('option',{name:'Short',exact:true}).click();await expect(page.getByText('No trades match these filters.',{exact:true})).toBeVisible();await page.getByRole('combobox',{name:'Trade direction',exact:true}).click();await page.getByRole('option',{name:'All directions',exact:true}).click();await expect(page.locator('.design-trade-history tbody tr')).toHaveCount(Math.min(25,a.trades.length));if(a.trades.length>25){await page.getByRole('button',{name:'Next',exact:true}).click();await expect(page.locator('.design-trade-pagination')).toContainText('26–');}expect(errors).toEqual([]);
+});
+
+test('programmed trade review restores measured SL and TP and exports them after reload',async({page},testInfo)=>{
+ const custom={version:3 as const,runtime:'javascript' as const,name:'Measured script',description:'Measured levels',code:"function onBar(ctx){if(ctx.index===0)return {entry:{side:'long',stopDistance:5,takeProfitPrice:125,riskPct:.5}};if(ctx.index===2)return {stopPrice:100};if(ctx.index===6)return {exit:true};return {}; }"};
+ const measured={...await runStrategyBacktest(dataset,custom,settings,'s','Run A'),id:a.id,granularity:3600,datasetId:dataset.id,strategySource:JSON.stringify(custom),research:a.research};
+ expect(measured.trades[0].stopLoss).toBe(100);expect(measured.trades[0].takeProfit).toBe(125);
+ const older={...measured,id:b.id,name:'Run B',trades:measured.trades.map(({stopLoss:_,takeProfit:__,...trade})=>trade)};
+ await page.evaluate(async runs=>new Promise<void>((resolve,reject)=>{const request=indexedDB.open('testify-user-e2e-user',1);request.onsuccess=()=>{const db=request.result,tx=db.transaction('runs','readwrite');for(const run of runs)tx.objectStore('runs').put(run);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};request.onerror=()=>reject(request.error);}),[measured,older]);await page.reload();await openRun(page,'Run A',false);await clickWorkspaceButton(page,'Trades & chart');
+ for(let step=0;step<2;step++){
+  const detail=page.locator('.design-trade-detail');await expect(detail.getByRole('term').filter({hasText:/^Stop loss$/}).locator('..').locator('dd')).toHaveText('$100');await expect(detail.getByRole('term').filter({hasText:/^Take profit$/}).locator('..').locator('dd')).toHaveText('$125');await expect(page.locator('[data-level="SL"]')).toBeVisible();await expect(page.locator('[data-level="TP"]')).toBeVisible();if(step===0)await page.reload();
+ }
+ const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export trades',exact:true}).click();const file=await download,content=await(await import('node:fs/promises')).readFile((await file.path())!,'utf8');expect(content).toContain('Stop loss at exit');expect(content).toContain('"100","125"');
+ expect(await page.locator('.design-trade-detail').evaluate(el=>el.getBoundingClientRect().bottom-el.querySelector('.design-trade-actions')!.getBoundingClientRect().bottom)).toBeGreaterThanOrEqual(16);
+ await page.screenshot({path:testInfo.outputPath('programmed-trade-levels.png'),fullPage:true});
+ await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await openRun(page,'Run B',false);await clickWorkspaceButton(page,'Trades & chart');await expect(page.locator('.design-trade-risk-note')).toContainText('not stored');await expect(page.locator('[data-level="SL"],[data-level="TP"]')).toHaveCount(0);
 });
 
 

@@ -152,7 +152,7 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
     const pnl = p.side * p.units * (price - p.entry) - fee;
     cash += pnl; totalFees += fee;
     const initialRisk=p.units*p.entry*strategy.stopLossPct/100;
-    trades.push({ entryTime: p.entryTime, exitTime: bar.time + (atClose ? barSeconds : 0), side: p.side, entry: p.entry, exit: price, pnl: pnl - p.entryFee, returnPct: (pnl - p.entryFee) / p.equityAtEntry * 100, ...(initialRisk>0?{rMultiple:(pnl-p.entryFee)/initialRisk}:{}), reason });
+    trades.push({ entryTime: p.entryTime, exitTime: bar.time + (atClose ? barSeconds : 0), side: p.side, entry: p.entry, exit: price, pnl: pnl - p.entryFee, returnPct: (pnl - p.entryFee) / p.equityAtEntry * 100, ...(initialRisk>0?{rMultiple:(pnl-p.entryFee)/initialRisk}:{}), reason, stopLoss:strategy.stopLossPct?p.entry*(1-p.side*strategy.stopLossPct/100):null, takeProfit:strategy.takeProfitPct?p.entry*(1+p.side*strategy.takeProfitPct/100):null });
     position = null;
   };
   const enter = (side: 1 | -1, bar: Bar) => {

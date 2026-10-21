@@ -14,6 +14,7 @@ test('run-level risk overrides script risk and cannot size a trade without a sto
  await assert.rejects(run(script(`function onBar(ctx){return ctx.index===0?{entry:{side:'long'}}:{}}`),bars,{riskPct:.5}),/positive initial stop/);
  const result=await run(script(`function onBar(ctx){return ctx.index===0?{entry:{side:'long',stopDistance:10,takeProfitPrice:110,riskPct:2}}:{}}`),bars,{riskPct:.5});
  assert.equal(result.trades.length,1);assert.equal(result.trades[0].pnl,50);assert.equal(result.trades[0].rMultiple,1);
+ assert.equal(result.trades[0].stopLoss,90);assert.equal(result.trades[0].takeProfit,110);
 });
 
 test("custom state gets immutable causal history, has no host APIs, and resets per run", async () => {
@@ -39,6 +40,7 @@ test("risk uses actual fill, fees and slippage; gaps fill stops at the adverse o
   const result=await run(strategy,bars,{feeBps:6,slippageBps:2});
   assert.equal(result.trades.length,1);
   assert.ok(Math.abs(result.trades[0].entry-100.02)<1e-9);
+  assert.ok(Math.abs(result.trades[0].stopLoss-90.02)<1e-9);assert.equal(result.trades[0].takeProfit,null);
   assert.ok(Math.abs(result.trades[0].exit-79.984)<1e-9);
   assert.equal(result.trades[0].reason,"Stop loss");
   assert.ok(Math.abs(result.trades[0].pnl-(-100.720012))<1e-6);
@@ -53,6 +55,7 @@ test("trail updates apply next candle and cannot widen a stop", async () => {
   const strategy=script(`function onBar(ctx){if(ctx.index===0)return {entry:{side:'long',stopDistance:20,riskPct:1}};if(ctx.index===2)return {stopPrice:105};if(ctx.index===3)return {stopPrice:90};return {};}`);
   const result=await run(strategy,bars);
   assert.equal(result.trades[0].exitTime,bars[4].time+14400);assert.equal(result.trades[0].exit,105);
+  assert.equal(result.trades[0].stopLoss,105);assert.equal(result.trades[0].takeProfit,null);
 });
 
 test("limit and stop entries remain causal, can expire, and cannot exceed notional cap", async () => {

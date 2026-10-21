@@ -14,6 +14,7 @@ test('manual orders fill on the next candle and match automatic fills with stop-
  let state=createManualSession(dataset,saved,settings,'Manual');state=advanceManual(state,dataset,{type:'order',order});assert.equal(state.position,null);assert.equal(state.cursor,0);
  state=advanceManual(state,dataset,{type:'step'});assert.equal(state.position.entryTime,1060);assert.equal(state.position.units,1);
  state=advanceManual(state,dataset,{type:'step'});assert.equal(state.trades[0].exit,95);assert.equal(state.trades[0].pnl,-5);assert.equal(state.trades[0].reason,'Stop loss');
+ assert.equal(state.trades[0].stopLoss,95);assert.equal(state.trades[0].takeProfit,110);
  const automatic=runBacktest(dataset,strategy,settings,'saved','Auto');assert.equal(automatic.trades.length,1);
  for(const key of ['entry','exit','entryTime','exitTime','pnl'])assert.equal(state.trades[0][key],automatic.trades[0][key]);
  const result=manualResult(advanceManual(state,dataset,{type:'finish'}),dataset);assert.equal(result.metrics.netReturnPct,-.5000000000000004);assert.equal(result.metrics.totalFees,0);

@@ -40,7 +40,7 @@ export function advanceManual(original:ManualSession,dataset:Dataset,command:Man
   const close=(mid:number,bar:Bar,reason:string,atClose=false)=>{
     const p=s.position;if(!p)return;const price=adversePrice(mid,p.side,false,s.settings),fee=executionFee(p.units,price,s.settings);
     const gross=p.side*p.units*(price-p.entry);s.cash+=gross-fee;s.totalFees+=fee;
-    const pnl=gross-fee-p.entryFee;s.trades.push({entryTime:p.entryTime,exitTime:bar.time+(atClose?seconds:0),side:p.side,entry:p.entry,exit:price,pnl,returnPct:pnl/p.equityAtEntry*100,rMultiple:p.initialRisk>0?pnl/p.initialRisk:undefined,reason});s.position=null;s.closeRequested=false;
+    const pnl=gross-fee-p.entryFee;s.trades.push({entryTime:p.entryTime,exitTime:bar.time+(atClose?seconds:0),side:p.side,entry:p.entry,exit:price,pnl,returnPct:pnl/p.equityAtEntry*100,rMultiple:p.initialRisk>0?pnl/p.initialRisk:undefined,reason,stopLoss:p.stop,takeProfit:p.target});s.position=null;s.closeRequested=false;
   };
   if(command.type==='finish'){close(current.close,current,'End of replay',true);s.pending=null;s.status='completed';s.curve[s.curve.length-1].equity=s.cash;return s;}
   if(command.type!=='step')throw new Error('Unsupported replay action.');

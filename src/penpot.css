@@ -1008,7 +1008,8 @@
   margin-top: 30px;
 }
 .design-replay {
-  height: 400px;
+  height: auto;
+  min-height: 400px;
   padding: 16px 20px 12px;
 }
 .design-replay-header {
@@ -1052,7 +1053,8 @@
   padding-left: 55px;
 }
 .design-trade-detail {
-  height: 400px;
+  height: auto;
+  min-height: 400px;
   padding: 20px;
 }
 .design-trade-detail h2 {
@@ -1425,6 +1427,7 @@
   }
   .design-replay {
     height: auto;
+    min-height: 0;
     padding: 16px 12px;
   }
   .design-replay-header {
@@ -1741,6 +1744,7 @@ body:has(.penpot-workspace),body:has(.landing) { background:#18171f; }
 
 /* Strategy studio uses the approved Strategies shell and reused card controls. */
 .design-studio-heading { position:relative; padding-right:190px; }
+.design-trade-detail .design-trade-risk-note { color:var(--muted); font-size:12px; line-height:18px; margin:12px 0; }
 .design-studio-heading > button { position:absolute; right:-20px; top:5px; width:170px; }
 .design-studio .strategy-panel { min-height:0; height:auto; padding:0; border-radius:16px; margin:0 0 16px; }
 .design-studio summary { min-height:48px; padding:14px 20px; cursor:pointer; font-size:15px; display:flex; gap:18px; align-items:center; }

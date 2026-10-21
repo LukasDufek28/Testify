@@ -3,8 +3,8 @@ import base from './playwright.config';
 
 // Exercise the same core journeys in every engine, including touch input.
 // Keep the full visual and responsive regression suite in the primary config.
-const core = /registration opens|expired API|assistant grows|formats readable|global chat|assistant explains|creating an AI draft|commission and percentage|retired replay URL|saved defaults persist|batch preserves|strategy library imports|CSV data import|manual editing validates|editor opens the single|mobile editor|Improve uses|saved results show|trade selection and filters|history filters and comparison|background.*viewport|short monthly|equity axis distinguishes/;
-const touchCore = /registration opens|expired API|assistant grows|formats readable|global chat|assistant explains|creating an AI draft|commission and percentage|retired replay URL|saved defaults persist|batch preserves|strategy library imports|CSV data import|editor opens the single|mobile editor|saved results show|trade selection and filters|history filters and comparison|background.*viewport|short monthly|equity axis distinguishes/;
+const core = /registration opens|expired API|assistant grows|formats readable|global chat|assistant explains|creating an AI draft|commission and percentage|retired replay URL|saved defaults persist|batch preserves|strategy library imports|CSV data import|manual editing validates|editor opens the single|mobile editor|Improve uses|saved results show|trade selection and filters|history filters and comparison|background.*viewport|short monthly|equity axis distinguishes|programmed trade/;
+const touchCore = /registration opens|expired API|assistant grows|formats readable|global chat|assistant explains|creating an AI draft|commission and percentage|retired replay URL|saved defaults persist|batch preserves|strategy library imports|CSV data import|editor opens the single|mobile editor|saved results show|trade selection and filters|history filters and comparison|background.*viewport|short monthly|equity axis distinguishes|programmed trade/;
 export default defineConfig({
   ...base,
   timeout: 60000,

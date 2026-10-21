@@ -40,7 +40,7 @@ async function runProgrammableBacktest(dataset: Dataset, strategy: ScriptStrateg
     const gross = p.sideNumber * units * (price - p.entry);
     cash += gross - fee; totalFees += fee;
     const pnl = gross - fee - entryFee - fundingCost;
-    trades.push({ entryTime: p.entryTime, exitTime: bar.time + (atClose ? seconds : 0), side: p.sideNumber, entry: p.entry, exit: price, pnl, returnPct: pnl / p.equityAtEntry * 100, reason, ...(p.initialRisk > 0 ? { rMultiple: pnl / (p.initialRisk * units / p.initialUnits) } : {}), funding: fundingCost });
+    trades.push({ entryTime: p.entryTime, exitTime: bar.time + (atClose ? seconds : 0), side: p.sideNumber, entry: p.entry, exit: price, pnl, returnPct: pnl / p.equityAtEntry * 100, reason, ...(p.initialRisk > 0 ? { rMultiple: pnl / (p.initialRisk * units / p.initialUnits) } : {}), funding: fundingCost, stopLoss:p.stopPrice, takeProfit:p.takeProfitPrice });
     if (pct === 100) position = null;
     else { p.units -= units; p.entryFee -= entryFee; p.funding -= fundingCost; }
   };

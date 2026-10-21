@@ -2,6 +2,14 @@ import { parseStrategy, type Run, type Trade, type RuleStrategy, type EquityPoin
 const rulesCache=new WeakMap<Run,{source:string|undefined;rules:RuleStrategy|null}>();
 export function savedRules(run: Run) { const cached=rulesCache.get(run);if(cached&&cached.source===run.strategySource)return cached.rules;let rules:RuleStrategy|null=null;try{const parsed=run.strategySource?parseStrategy(run.strategySource):null;rules=parsed?.version === 3 ? null : parsed;}catch{/* Older snapshots can be unavailable. */}rulesCache.set(run,{source:run.strategySource,rules});return rules; }
 export function tradeR(run: Run, trade: Trade) { if (Number.isFinite(trade.rMultiple)) return trade.rMultiple!; const rules=savedRules(run); const riskPct=rules ? rules.allocationPct*rules.stopLossPct/100 : 0; return riskPct>0 ? trade.returnPct/riskPct : null; }
+export function tradeLevels(run:Run,trade:Trade) {
+  const rules=savedRules(run);
+  const valid=(value:number|null|undefined)=>typeof value==='number'&&Number.isFinite(value)&&value>0?value:null;
+  return {
+    stopLoss:trade.stopLoss!==undefined?valid(trade.stopLoss):rules?.stopLossPct?valid(trade.entry*(1-trade.side*rules.stopLossPct/100)):null,
+    takeProfit:trade.takeProfit!==undefined?valid(trade.takeProfit):rules?.takeProfitPct?valid(trade.entry*(1+trade.side*rules.takeProfitPct/100)):null,
+  };
+}
 export function resultMetrics(run: Run) {
   const profit=run.trades.reduce((sum,t)=>sum+Math.max(0,t.pnl),0);
   const loss=run.trades.reduce((sum,t)=>sum+Math.max(0,-t.pnl),0);
@@ -15,7 +23,7 @@ export function monthlyReturns(run: Run) {
 }
 export function csvCell(value: unknown) { const text=String(value??''); const safe=/^[=+@\-\t\r]/.test(text)&&typeof value==='string' ? `'${text}`:text;return `"${safe.replaceAll('"','""')}"`; }
 export function csvRows(rows:unknown[][]) { return rows.map(row=>row.map(csvCell).join(',')).join('\r\n'); }
-export function tradesCsv(run: Run) {return csvRows([['Run','Strategy','Market','Entry UTC','Exit UTC','Side','Entry price','Exit price','Net P/L','Return %','R','Exit reason'],...run.trades.map(t=>[run.name,run.strategyName,run.symbol,new Date(t.entryTime*1000).toISOString(),new Date(t.exitTime*1000).toISOString(),t.side===1?'Long':'Short',t.entry,t.exit,t.pnl,t.returnPct,tradeR(run,t),t.reason])]);}
+export function tradesCsv(run: Run) {return csvRows([['Run','Strategy','Market','Entry UTC','Exit UTC','Side','Entry price','Exit price','Net P/L','Return %','R','Exit reason','Stop loss at exit','Take profit at exit'],...run.trades.map(t=>{const levels=tradeLevels(run,t);return [run.name,run.strategyName,run.symbol,new Date(t.entryTime*1000).toISOString(),new Date(t.exitTime*1000).toISOString(),t.side===1?'Long':'Short',t.entry,t.exit,t.pnl,t.returnPct,tradeR(run,t),t.reason,levels.stopLoss,levels.takeProfit];})]);}
 export function comparisonCsv(runs:Run[]) {return csvRows([['Run','Strategy','Market','Timeframe seconds','Start UTC','End UTC','Starting capital','Fee bps','Slippage bps','Fixed fee per round trip','Spread bps','Risk % equity','Return %','Max drawdown %','Win rate %','Trades','Profit factor','Average R'],...runs.map(run=>{const m=resultMetrics(run);return [run.name,run.strategyName,run.symbol,run.granularity,new Date(run.settings.start*1000).toISOString(),new Date(run.settings.end*1000).toISOString(),run.settings.capital,run.settings.feeBps,run.settings.slippageBps,run.settings.feePerTrade,run.settings.spreadBps??0,run.settings.riskPct??0,run.metrics.netReturnPct,run.metrics.maxDrawdownPct,run.metrics.winRatePct,run.metrics.tradeCount,m.profitFactor,m.averageR];})]);}
 
 export function sampleCurve(points:EquityPoint[],limit=1800):EquityPoint[] {

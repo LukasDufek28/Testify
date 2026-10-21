@@ -21,7 +21,7 @@ import {
   designIcons,
 } from "./PenpotPrimitives";
 import { latestStrategyRuns } from "./strategyLibrary";
-import { savedRules, tradeR, tradesCsv } from "./results";
+import { savedRules, tradeR, tradeLevels, tradesCsv } from "./results";
 import { replayPreview } from "./penpotReplayPreview";
 import ConfirmStrategyDelete from "./ConfirmStrategyDelete";
 import type { WorkspacePage } from "./WorkspaceShell";
@@ -619,20 +619,14 @@ function Replay({ p }: { p: Props }) {
     Math.min(bar, candles.length),
   );
   const rules = p.selectedRun ? savedRules(p.selectedRun) : null;
-  const stopLoss =
-    trade && rules?.stopLossPct
-      ? trade.entry * (1 - (trade.side * rules.stopLossPct) / 100)
-      : undefined;
-  const takeProfit =
-    trade && rules?.takeProfitPct
-      ? trade.entry * (1 + (trade.side * rules.takeProfitPct) / 100)
-      : undefined;
+  const {stopLoss,takeProfit}=p.selectedRun&&trade?tradeLevels(p.selectedRun,trade):{stopLoss:null,takeProfit:null};
+  const tradePrices=[trade?.entry,trade?.exit,stopLoss,takeProfit].filter((value):value is number=>typeof value==='number'&&Number.isFinite(value));
   const extrema = candles.reduce(
     (range, candle) => ({
       min: Math.min(range.min, candle.low),
       max: Math.max(range.max, candle.high),
     }),
-    { min: Infinity, max: -Infinity },
+    { min: Math.min(Infinity,...tradePrices), max: Math.max(-Infinity,...tradePrices) },
   );
   const padding = candles.length
     ? Math.max((extrema.max - extrema.min) * 0.15, extrema.max * 0.001)
@@ -1023,6 +1017,7 @@ function Replay({ p }: { p: Props }) {
               </div>
             ))}
           </dl>
+          {p.selectedRun&&trade&&!rules&&<p className="design-trade-risk-note">{trade.stopLoss===undefined&&trade.takeProfit===undefined?'SL/TP levels were not stored for this older run.':'SL/TP show the levels active at exit.'}</p>}
           <div className="design-trade-actions">
             <button
               className="design-button"

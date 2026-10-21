@@ -43,6 +43,7 @@ test('workspace APIs return owned metrics, comparison/export context, paged trad
   async function get(query,api=handler){const r=response();await api({method:'GET',headers:{host:'testify.test'},query},r);assert.equal(r.code,200);return r.body;}
   const summary=await get({kind:'runs',id:'a',section:'summary'});assert.equal(summary.summary.metrics.tradeCount,a.trades.length);assert.ok(summary.summary.metrics.netProfit>0);assert.ok(summary.csv.includes('Entry UTC'));assert.equal(summary.summary.monthlyReturns.length,1);
   const page=await get({kind:'runs',id:'a',section:'trades',offset:0,limit:2});assert.equal(page.trades.length,2);assert.equal(page.nextOffset,2);assert.deepEqual(page.settings,a.settings);
+  assert.equal(page.trades[0].stopLoss,a.trades[0].stopLoss);assert.equal(page.trades[0].takeProfit,a.trades[0].takeProfit);assert.ok(summary.csv.includes('Stop loss at exit'));
   const compared=await get({kind:'runs',ids:'a,b'});assert.equal(compared.comparison.length,2);assert.ok(compared.csv.includes('Starting capital'));
   const metadata=await get({includeMetadata:'1'},createStrategiesHandler(()=>sql,async()=>({id:user})));assert.equal(metadata.strategies[0].market,'BTC-USD');assert.equal(metadata.strategies[0].lastResult.id,'b');
   const defaults=await get({kind:'preferences'});assert.equal(defaults.records.length,0);assert.equal(defaults.defaults.capital,10000);
