@@ -21,6 +21,20 @@ test.beforeEach(async ({ page }) => {
     route.fulfill({ json: { markets: [{ id: "BTC-USD" }] } }),
   );
 });
+test('workspace search opens matching saved strategies and clearing it restores the library',async({page})=>{
+ await page.goto('/#/app/strategies');
+ await importJson(page,[{...exampleStrategy,name:'BTC momentum'},{...exampleStrategy,name:'ETH breakout'}]);
+ await expect(page.locator('.strategy-card')).toHaveCount(2);
+ await page.getByRole('button',{name:'Dashboard',exact:true}).click();
+ const search=page.getByRole('searchbox',{name:'Search your workspace'});
+ await search.fill('ETH breakout');await search.press('Enter');
+ await expect(page).toHaveURL(/#\/app\/strategies$/);
+ await expect(page.getByRole('searchbox',{name:'Search strategies',exact:true})).toHaveValue('ETH breakout');
+ await expect(page.locator('.strategy-card')).toHaveCount(1);
+ await expect(page.locator('.strategy-card')).toContainText('ETH breakout');
+ await search.fill('');await search.press('Enter');
+ await expect(page.locator('.strategy-card')).toHaveCount(2);
+});
 
 test("desktop library toolbar stays on one row and cards reflow on smaller windows", async ({
   page,
@@ -335,7 +349,7 @@ test("selected strategy opens setup and its latest run metadata is searchable wi
   await page.getByPlaceholder("Search strategies...").fill("ETH-USD 15m");
   await expect(page.locator(".strategy-card")).toHaveCount(1);
   await page.locator(".strategy-card summary").click();
-  await page.getByRole("button", { name: "Backtests", exact: true }).click();
+  await page.getByRole("button", { name: "New backtest", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Backtests", exact: true }),
   ).toBeVisible();
@@ -382,7 +396,7 @@ test("selection uses foundation checkboxes and never shifts strategy cards", asy
     { ...exampleStrategy, name: "Second" },
   ]);
   await expect(page.locator(".strategy-card")).toHaveCount(2);
-  await page.waitForTimeout(700);
+  await page.evaluate(()=>document.fonts.ready);
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const card = page.locator(".strategy-card").first(),

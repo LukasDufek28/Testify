@@ -1,3 +1,4 @@
+import {selectWorkspaceOption} from './fixtures';
 import { test, expect, clickWorkspaceButton } from "./fixtures";
 import { exampleStrategy } from "../../src/types";
 const strategy = { ...exampleStrategy, name: "My crossover" };
@@ -41,7 +42,7 @@ test("CSV data import validates files and runs the real worker on stored candles
   await page.getByRole("button",{name:"Details →",exact:true}).click();
   await expect(page.getByText("BTC-USD · 120 candles, sorted timestamps and valid prices.",{exact:true})).toBeVisible();
   await clickWorkspaceButton(page,'Backtests');
-  await page.getByRole("combobox",{name:"Market / dataset",exact:true}).selectOption({label:"BTC-USD · history.csv"});
+  await selectWorkspaceOption(page,"Market / dataset",{label:"BTC-USD · history.csv"});
   await page.reload();
   await expect(page.getByRole("combobox",{name:"Market / dataset",exact:true})).toContainText("history.csv");
 

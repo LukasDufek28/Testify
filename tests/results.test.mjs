@@ -1,8 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resultMetrics, drawdownCurve, monthlyReturns, tradeR, tradeLevels, tradesCsv, comparisonCsv, sampleCurve } from '../lib/shared/results.js';
+import { resultMetrics, drawdownCurve, monthlyReturns, tradeR, tradeLevels, tradesCsv, comparisonCsv, sampleCurve, formatTradePrice } from '../lib/shared/results.js';
 import { exampleStrategy } from '../lib/shared/types.js';
 const rules={...exampleStrategy,stopLossPct:2,allocationPct:50};
+test('trade prices preserve cents and small-asset precision without changing numeric exports',()=>{
+ assert.equal(formatTradePrice(84873.27),'$84,873.27');
+ assert.equal(formatTradePrice(.000012345),'$0.000012345');
+ assert.equal(formatTradePrice(1.2345e-14),'$1.2345e-14');
+ assert.equal(formatTradePrice(.081234),'$0.081234');
+ assert.equal(formatTradePrice(0),'$0.00');
+ assert.equal(formatTradePrice(NaN),'—');
+});
 const run={name:'CSV "run"',strategyName:'=unsafe',symbol:'BTC-USD',strategySource:JSON.stringify(rules),settings:{capital:1000,start:1735689600,end:1740787200,feeBps:2,slippageBps:1},metrics:{netReturnPct:5},trades:[{entryTime:1735689600,exitTime:1735693200,side:1,entry:100,exit:102,pnl:80,returnPct:8,reason:'Take profit'},{entryTime:1735693200,exitTime:1735696800,side:-1,entry:102,exit:103,pnl:-40,returnPct:-4,reason:'Stop loss'}],curve:[{time:1735689600,equity:1100},{time:1735776000,equity:990},{time:1738368000,equity:1050}]};
 
 test('trade review and CSV use measured levels, retain explicit disabled targets and avoid inventing script levels',()=>{

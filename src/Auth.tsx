@@ -66,7 +66,9 @@ export default function Auth({initialPage = "overview"}: {initialPage?: Workspac
     return () => { controller.abort(); clearInterval(timer); window.removeEventListener("focus", focus); };
   }, [user?.sessionId]);
   if (loading) return <AccountLoading/>;
-  if (user) return <App initialPage={initialPage} key={`${user.id}:${user.sessionId}`} userId={user.id} sessionId={user.sessionId} onSessionExpired={() => { setUser(null); setError("Your session changed or expired. Please sign in again."); }} accountControls={<AccountMenu email={user.email} busy={busy} onLogout={()=>void logout()} error={error}/>}/>;
+  const handle=user?.email.split('@')[0].split(/[._+-]/)[0]||'there';
+  const userName=user?.guest?'there':handle.charAt(0).toUpperCase()+handle.slice(1);
+  if (user) return <App userName={userName} initialPage={initialPage} key={`${user.id}:${user.sessionId}`} userId={user.id} sessionId={user.sessionId} onSessionExpired={() => { setUser(null); setError("Your session changed or expired. Please sign in again."); }} accountControls={<AccountMenu email={user.email} busy={busy} onLogout={()=>void logout()} error={error}/>}/>;
   if (previewGuest && !connecting) return <div className="auth-screen"><section className="panel auth-card"><h1>Preview workspace</h1><p role="alert">{error || "Your guest session expired. Reload to continue."}</p><button className="button primary" onClick={() => window.location.reload()}>Open guest workspace</button></section></div>;
   return <div className="landing auth-screen auth-approved">
     <div className="auth-public-header"><PublicHeader account/></div>

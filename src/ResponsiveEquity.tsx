@@ -119,9 +119,9 @@ export default function ResponsiveEquity({ run, className = "" }: { run?: Run; c
         {equityLabels.map((label,i) => <text key={i} data-axis="equity" x="1" y={5 + i * (height - 10) / 3} fill="#66636e" fontSize="11">{label}</text>)}
         {[0, 1, 2, 3, 4].map(i => <text key={i} x={width - 1} y={5 + i * (height - 10) / 4} textAnchor="end" fill="#66636e" fontSize="11">{Math.round(maxLoss - i * maxLoss / 4)}%</text>)}
         <g transform={`translate(${gutter} 0) scale(${plotWidth / (right - left)} ${height / (bottom - top)}) translate(${-left} ${-top})`}>
-          <path d={`${lossD}L${right},${bottom}L${left},${bottom}Z`} fill={`url(#${id}-stripes)`} mask={`url(#${id}-mask)`} />
-          <path ref={lossPath} data-chart="benchmark" d={lossD} fill="none" stroke="#e69a9a" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
-          <path ref={equityPath} data-chart="strategy" d={equityD} fill="none" stroke={`url(#${id}-equity)`} strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+          <motion.path key={(run?.id||'preview')+'-area'} initial={reduced?false:{opacity:0}} whileInView={{opacity:1}} viewport={{once:true}} animate={reduced?{opacity:1}:undefined} transition={{duration:reduced?0:.5,delay:reduced?0:.15}} d={`${lossD}L${right},${bottom}L${left},${bottom}Z`} fill={`url(#${id}-stripes)`} mask={`url(#${id}-mask)`} />
+          <motion.path key={(run?.id||'preview')+'-drawdown'} initial={reduced?false:{pathLength:0}} whileInView={{pathLength:1}} viewport={{once:true}} animate={reduced?{pathLength:1}:undefined} transition={{duration:reduced?0:.75,ease:[.22,1,.36,1]}} ref={lossPath} data-chart="benchmark" d={lossD} fill="none" stroke="#e69a9a" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+          <motion.path key={(run?.id||'preview')+'-equity'} initial={reduced?false:{pathLength:0}} whileInView={{pathLength:1}} viewport={{once:true}} animate={reduced?{pathLength:1}:undefined} transition={{duration:reduced?0:.75,ease:[.22,1,.36,1]}} ref={equityPath} data-chart="strategy" d={equityD} fill="none" stroke={`url(#${id}-equity)`} strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
         </g>
         <motion.line x1={cursorX} x2={cursorX} y1="0" y2={height} stroke="#9e9da7" strokeWidth=".8" />
         <motion.circle data-chart="equity-marker" cx={cursorX} cy={cursorY} r="3" fill="#91f5ab" /><motion.circle cx={cursorX} cy={drawdownY} r="3" fill="#e69a9a" />

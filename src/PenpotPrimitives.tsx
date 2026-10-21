@@ -214,7 +214,7 @@ export function DesignMonthly({
       <div className="design-monthly-bars">
         {bars.map(({ height, label, negative }, index) => (
           <button
-            key={label + index}
+            key={(run?.id || 'preview') + label + index}
             aria-label={label + " monthly return"}
             aria-pressed={Math.min(selected, bars.length - 1) === index}
             onClick={() => setSelected(index)}
@@ -222,7 +222,7 @@ export function DesignMonthly({
             onFocus={() => setSelected(index)}
             className={negative ? "negative" : ""}
           >
-            <motion.span initial={false} animate={{ height: Math.max(3, height * 100) + "%" }} transition={{ duration: reducedMotion ? 0 : .2 }} />
+            <motion.span style={{height:Math.max(3,height*100)+'%',transformOrigin:'50% 100%'}} initial={reducedMotion?false:{scaleY:0}} animate={{height:Math.max(3,height*100)+'%',...(reducedMotion?{scaleY:1}:{})}} whileInView={{scaleY:1}} viewport={{once:true}} transition={{duration:reducedMotion?0:.4,delay:reducedMotion?0:index*.035,ease:[.22,1,.36,1]}} />
             <small>{label}</small>
           </button>
         ))}

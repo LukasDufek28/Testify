@@ -1,4 +1,11 @@
 import {test as base, expect, type Page} from '@playwright/test';
+export async function selectWorkspaceOption(page:Page,name:string,option:string|{label:string}){
+ const trigger=page.getByRole('combobox',{name,exact:true});
+ if(await trigger.evaluate(el=>el.tagName==='SELECT')){await trigger.selectOption(option);return;}
+ await trigger.click();
+ if(typeof option==='string')await page.locator('[role="option"][data-value='+JSON.stringify(option)+']').click();
+ else await page.getByRole('option',{name:option.label,exact:true}).click();
+}
 export async function clickWorkspaceButton(page:Page,name:string){
  await expect(page.locator('.penpot-workspace')).toBeVisible();
  const button=page.getByRole('button',{name,exact:true});

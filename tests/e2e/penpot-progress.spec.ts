@@ -32,7 +32,7 @@ test("backtest progress advances with loaded candles, estimates remaining time a
   );
   await page.goto("/#/app/backtests");
   await page.reload();
-  await expect(page.getByRole('combobox',{name:'Strategy',exact:true})).not.toHaveValue('');
+  await expect(page.getByRole('combobox',{name:'Strategy',exact:true})).toContainText(exampleStrategy.name);
   await expect(page.getByRole('textbox',{name:'Start date',exact:true})).toHaveValue('2025-01-01');
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));

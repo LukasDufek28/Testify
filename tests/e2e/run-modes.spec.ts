@@ -1,3 +1,4 @@
+import {selectWorkspaceOption} from './fixtures';
 import {test,expect} from './fixtures';
 import {exampleStrategy} from '../../src/types';
 const base=1735689600;
@@ -11,7 +12,7 @@ async function setup(page:any){
   await page.getByLabel('Import historical CSV file').setInputFiles({name:'replay.csv',mimeType:'text/csv',buffer:Buffer.from(csv)});
   await expect(page.locator('.workspace-table tbody tr')).toHaveCount(1);
   await page.goto('/#/app/backtests');
-  await page.getByRole('combobox',{name:'Market / dataset',exact:true}).selectOption({label:'BTC-USD · replay.csv'});
+  await selectWorkspaceOption(page,"Market / dataset",{label:'BTC-USD · replay.csv'});
 }
 
 test('retired replay URL opens the existing trade review without manual trading controls',async({page})=>{
@@ -32,7 +33,7 @@ test('saved defaults persist costs, risk and timezone, and can be reapplied with
 
 test('batch preserves a completed child on failure and resumes only missing runs after refresh',async({page})=>{
   await setup(page);await page.goto('/#/app/runsettings');
-  await page.getByRole('combobox',{name:'Market / dataset',exact:true}).selectOption('online');
+  await selectWorkspaceOption(page,"Market / dataset",'online');
   let calls=0,fail=true;
   await page.route('**/api/candles?**',route=>{
     calls++;if(calls===2&&fail)return route.fulfill({status:503,json:{error:'Temporary market failure'}});

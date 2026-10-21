@@ -241,6 +241,7 @@
   margin: 31px 20px 12px;
 }
 .design-page-heading h1 {
+  overflow-wrap:anywhere;
   font-size: 34px;
   line-height: 45px;
   letter-spacing: -0.015em;
@@ -700,7 +701,8 @@
 }
 .design-field input:not([type="range"]),
 .design-field select,
-.design-library-toolbar :is(input, select) {
+.design-field .control-trigger,
+.design-library-toolbar :is(input, select, .control-trigger) {
   min-width: 0;
   width: 100%;
   height: 47px;
@@ -719,6 +721,8 @@
   padding-right: 12px;
 }
 .design-run-simple {
+  align-self:start;
+  width:100%;
   height: 677px;
   padding: 20px;
   display: flex;
@@ -778,7 +782,7 @@
   gap: 16px;
   margin-bottom: 20px;
 }
-.design-library-toolbar :is(input, select) {
+.design-library-toolbar :is(input, select, .control-trigger) {
   height: 44px;
   border-radius: 24px;
   font-size: 14px;
@@ -786,6 +790,18 @@
     linear-gradient(#222128, #222128) padding-box,
     linear-gradient(#36353f, #282730) border-box;
 }
+.penpot-workspace .control-trigger {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  text-align:left;
+  font-family:inherit;
+  cursor:pointer;
+}
+.penpot-workspace .control-trigger:disabled {cursor:default;opacity:.5;}
+.penpot-workspace .control-trigger:hover:not(:disabled) {filter:brightness(1.1);}
+.control-options button:disabled {opacity:.4;cursor:not-allowed;background:transparent;}
 .design-search {
   position: relative;
 }

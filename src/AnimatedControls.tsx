@@ -1,4 +1,4 @@
-import { Children, isValidElement, useEffect, useLayoutEffect, useId, useRef, useState, type ReactNode, type SelectHTMLAttributes, type InputHTMLAttributes, type ChangeEvent } from "react";
+import { Children, isValidElement, useEffect, useLayoutEffect, useId, useRef, useState, type ReactNode, type SelectHTMLAttributes, type InputHTMLAttributes, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import "./controls.css";
 
@@ -14,15 +14,49 @@ function usePopup() {
 }
 const optionText = (node: ReactNode): string => Children.toArray(node).map(child => isValidElement(child) ? optionText((child.props as {children?:ReactNode}).children) : String(child)).join("");
 export function AnimatedSelect({children,value,onChange,disabled,"aria-label":label}:SelectHTMLAttributes<HTMLSelectElement>) {
-  const popup=usePopup();const id=useId();const [search,setSearch]=useState('');const [active,setActive]=useState(0);
-  const options=Children.toArray(children).filter(isValidElement).map(child=>{const p=child.props as {value?:string|number;children?:ReactNode;disabled?:boolean};return {value:String(p.value??optionText(p.children)),label:optionText(p.children),disabled:p.disabled};});
+  const popup=usePopup(),id=useId();
+  const [search,setSearch]=useState(''),[active,setActive]=useState(-1);
+  const options=Children.toArray(children).filter(isValidElement).map(child=>{
+    const p=child.props as {value?:string|number;children?:ReactNode;disabled?:boolean};
+    return {value:String(p.value??optionText(p.children)),label:optionText(p.children),disabled:p.disabled};
+  });
   const filtered=options.filter(o=>o.label.toLowerCase().includes(search.toLowerCase()));
   const selected=options.find(o=>o.value===String(value));
-  useEffect(()=>{if(popup.open) popup.panel.current?.querySelector(".keyboard-active")?.scrollIntoView({block:"nearest"});},[active,popup.open,popup.mounted]);
-  const choose=(v:string)=>{onChange?.({target:{value:v}} as ChangeEvent<HTMLSelectElement>);popup.setOpen(false);popup.trigger.current?.focus();};
-  const show=()=>{setSearch('');setActive(Math.max(0,options.findIndex(o=>o.value===String(value))));popup.setOpen(true);};
-  return <div className="custom-control"><button type="button" ref={popup.trigger} role="combobox" aria-label={label} aria-expanded={popup.open} aria-controls={id} aria-haspopup="listbox" aria-activedescendant={popup.open ? `${id}-${active}` : undefined} disabled={disabled} className="control-trigger" onClick={()=>popup.open?popup.setOpen(false):show()} onKeyDown={e=>{if(['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();if(!popup.open)show();else setActive(a=>Math.max(0,Math.min(filtered.length-1,a+(e.key==='ArrowDown'?1:-1))));}else if(popup.open&&e.key==='Enter'){e.preventDefault();if(filtered[active]&&!filtered[active].disabled)choose(filtered[active].value);}}}>{selected?.label||'Choose an option'}<span className={popup.open?'control-chevron open':'control-chevron'}>⌄</span></button>
-    {popup.mounted&&createPortal(<div ref={popup.panel} aria-hidden={!popup.open} className={`control-popup${popup.open ? "" : " closing"}`} style={popup.position}>{options.length>8&&<input autoFocus type="search" aria-label={`Search ${label||'options'}`} placeholder="Search…" value={search} onChange={e=>{setSearch(e.target.value);setActive(0);}} onKeyDown={e=>{if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();setActive(a=>Math.max(0,Math.min(filtered.length-1,a+(e.key==='ArrowDown'?1:-1))));}if(e.key==='Enter'&&filtered[active]){e.preventDefault();choose(filtered[active].value);}}}/>}<div role="listbox" id={id} aria-label={label} className="control-options">{filtered.map((o,i)=><button type="button" role="option" id={`${id}-${i}`} aria-selected={o.value===String(value)} disabled={o.disabled} className={i===active?'keyboard-active':''} key={o.value} onClick={()=>choose(o.value)}>{o.label}{o.value===String(value)&&<span aria-hidden="true">✓</span>}</button>)}{!filtered.length&&<p>No matches</p>}</div></div>,document.body)}
+  const activeId=popup.open&&filtered[active]&&!filtered[active].disabled?`${id}-${active}`:undefined;
+  useEffect(()=>{if(popup.open)popup.panel.current?.querySelector('.keyboard-active')?.scrollIntoView({block:'nearest'});},[active,search,popup.open,popup.mounted]);
+  function choose(v:string){
+    if(disabled||!options.some(o=>o.value===v&&!o.disabled))return;
+    onChange?.({target:{value:v}} as ChangeEvent<HTMLSelectElement>);
+    popup.setOpen(false);popup.trigger.current?.focus();
+  }
+  function show(){
+    setSearch('');
+    const current=options.findIndex(o=>o.value===String(value)&&!o.disabled);
+    setActive(current>=0?current:options.findIndex(o=>!o.disabled));
+    popup.setOpen(true);
+  }
+  function keyDown(e:ReactKeyboardEvent<HTMLElement>){
+    if(e.key==='Tab'&&popup.open){popup.setOpen(false);popup.trigger.current?.focus();return;}
+    if(!popup.open){if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();show();}return;}
+    if(e.key==='Enter'){e.preventDefault();if(filtered[active])choose(filtered[active].value);return;}
+    if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;
+    e.preventDefault();
+    const enabled=filtered.flatMap((o,i)=>o.disabled?[]:[i]);
+    if(!enabled.length){setActive(-1);return;}
+    const position=enabled.indexOf(active);
+    setActive(e.key==='Home'?enabled[0]:e.key==='End'?enabled.at(-1)!:enabled[Math.max(0,Math.min(enabled.length-1,position+(e.key==='ArrowDown'?1:-1)))]);
+  }
+  return <div className="custom-control">
+    <button type="button" ref={popup.trigger} role="combobox" aria-label={label} aria-expanded={popup.open} aria-controls={id} aria-haspopup="listbox" aria-activedescendant={activeId} disabled={disabled} className="control-trigger" onClick={()=>popup.open?popup.setOpen(false):show()} onKeyDown={keyDown}>
+      <span className="control-value">{selected?.label||'Choose an option'}</span><span aria-hidden="true" className={popup.open?'control-chevron open':'control-chevron'}>⌄</span>
+    </button>
+    {popup.mounted&&createPortal(<div ref={popup.panel} aria-hidden={!popup.open} className={`control-popup${popup.open?'':' closing'}`} style={popup.position}>
+      {options.length>8&&<input autoFocus type="search" role="combobox" aria-label={`Search ${label||'options'}`} aria-controls={id} aria-expanded={popup.open} aria-activedescendant={activeId} placeholder="Search…" value={search} onChange={e=>{const query=e.target.value;setSearch(query);setActive(options.filter(o=>o.label.toLowerCase().includes(query.toLowerCase())).findIndex(o=>!o.disabled));}} onKeyDown={keyDown}/>}
+      <div role="listbox" id={id} aria-label={label} className="control-options">
+        {filtered.map((o,i)=><button type="button" tabIndex={-1} role="option" aria-label={o.label} id={`${id}-${i}`} data-value={o.value} aria-selected={o.value===String(value)} disabled={o.disabled} className={i===active&&!o.disabled?'keyboard-active':''} key={o.value} onClick={()=>choose(o.value)}>{o.label}{o.value===String(value)&&<span aria-hidden="true">✓</span>}</button>)}
+        {!filtered.length&&<p role="status">No matches</p>}
+      </div>
+    </div>,document.body)}
   </div>;
 }
 export function DateTimePicker({value,onChange,"aria-label":label}:InputHTMLAttributes<HTMLInputElement>) {

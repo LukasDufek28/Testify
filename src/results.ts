@@ -1,4 +1,11 @@
 import { parseStrategy, type Run, type Trade, type RuleStrategy, type EquityPoint } from "./types.js";
+export function formatTradePrice(value:number) {
+  if(!Number.isFinite(value))return '—';
+  const magnitude=Math.abs(value);
+  if(magnitude>0&&magnitude<1e-10)return '$'+value.toPrecision(5);
+  const digits=magnitude>0&&magnitude<1?Math.min(12,Math.max(6,Math.ceil(-Math.log10(magnitude))+4)):magnitude<100?6:2;
+  return '$'+value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:digits});
+}
 const rulesCache=new WeakMap<Run,{source:string|undefined;rules:RuleStrategy|null}>();
 export function savedRules(run: Run) { const cached=rulesCache.get(run);if(cached&&cached.source===run.strategySource)return cached.rules;let rules:RuleStrategy|null=null;try{const parsed=run.strategySource?parseStrategy(run.strategySource):null;rules=parsed?.version === 3 ? null : parsed;}catch{/* Older snapshots can be unavailable. */}rulesCache.set(run,{source:run.strategySource,rules});return rules; }
 export function tradeR(run: Run, trade: Trade) { if (Number.isFinite(trade.rMultiple)) return trade.rMultiple!; const rules=savedRules(run); const riskPct=rules ? rules.allocationPct*rules.stopLossPct/100 : 0; return riskPct>0 ? trade.returnPct/riskPct : null; }

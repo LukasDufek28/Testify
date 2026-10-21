@@ -21,7 +21,7 @@ import {
   designIcons,
 } from "./PenpotPrimitives";
 import { latestStrategyRuns } from "./strategyLibrary";
-import { savedRules, tradeR, tradeLevels, tradesCsv } from "./results";
+import { savedRules, tradeR, tradeLevels, tradesCsv, formatTradePrice } from "./results";
 import { replayPreview } from "./penpotReplayPreview";
 import ConfirmStrategyDelete from "./ConfirmStrategyDelete";
 import type { WorkspacePage } from "./WorkspaceShell";
@@ -46,6 +46,7 @@ export type RunOptions = {
   datasetId: string;
 };
 type Props = {
+  userName:string;
   apiFetch: ApiFetch; accountControls?: ReactNode; researchTools?: ReactNode; batchTools?:ReactNode; content?: ReactNode;
   studio?: ReactNode;
   resultDetails?: ReactNode;
@@ -94,8 +95,8 @@ const tradeDate = (time: number) =>
     minute: "2-digit",
     timeZone: getDisplayTimezone(),
   });
-const money = (n: number) =>
-  "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+const money = (n: number,digits=0) =>
+  "$" + n.toLocaleString("en-US", { minimumFractionDigits:digits,maximumFractionDigits:digits });
 const percentage = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -123,7 +124,7 @@ function SettingsFields({
     <>
       {!!p.datasets.length && (
         <Field label="Market / dataset">
-          <select
+          <AnimatedSelect
             aria-label="Market / dataset"
             value={o.datasetId}
             onChange={(e) => update("datasetId", e.target.value)}
@@ -134,11 +135,11 @@ function SettingsFields({
                 {d.symbol} · {d.fileName}
               </option>
             ))}
-          </select>
+          </AnimatedSelect>
         </Field>
       )}
       <Field label="Strategy">
-        <select
+        <AnimatedSelect
           aria-label="Strategy"
           value={o.strategyId}
           onChange={(e) => update("strategyId", e.target.value)}
@@ -148,11 +149,11 @@ function SettingsFields({
               {s.name}
             </option>
           ))}
-        </select>
+        </AnimatedSelect>
       </Field>
       <Field label={advanced ? "Timeframe" : "Market"}>
         {advanced ? (
-          <select
+          <AnimatedSelect
             aria-label="Timeframe"
             value={o.granularity}
             onChange={(e) => update("granularity", Number(e.target.value))}
@@ -161,7 +162,9 @@ function SettingsFields({
               [60, "1 minute"],
               [300, "5 minutes"],
               [900, "15 minutes"],
+              [1800, "30 minutes"],
               [3600, "1 hour"],
+              [14400, "4 hours"],
               [21600, "6 hours"],
               [86400, "1 day"],
             ].map(([value, label]) => (
@@ -169,9 +172,9 @@ function SettingsFields({
                 {label}
               </option>
             ))}
-          </select>
+          </AnimatedSelect>
         ) : (
-          <select
+          <AnimatedSelect
             aria-label="Market"
             value={o.markets[0] || "BTC-USD"}
             onChange={(e) => update("markets", [e.target.value])}
@@ -179,7 +182,7 @@ function SettingsFields({
             {[...new Set(["BTC-USD", ...p.markets])].map((s) => (
               <option key={s}>{s}</option>
             ))}
-          </select>
+          </AnimatedSelect>
         )}
       </Field>
       {advanced ? (
@@ -220,7 +223,7 @@ function SettingsFields({
       ) : (
         <>
           <Field label="Timeframe">
-            <select
+            <AnimatedSelect
               aria-label="Timeframe"
               value={o.granularity}
               onChange={(e) => update("granularity", Number(e.target.value))}
@@ -229,7 +232,9 @@ function SettingsFields({
                 [60, "1 minute"],
                 [300, "5 minutes"],
                 [900, "15 minutes"],
+                [1800, "30 minutes"],
                 [3600, "1 hour"],
+                [14400, "4 hours"],
                 [21600, "6 hours"],
                 [86400, "1 day"],
               ].map(([v, t]) => (
@@ -237,7 +242,7 @@ function SettingsFields({
                   {t}
                 </option>
               ))}
-            </select>
+            </AnimatedSelect>
           </Field>
           <Field label="Starting balance">
             <input
@@ -269,9 +274,8 @@ function SettingsFields({
     </>
   );
 }
-function Library({ p }: { p: Props }) {
-  const [search, setSearch] = useState(""),
-    [market, setMarket] = useState(""),
+function Library({ p,search,setSearch }: { p: Props;search:string;setSearch:(value:string)=>void }) {
+  const [market, setMarket] = useState(""),
     [selected, setSelected] = useState<string[]>([]),
     [sort, setSort] = useState("recent"),
     [deleting, setDeleting] = useState<SavedStrategy | null>(null),
@@ -327,7 +331,7 @@ function Library({ p }: { p: Props }) {
           />
           <Search size={15} />
         </div>
-        <select
+        <AnimatedSelect
           aria-label="Filter strategies by market"
           value={market}
           onChange={(e) => setMarket(e.target.value)}
@@ -336,15 +340,15 @@ function Library({ p }: { p: Props }) {
           {[...new Set(p.runs.map((r) => r.symbol))].map((s) => (
             <option key={s}>{s}</option>
           ))}
-        </select>
-        <select
+        </AnimatedSelect>
+        <AnimatedSelect
           aria-label="Sort strategies"
           value={sort}
           onChange={(e) => setSort(e.target.value)}
         >
           <option value="recent">Recently updated</option>
           <option value="name">Name</option>
-        </select>
+        </AnimatedSelect>
       </div>
       {error && (
         <p role="alert" className="design-error">
@@ -759,8 +763,8 @@ function Replay({ p }: { p: Props }) {
                 />
                 <text x="0" y={24 + i * 55} fill="#9e9da7" fontSize="12">
                   {p.selectedRun
-                    ? (high - (i * (high - low)) / 4).toLocaleString("en-US", {
-                        maximumFractionDigits: high < 10 ? 4 : 0,
+                    ? high>0&&high<.001?(high-i*(high-low)/4).toExponential(2):(high - (i * (high - low)) / 4).toLocaleString("en-US", {
+                        maximumFractionDigits: high < 10 ? 6 : 0,
                       })
                     : `${88 - i * 2}k`}
                 </text>
@@ -908,6 +912,7 @@ function Replay({ p }: { p: Props }) {
                   key={i}
                   x={55 + i * 139}
                   y="271"
+                  textAnchor={i===0?'start':i===5?'end':'middle'}
                   fill="#9e9da7"
                   fontSize="12"
                 >
@@ -973,24 +978,24 @@ function Replay({ p }: { p: Props }) {
           </p>
           <dl>
             {[
-              ["Entry", trade ? money(trade.entry) : "—"],
-              ["Exit", trade ? money(trade.exit) : "—"],
+              ["Entry", trade ? formatTradePrice(trade.entry) : "—"],
+              ["Exit", trade ? formatTradePrice(trade.exit) : "—"],
               [
                 "Stop loss",
-                p.selectedRun ? (stopLoss ? money(stopLoss) : "—") : "$80,800",
+                p.selectedRun ? (stopLoss ? formatTradePrice(stopLoss) : "—") : "$80,800",
               ],
               [
                 "Take profit",
                 p.selectedRun
                   ? takeProfit
-                    ? money(takeProfit)
+                    ? formatTradePrice(takeProfit)
                     : "—"
                   : "$85,696",
               ],
               [
                 "Net P/L",
                 trade
-                  ? (trade.pnl >= 0 ? "+" : "−") + money(Math.abs(trade.pnl))
+                  ? (trade.pnl >= 0 ? "+" : "−") + money(Math.abs(trade.pnl),2)
                   : "—",
               ],
               [
@@ -1070,11 +1075,11 @@ function Replay({ p }: { p: Props }) {
                 <tr key={i} aria-selected={index === i}>
                   <td>{tradeDate(t.entryTime)}</td>
                   <td>{t.side === 1 ? "Long" : "Short"}</td>
-                  <td>{money(t.entry)}</td>
-                  <td>{money(t.exit)}</td>
+                  <td>{formatTradePrice(t.entry)}</td>
+                  <td>{formatTradePrice(t.exit)}</td>
                   <td className={t.pnl >= 0 ? "mint" : "rose"}>
                     {t.pnl >= 0 ? "+" : "−"}
-                    {money(Math.abs(t.pnl))}
+                    {money(Math.abs(t.pnl),2)}
                   </td>
                   <td className={t.pnl >= 0 ? "mint" : "rose"}>
                     {p.selectedRun
@@ -1115,7 +1120,8 @@ export default function PenpotWorkspace(p: Props) {
   const [navOpen, setNavOpen] = useState(false),
     [settings, setSettings] = useState(false),
     [symbolSearch, setSymbolSearch] = useState(""),
-    [workspaceSearch, setWorkspaceSearch] = useState("");
+    [workspaceSearch, setWorkspaceSearch] = useState(""),
+    [librarySearch, setLibrarySearch] = useState("");
   const upload = useRef<HTMLInputElement>(null);
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -1177,7 +1183,7 @@ export default function PenpotWorkspace(p: Props) {
       : p.page === "studio" ? "strategies" : p.page;
   const title =
     p.page === "overview"
-      ? "Hello, Adam!"
+      ? `Hello, ${p.userName}!`
       : p.page === "manual" ? "Manual replay" : p.page === "connections" ? "Connections" : p.page === "studio" ? "Strategy creation" : p.page === "strategies"
         ? "Strategies"
         : p.page === "runsettings"
@@ -1327,8 +1333,11 @@ export default function PenpotWorkspace(p: Props) {
             value={workspaceSearch}
             onChange={(e) => setWorkspaceSearch(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && workspaceSearch.trim())
+              if (e.key === "Enter") {
+                e.preventDefault();
+                setLibrarySearch(workspaceSearch.trim());
                 nav("strategies");
+              }
             }}
           />
           <small>{sample ? "Preview data" : "Saved workspace"}</small>
@@ -1479,7 +1488,7 @@ export default function PenpotWorkspace(p: Props) {
                 </button>
               </DesignCard>
             ) : (
-              <Library p={p} />
+              <Library p={p} search={librarySearch} setSearch={setLibrarySearch} />
             )}
           </div>
         )}

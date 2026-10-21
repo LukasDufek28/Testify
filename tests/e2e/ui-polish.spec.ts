@@ -1,5 +1,30 @@
 import {test,expect} from './fixtures';
 
+test('equity reveals once in view and keeps its drawn state during hover and resize',async({page})=>{
+ await page.goto('/');
+ const line=page.locator('[data-chart="strategy"]');
+ await expect(line).toHaveAttribute('stroke-dasharray','0 1');
+ await line.scrollIntoViewIfNeeded();
+ await expect.poll(()=>line.getAttribute('stroke-dasharray')).toBe('1 1');
+ const plot=page.locator('.responsive-equity-plot');await plot.hover({position:{x:300,y:80}});
+ await expect(line).toHaveAttribute('stroke-dasharray','1 1');
+ await page.setViewportSize({width:390,height:844});await expect(line).toHaveAttribute('stroke-dasharray','1 1');
+ await page.emulateMedia({reducedMotion:'reduce'});await page.reload();
+ // Reduced motion draws the final curve even before scrolling to the showcase.
+ await expect(line).toHaveAttribute('stroke-dasharray','1 1');
+});
+
+test('late loaded strategy cards animate once and remain visible after filtering',async({page})=>{
+ await page.goto('/#/app/strategies');
+ const {exampleStrategy}=await import('../../src/types');
+ await page.getByLabel('Import strategy JSON file').setInputFiles({name:'late.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(exampleStrategy))});
+ const card=page.locator('.strategy-card');await expect(card).toHaveCount(1);
+ await expect(card).toHaveCSS('opacity','1');await expect(card).toHaveCSS('translate','0px');
+ await page.getByRole('searchbox',{name:'Search strategies',exact:true}).fill('missing');await expect(card).toHaveCount(0);
+ await page.getByRole('searchbox',{name:'Search strategies',exact:true}).fill('');await expect(card).toHaveCSS('opacity','1');
+ await page.emulateMedia({reducedMotion:'reduce'});await page.reload();await expect(card).toHaveCSS('opacity','1');
+});
+
 test('static cards tilt slightly with a mouse, settle on leave, and stay flat for touch and reduced motion',async({page})=>{
  await page.goto('/#/app/overview');
  const card=page.locator('.design-metric').first();await card.scrollIntoViewIfNeeded();
