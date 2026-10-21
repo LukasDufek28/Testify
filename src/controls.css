@@ -27,6 +27,7 @@
 
 .control-popup { background:#222128; border-color:#36353f; border-radius:16px; font-family:Urbanist,sans-serif; color:#f9f9fa; color-scheme:dark; box-shadow:0 12px 30px #0005; }
 .control-popup input { background:#18171f; border-color:#36353f; border-radius:10px; }
+.control-popup :is(input,button):focus-visible {outline:1px solid #a394e5;outline-offset:2px;}
 .control-popup button:hover,.control-popup button:focus-visible,.control-options .keyboard-active,.control-options button[aria-selected=true] { background:#34323e; }
 .control-options button[aria-selected=true] { box-shadow:inset 2px 0 #9a8ed3; }
 .calendar-footer { border-color:#36353f; }

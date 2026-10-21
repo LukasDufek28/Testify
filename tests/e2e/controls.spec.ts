@@ -16,6 +16,7 @@ test('searchable dark markets support keyboard selection, no matches and Escape'
  const market=page.getByRole('combobox',{name:'Market',exact:true});
  await market.hover();expect(await market.evaluate(el=>getComputedStyle(el).backgroundImage)).toContain('24, 23, 31');
  await market.click();const search=page.getByRole('combobox',{name:'Search Market',exact:true});
+ await expect(search).toHaveCSS('outline-color','rgb(163, 148, 229)');
  await expect(page.locator('.control-popup')).toHaveCSS('background-color','rgb(34, 33, 40)');
  await search.fill('COIN9');await search.press('Enter');
  await expect(market).toContainText('COIN9-USD');await expect(market).toBeFocused();
