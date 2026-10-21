@@ -7,7 +7,7 @@ async function readJob(id: string,version:number) {
   const completed=await sql`SELECT payload->>'symbol' AS symbol FROM testify_run_summaries WHERE job_id=${id} AND user_id=${job.user_id}`;
   return {config:job.config,completedMarkets:completed.map(r=>r.symbol),superseded:job.execution_version!==version,cancelled:!!cancelled(job),concurrency:Math.min(4,Math.max(1,Math.floor(Number(process.env.MCP_MARKET_CONCURRENCY)||3)))};
 }
-async function loadChunk(id:string,market:string,cursor:number,version:number):Promise<{cursor:number;cancelled?:boolean;budgetWait?:number;retryAfter?:number;rateWait?:number;done?:boolean}> {
+async function loadChunk(id:string,market:string,cursor:number,version:number):Promise<{cursor:number;cancelled?:boolean;retryAfter?:number;rateWait?:number;done?:boolean}> {
   "use step";
   const {loadMarketChunk}=await import("../../../lib/mcp/execution.js");return loadMarketChunk(id,market,cursor,version);
 }
@@ -38,7 +38,6 @@ export async function backtestWorkflow(id:string,version=0) {
         while(true){
           const result=await loadChunk(id,market,cursor,version);cursor=result.cursor;
           if(result.cancelled)return;
-          if(result.budgetWait){await sleep(result.budgetWait);continue;}
           if(result.retryAfter){await sleep(Math.max(result.retryAfter*1000,Math.min(600000,60000*2**Math.min(retries++,4))));cursor=Math.ceil((c.settings.warmupStart??c.settings.start)/c.granularity)*c.granularity;continue;}
           if(result.rateWait){await sleep(result.rateWait);continue;}
           retries=0;if(result.done)break;
