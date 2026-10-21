@@ -16,7 +16,7 @@ test('assistant falls back from an overloaded model and reads the same workspace
       : generated([{functionCall:{name:'read_context',args:{}}}]);
   };
   const result=await answerAssistant({...input,providerFetch});
-  assert.equal(result.model,'gemini-3.5-flash');
+  assert.equal(result.model,'gemini-3.6-flash');
   assert.equal(result.answer,'Net profit was **$243.31**.');
   assert.deepEqual(result.actions,[]);
   assert.equal(calls.length,3);
@@ -69,4 +69,18 @@ test('failover returns a requested settings action once without performing it on
   assert.equal(result.actions.length,1);
   assert.equal(result.actions[0].name,'update_settings');
   assert.deepEqual(result.actions[0].input,{capital:20000});
+});
+
+test('the default assistant uses distinct current models for its bounded fallback',async()=>{
+  const models=[];
+  const providerFetch=async(url,init)=>{
+    models.push(new URL(url).pathname.split('/models/')[1].split(':')[0]);
+    if(models.at(-1)==='gemini-3.6-flash')return busy(503);
+    const hasContext=JSON.parse(init.body).contents.some(message=>message.parts?.some(part=>part.functionResponse));
+    return hasContext?generated([{text:'Available on the fallback.'}]):generated([{functionCall:{name:'read_context',args:{}}}]);
+  };
+  const {model:_,...defaultInput}=input;
+  const result=await answerAssistant({...defaultInput,providerFetch});
+  assert.deepEqual(models,['gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.5-flash-lite']);
+  assert.equal(result.answer,'Available on the fallback.');
 });

@@ -13,7 +13,7 @@ export function createAssistantHandler(authorize=requireUser,answer=answerAssist
     if(!Array.isArray(body.messages)||!body.messages.length||body.messages.length>40||body.messages.some(m=>!m||!['user','assistant','tool'].includes(m.role)||(!Array.isArray(m.content)&&typeof m.content!=='string')))return res.status(400).json({error:'Invalid conversation.'});
     if(!body.context||typeof body.context!=='object'||Array.isArray(body.context))return res.status(400).json({error:'Workspace context is missing.'});
     if(!process.env.GEMINI_API_KEY)return res.status(503).json({error:'Gemini is not configured. Add the server API key to enable the assistant.'});
-    try{return res.status(200).json(await answer({messages:body.messages,context:body.context,apiKey:process.env.GEMINI_API_KEY,model:process.env.GEMINI_MODEL||'gemini-flash-lite-latest'}));}
+    try{return res.status(200).json(await answer({messages:body.messages,context:body.context,apiKey:process.env.GEMINI_API_KEY,model:process.env.GEMINI_MODEL||'gemini-3.6-flash'}));}
     catch(error){const status=error.statusCode??error.cause?.statusCode;if(status===429){res.setHeader('Retry-After','60');return res.status(429).json({error:'Gemini is busy or its quota is reached. Try again in a minute.'});}return res.status(503).json({error:'Gemini could not finish that request. Your saved work is unchanged. Please try again.'});}
   };
 }

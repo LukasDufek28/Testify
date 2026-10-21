@@ -45,4 +45,5 @@ No live orders are placed by this research application.
 - One-, two- and three-month returns use bounded bars centered inside the original card; seven months retain the regular layout. Regression coverage checks 390px, 1440px and 2560px viewports.
 - Equity-axis precision follows the visible range, so small measured moves around $10,000 have distinct labels. The left gutter adapts to their width, including on phones.
 - The assistant receives explicit ISO tested-period bounds from each saved development run, separate from the full requested research range. Reserved holdout results are not included in its context.
+- The default assistant model is explicitly `gemini-3.6-flash`, with `gemini-3.5-flash-lite` as its distinct bounded fallback. Local configuration uses the same explicit primary model; a live read-context request returned an answer after the older alias timed out. Deployment owners can select a model through the server-only `GEMINI_MODEL` setting.
 - Notion's affected frontend tasks now describe this amended scope. Historical manual-mode checks remain identified as historical; external developer review and deployed staging verification remain open.
