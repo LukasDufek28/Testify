@@ -8,7 +8,8 @@ export async function selectWorkspaceOption(page:Page,name:string,option:string|
 }
 export async function clickWorkspaceButton(page:Page,name:string){
  await expect(page.locator('.penpot-workspace')).toBeVisible();
- const button=page.getByRole('button',{name,exact:true});
+ const destination=page.getByRole('navigation',{name:'Workspace navigation'}).getByRole('button',{name,exact:true});
+ const button=await destination.count()?destination:page.getByRole('button',{name,exact:true});
  if(!await button.isVisible())await page.getByRole('button',{name:'Open navigation',exact:true}).click();
  await button.click();
  if(name==='Open AI assistant'&&await page.getByRole('button',{name:'Close navigation',exact:true}).isVisible())await page.getByRole('button',{name:'Close navigation',exact:true}).click();

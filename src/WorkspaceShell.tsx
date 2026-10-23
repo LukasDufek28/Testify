@@ -6,6 +6,7 @@ import {DesignIcon} from './PenpotPrimitives';
 import './dashboard.css';
 import './motion.css';
 import './workspace.css';
+import './workspace-pages.css';
 
 export type WorkspacePage = 'manual'|'connections'|'overview'|'strategies'|'studio'|'data'|'backtests'|'history'|'results'|'compare'|'validation'|'portfolio'|'runsettings'|'trades';
 export default function WorkspaceShell({page,onNavigate,children,accountControls}:{page:WorkspacePage;onNavigate:(page:WorkspacePage)=>void;onBackup:()=>Promise<void>;children:ReactNode;accountControls?:ReactNode}){

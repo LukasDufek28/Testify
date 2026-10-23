@@ -1,3 +1,4 @@
+import {dailySharpeEstimate} from "./performance.js";
 import {adversePrice,validateExecutionOverrides} from "./execution-costs.js";
 import { runBacktest } from "./engine.js";
 import { createScriptRuntime, type EntryOrder, type ScriptPosition } from "./script-runtime.js";
@@ -115,16 +116,14 @@ async function runProgrammableBacktest(dataset: Dataset, strategy: ScriptStrateg
   } finally { vm.dispose(); }
   let peak = settings.capital, maxDrawdownPct = 0;
   for (const point of curve) { peak = Math.max(peak, point.equity); maxDrawdownPct = Math.max(maxDrawdownPct, (peak - point.equity) / peak * 100); }
-  const daily = new Map<string, number>();
-  for (const point of curve) daily.set(new Date(point.time * 1000).toISOString().slice(0, 10), point.equity);
-  const days = [...daily.values()], returns = days.slice(1).map((value, i) => days[i] > 0 ? value / days[i] - 1 : 0);
-  const mean = returns.reduce((sum, value) => sum + value, 0) / Math.max(1, returns.length);
-  const variance = returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, returns.length - 1);
+  const estimate=dailySharpeEstimate(curve);
+  if(estimate.value===null)warnings.push(`Sharpe: ${estimate.reason}`);
+  else if(estimate.shortSample)warnings.push(`Sharpe is a short-sample estimate from ${estimate.count} daily returns (365-day annualization, 0% benchmark).`);
   const wins = trades.filter((trade) => trade.pnl > 0), losses = trades.filter((trade) => trade.pnl < 0);
   const grossWin = wins.reduce((sum, trade) => sum + trade.pnl, 0), grossLoss = -losses.reduce((sum, trade) => sum + trade.pnl, 0);
   const rs = trades.flatMap((trade) => trade.rMultiple !== undefined ? [trade.rMultiple] : []);
   if (intervals.some((gap) => gap > seconds * 1.5)) warnings.push("Historical data has missing candle intervals; no candles were fabricated to fill gaps.");
-  return { id: crypto.randomUUID(), name, createdAt: Date.now(), symbol: dataset.symbol, strategyId, strategyName: strategy.name, settings, metrics: { netReturnPct: (cash / settings.capital - 1) * 100, maxDrawdownPct, sharpe: returns.length >= 20 && variance > 0 ? mean / Math.sqrt(variance) * Math.sqrt(365) : null, winRatePct: trades.length ? wins.length / trades.length * 100 : 0, tradeCount: trades.length, totalFees, totalFunding, profitFactor: grossLoss > 0 ? grossWin / grossLoss : null, averageRMultiple: rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null }, curve, trades, warnings };
+  return { id: crypto.randomUUID(), name, createdAt: Date.now(), symbol: dataset.symbol, strategyId, strategyName: strategy.name, settings, metrics: { netReturnPct: (cash / settings.capital - 1) * 100, maxDrawdownPct, sharpe: estimate.value, winRatePct: trades.length ? wins.length / trades.length * 100 : 0, tradeCount: trades.length, totalFees, totalFunding, profitFactor: grossLoss > 0 ? grossWin / grossLoss : null, averageRMultiple: rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null }, curve, trades, warnings };
 }
 
 /** Executes fictional prices to check syntax, actions and bounded execution, not profitability. */

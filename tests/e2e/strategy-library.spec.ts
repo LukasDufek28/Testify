@@ -351,7 +351,7 @@ test("selected strategy opens setup and its latest run metadata is searchable wi
   await page.locator(".strategy-card summary").click();
   await page.getByRole("button", { name: "New backtest", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Backtests", exact: true }),
+    page.getByRole("heading", { name: "Run backtest", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("combobox", { name: "Strategy", exact: true }),
@@ -410,7 +410,7 @@ test("selection uses foundation checkboxes and never shifts strategy cards", asy
     const before = await rect();
     await checkbox.check();
     await expect(checkbox).toHaveCSS("appearance", "none");
-    await expect(checkbox).toHaveCSS("background-color", "rgb(102, 85, 167)");
+    await expect(checkbox).toHaveCSS("background-color", "rgb(101, 86, 183)");
     expect(
       await checkbox.evaluate(
         (el) => getComputedStyle(el, "::after").borderBottomColor,

@@ -1,6 +1,6 @@
 import { sampleCurve } from "./results";
-export const PROFIT_COLOR = "#ffffff";
-export const DRAWDOWN_COLOR = "#f2842f";
+export const PROFIT_COLOR = "#91f5ab";
+export const DRAWDOWN_COLOR = "#e69a9a";
 const LOSS_PERCENT_SCALE = 10;
 
 export function equityData(points: { time: number; equity: number }[], percent = false, capital?: number) {
@@ -27,7 +27,7 @@ export function equityLines(name: string, points: { time: number; equity: number
 }
 
 export function drawdownColors(_points: { equity: number }[]) {
-  return { type: "continuous", show: false, dimension: 1, min: -LOSS_PERCENT_SCALE, max: 0, inRange: { color: [DRAWDOWN_COLOR, PROFIT_COLOR] } };
+  return { type: "continuous", show: false, dimension: 1, min: -LOSS_PERCENT_SCALE, max: 0, inRange: { color: [DRAWDOWN_COLOR, "#ffffff"] } };
 }
 
 // Fixed scales keep the same value the same color across saved runs.
@@ -44,15 +44,15 @@ export function metricTone(label: string, value: number): number {
 }
 export function metricColor(tone: number) {
   const amount = 1 + Math.max(-1, Math.min(0, tone));
-  const orange = [242, 132, 47];
-  return `rgb(${orange.map(channel => Math.round(channel + (255 - channel) * amount)).join(", ")})`;
+  const rose = [230, 154, 154];
+  return `rgb(${rose.map(channel => Math.round(channel + (255 - channel) * amount)).join(", ")})`;
 }
 
 export const metricScaleHint: Record<string, string> = {
-  "Net profit": "White at zero or positive return; losses fade to orange at −10%.",
-  "Return": "White at zero or positive return; losses fade to orange at −10%.",
-  "Win rate": "White at 50% or above; lower win rates fade to orange at 25%.",
-  "Profit factor": "White at 1 or above; lower factors fade to orange at 0.5.",
-  "Average R": "White at zero or above; losses fade to orange at −0.5R.",
+  "Net profit": "White at zero or positive return; losses fade to rose at −10%.",
+  "Return": "White at zero or positive return; losses fade to rose at −10%.",
+  "Win rate": "White at 50% or above; lower win rates fade to rose at 25%.",
+  "Profit factor": "White at 1 or above; lower factors fade to rose at 0.5.",
+  "Average R": "White at zero or above; losses fade to rose at −0.5R.",
   "Max drawdown": "White at 0%; deeper drawdown fades to orange at 10%.",
 };

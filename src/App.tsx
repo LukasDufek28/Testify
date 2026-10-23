@@ -1,23 +1,23 @@
+import {dailySharpeEstimate} from "./performance";
 import {createLocalStore} from './storage';
 import {flushSync} from "react-dom";
 import {AssistantProvider,useAssistantController,type AssistantAction} from "./AssistantWorkspace";
-import {setDisplayTimezone,getDisplayTimezone,type RunDefaults} from "./RunDefaults";
+import {setDisplayTimezone,getDisplayTimezone,useDisplayTimezone,type RunDefaults} from "./RunDefaults";
 import AccountLoading from "./AccountLoading";
 import AnimatedValue from "./AnimatedValue";
 import RunStatusBadge, { type RunState } from "./RunStatusBadge";
 import ResponsiveResultChart from "./ResponsiveResultChart";
 import { equityLines, metricTone } from "./theme";
-import ReturningDashboard from "./ReturningDashboard";
+
 import PenpotWorkspace, { type RunOptions } from "./PenpotWorkspace";
 import { AnimatedSelect, DateTimePicker, RangeSlider } from "./AnimatedControls";
-import { SavedRunDetails, BacktestHistory, CompareBacktests, BacktestProgress } from "./BacktestResults";
+import { SavedRunDetails, BacktestHistory, CompareBacktests } from "./BacktestResults";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 const PenpotStrategyStudio = lazy(() => import("./PenpotStrategyStudio"));
-import ReactECharts from "echarts-for-react";
 import { Download, FlaskConical, Square } from "lucide-react";
 import { createAccountStore } from "./account-store";
 import { exampleStrategy, parseStrategy, type BacktestSettings, type Dataset, type Run, type SavedStrategy } from "./types";
-import { generateStrategy, reviseStrategy, consultStrategy, type ConsultationMessage } from "./gemini";
+import { generateStrategy, reviseStrategy } from "./gemini";
 import BatchBacktests from "./BatchBacktests";
 import type {BatchPlan} from "./batch-plan";
 import Connections from "./Connections";
@@ -27,10 +27,11 @@ import { combinePortfolio } from "./portfolio";
 import { researchWindow, sameResearchWindow, summarizeDevelopmentRun, summarizeDevelopmentPortfolio } from "./research";
 import { createStrategyStore, StrategyStoreError } from "./strategy-store";
 import RunPicker from "./RunPicker";
-import EmptyDashboard from "./EmptyDashboard";
+
 import WorkspaceShell, { type WorkspacePage } from "./WorkspaceShell";
-import { DataPage, BacktestsPage } from "./WorkspacePages";
-import StrategiesPage from "./StrategiesPage";
+import { DataPage } from "./WorkspacePages";
+import {parseBackup,missingBackupRecords} from "./workspace-backup";
+
 import ConfirmStrategyDelete from "./ConfirmStrategyDelete";
 import { duplicateStrategyName, parseStrategyImport } from "./strategyLibrary";
 import { datasetCoverage, parseMarketCsv } from "./marketData";
@@ -74,12 +75,12 @@ function readTesterOptions(userId: string): Partial<TesterOptions> {
 }
 function Chart({ curves }: { curves: { name: string; points: { time: number; equity: number }[]; capital?: number }[] }) {
   if (!curves.length || !curves.some((c) => c.points.length)) return <div className="chart-empty">Run a backtest to see an equity curve.</div>;
-  return <ResponsiveResultChart height={320} option={{ backgroundColor: "transparent", animation: true, animationDuration: 500, animationEasing: "cubicOut", tooltip: { trigger: "axis", backgroundColor: "#222128", borderColor: "#36353f", textStyle: { color: "#e5f4f2" }, valueFormatter: (value: number) => `$${fmt(value)}` }, legend: { top: 0, textStyle: { color: "#9ab2bd" } }, grid: { left: 70, right: 24, top: 48, bottom: 45 }, xAxis: { type: "time", axisLabel: { color: "#ffffff" } }, yAxis: { type: "value", scale: true, splitLine: { lineStyle: { color: "#36353f" } }, axisLabel: { color: "#ffffff" } }, series: curves.flatMap((c, i) => equityLines(c.name, c.points, false, Boolean(i % 2), c.capital)) }} />;
+  return <ResponsiveResultChart height={320} option={{ backgroundColor: "transparent", animation: true, animationDuration: 500, animationEasing: "cubicOut", tooltip: { trigger: "axis", backgroundColor: "#222128", borderColor: "#36353f", textStyle: { color: "#f9f9fa" }, valueFormatter: (value: number) => `$${fmt(value)}` }, legend: { top: 0, textStyle: { color: "#9e9da7" } }, grid: { left: 70, right: 24, top: 48, bottom: 45 }, xAxis: { type: "time", axisLabel: { color: "#9e9da7" } }, yAxis: { type: "value", scale: true, splitLine: { lineStyle: { color: "#36353f" } }, axisLabel: { color: "#9e9da7" } }, series: curves.flatMap((c, i) => equityLines(c.name, c.points, false, Boolean(i % 2), c.capital)) }} />;
 
 }
 function PriceChart({ dataset }: { dataset: Dataset }) {
   const stride = Math.max(1, Math.ceil(dataset.bars.length / 1200));
-  return <ReactECharts style={{ height: 270 }} option={{ backgroundColor: "transparent", animation: true, animationDuration: 500, animationEasing: "cubicOut", tooltip: { trigger: "axis" }, grid: { left: 65, right: 20, top: 20, bottom: 42 }, xAxis: { type: "time", axisLabel: { color: "#ffffff" } }, yAxis: { type: "value", scale: true, splitLine: { lineStyle: { color: "#36353f" } }, axisLabel: { color: "#ffffff" } }, series: [{ type: "line", showSymbol: false, lineStyle: { color: "#91f5ab", width: 2 }, data: dataset.bars.filter((_, i) => i % stride === 0).map((b) => [b.time * 1000, b.close]) }] }} />;
+  return <ResponsiveResultChart height={270} option={{ backgroundColor: "transparent", animation: true, animationDuration: 500, animationEasing: "cubicOut", tooltip: { trigger: "axis" }, grid: { left: 65, right: 20, top: 20, bottom: 42 }, xAxis: { type: "time", axisLabel: { color: "#9e9da7" } }, yAxis: { type: "value", scale: true, splitLine: { lineStyle: { color: "#36353f" } }, axisLabel: { color: "#9e9da7" } }, series: [{ type: "line", showSymbol: false, lineStyle: { color: "#91f5ab", width: 2 }, data: dataset.bars.filter((_, i) => i % stride === 0).map((b) => [b.time * 1000, b.close]) }] }} />;
 }
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) { return <div className="metric"><span>{label}</span><strong className={value.startsWith("+") && parseFloat(value.slice(1).replace(",", "."))>0 ? "positive" : (label.includes("DRAWDOWN") && parseFloat(value.replace(",", "."))>0) || value.startsWith("-") ? "negative" : ""}><AnimatedValue animate={label.includes("RETURN")} tone={label.includes("DRAWDOWN")?metricTone("Max drawdown",Number(value.replace(/[^0-9.-]/g,""))):label.includes("RETURN")?metricTone("Return",Number(value.replace(/[^0-9.-]/g,""))):undefined} value={value}/></strong>{hint && <small>{hint}</small>}</div>; }
 function download(name: string, content: string, type = "application/json") { const url = URL.createObjectURL(new Blob([content], { type })); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
@@ -132,6 +133,7 @@ function execute(dataset: Dataset, strategy: ReturnType<typeof parseStrategy>, s
 }
 
 export default function App({ userName="there", userId, sessionId, onSessionExpired, accountControls, initialPage = "overview" }: { initialPage?: Page; userName?:string; userId: string; sessionId: string; onSessionExpired: () => void; accountControls: ReactNode }) {
+  useDisplayTimezone();
   const sessionController = useMemo(() => new AbortController(), [userId,sessionId]);
   const apiFetch = useMemo(() => createApiClient(sessionId, sessionController.signal, onSessionExpired), [sessionId, sessionController]);
   const localStore = useMemo(() => createAccountStore(userId,apiFetch), [userId,apiFetch]);
@@ -152,7 +154,6 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   const [strategyId, setStrategyId] = useState(savedTesterOptions.strategyId || "");
   const [runId, setRunId] = useState(() => { try { return localStorage.getItem(`testify-selected-run:${userId}`) || ""; } catch { return ""; } });
   const [compareIds, setCompareIds] = useState<string[]>(()=>{try{const saved=JSON.parse(localStorage.getItem(`testify-compare-runs:${userId}`)||"[]");return Array.isArray(saved)?saved.filter((id):id is string=>typeof id==="string"):[];}catch{return [];}});
-  const [activeRunContext, setActiveRunContext] = useState({name:"",description:""});
   const [source, setSource] = useState(JSON.stringify(exampleStrategy, null, 2));
   const [storageLoaded, setStorageLoaded] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(true);
@@ -166,7 +167,6 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   const [markets, setMarkets] = useState<string[]>([]);
   const [market, setMarket] = useState(savedTesterOptions.market || "BTC-USD");
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(savedTesterOptions.selectedMarkets ?? ["BTC-USD"]);
-  const [marketSearch, setMarketSearch] = useState("");
   const [granularity, setGranularity] = useState(savedTesterOptions.granularity || 3600);
   const [historyStart, setHistoryStart] = useState(dateInput(Math.floor(Date.now() / 1000) - 14 * 86400));
   const [historyEnd, setHistoryEnd] = useState(dateInput(Math.floor(Date.now() / 1000)));
@@ -189,7 +189,6 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   const [validationIds, setValidationIds] = useState<string[]>([]);
   const [validationProgress, setValidationProgress] = useState("");
   const validationAbort = useRef<AbortController | null>(null);
-  const [consultation, setConsultation] = useState<ConsultationMessage[]>([]);
   const [feedbackMode, setFeedbackMode] = useState<"runs" | "portfolio">("runs");
   const [feedbackIds, setFeedbackIds] = useState<string[]>([]);
   const [portfolioIds, setPortfolioIds] = useState<string[]>([]);
@@ -222,7 +221,6 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   }, [validationEligible, selectedStrategy?.id, source]);
   const selectedFeedbackRuns = useMemo(() => feedbackEligible.filter((run) => feedbackIds.includes(run.id)), [feedbackEligible, feedbackIds]);
   const geminiPortfolio = useMemo(() => selectedFeedbackRuns.length ? summarizeDevelopmentPortfolio(selectedFeedbackRuns) : undefined, [selectedFeedbackRuns]);
-  const visibleMarkets = useMemo(() => markets.filter((symbol) => symbol.toLowerCase().includes(marketSearch.trim().toLowerCase())), [markets, marketSearch]);
   // Always retain the result being reviewed, even when it is outside the newest five.
   const assistantRuns=useMemo(()=>{
     const eligible=runs.filter(r=>r.research?.phase==='development'||r.mode==='manual');
@@ -230,7 +228,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     return selected?[selected,...eligible.filter(r=>r.id!==selected.id)].slice(0,5):eligible.slice(0,5);
   },[runs,runId]);
 
-  const assistant = useAssistantController({userId,apiFetch,context:{page,latestDevelopmentRunId:runs.find(r=>r.research?.phase==='development')?.id??null,selectedRunId:selectedRun?.research?.phase==='development'||selectedRun?.mode==='manual'?selectedRun.id:null,settings:{strategyId,markets:selectedMarkets,granularity,capital,riskPct,spreadBps,start,end,feeBps,feeMode,feePerTrade,slippageBps,splitPct,name:runName},selectedStrategy:selectedStrategy?{id:selectedStrategy.id,name:selectedStrategy.name,revision:selectedStrategy.revision,strategy:JSON.parse(selectedStrategy.source)}:null,strategies:strategies.slice(0,40).map(s=>({id:s.id,name:s.name,revision:s.revision})),runs:assistantRuns.map(r=>({... (r.research?.phase==='development'?summarizeDevelopmentRun(r):{name:r.name,strategyName:r.strategyName,symbol:r.symbol,metrics:r.metrics,mode:r.mode}),id:r.id,createdAt:new Date(r.createdAt).toISOString(),testedPeriod:{start:new Date(r.settings.start*1000).toISOString(),end:new Date(r.settings.end*1000).toISOString(),endExclusive:true},netProfit:r.settings.capital*r.metrics.netReturnPct/100,settings:r.settings,trades:r.trades.slice(-12)}))},execute:executeAssistant});
+  const assistant = useAssistantController({userId,apiFetch,context:{page,latestDevelopmentRunId:runs.find(r=>r.research?.phase==='development')?.id??null,selectedRunId:selectedRun?.research?.phase==='development'||selectedRun?.mode==='manual'?selectedRun.id:null,settings:{strategyId,datasetId:testDatasetId,markets:selectedMarkets,granularity,capital,riskPct,spreadBps,start,end,feeBps,feeMode,feePerTrade,slippageBps,splitPct,name:runName},datasets:datasets.slice(0,40).map(d=>({id:d.id,name:d.fileName,symbol:d.symbol,candles:d.bars.length})),selectedStrategy:selectedStrategy?{id:selectedStrategy.id,name:selectedStrategy.name,revision:selectedStrategy.revision,strategy:JSON.parse(selectedStrategy.source)}:null,strategies:strategies.slice(0,40).map(s=>({id:s.id,name:s.name,revision:s.revision})),runs:assistantRuns.map(r=>({... (r.research?.phase==='development'?summarizeDevelopmentRun(r):{name:r.name,strategyName:r.strategyName,symbol:r.symbol,metrics:{...r.metrics,sharpe:dailySharpeEstimate(r.curve).value},mode:r.mode}),metrics:{...r.metrics,sharpe:dailySharpeEstimate(r.curve).value},sharpeEstimate:{...dailySharpeEstimate(r.curve),annualPeriods:365,benchmarkPct:0},id:r.id,createdAt:new Date(r.createdAt).toISOString(),testedPeriod:{start:new Date(r.settings.start*1000).toISOString(),end:new Date(r.settings.end*1000).toISOString(),endExclusive:true},netProfit:r.settings.capital*r.metrics.netReturnPct/100,settings:r.settings,trades:r.trades.slice(-12)}))},execute:executeAssistant});
   const withAssistant = (view:ReactNode) => <AssistantProvider controller={assistant}>{view}</AssistantProvider>;
   useEffect(() => () => { sessionController.abort(); backtestAbort.current?.abort(); validationAbort.current?.abort(); }, [sessionController]);
   async function refresh() {
@@ -340,19 +338,6 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     setBusy("gemini-create"); setError("");
     try { const { strategy, model } = await generateStrategy(idea, apiFetch); setDraftBefore(source); setSource(JSON.stringify(strategy, null, 2)); setStrategyId(""); setNotice(`${model} created a draft. Review and save it before testing.`); } catch (e) { message(e); } finally { setBusy(""); }
   }
-  async function askGeminiQuestion() {
-    if (busy || !idea.trim()) return;
-    setBusy("gemini-ask"); setError("");
-    const question = idea.trim();
-    try {
-      let current;
-      try { current = JSON.parse(source); } catch { throw new Error("Your strategy JSON must be readable before Gemini can discuss it."); }
-      const { answer } = await consultStrategy(apiFetch, current, feedbackMode === "runs" ? selectedFeedbackRuns.map(summarizeDevelopmentRun) : [], question, consultation, feedbackMode === "portfolio" ? geminiPortfolio : undefined);
-      setConsultation(previous => [...previous, { role: "user", text: question }, { role: "assistant", text: answer }].slice(-12) as ConsultationMessage[]);
-      setIdea("");
-    } catch (e) { message(e); } finally { setBusy(""); }
-  }
-  useEffect(() => { setConsultation([]); }, [strategyId]);
   async function askGeminiRevision() {
     if (busy) return;
     if (!selectedStrategy) return message("Select a saved strategy to revise.");
@@ -367,15 +352,11 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   }
   function settings(): BacktestSettings { return { capital, riskPct, spreadBps, feeBps: feeMode === "fixed" ? 0 : feeBps, ...(feeMode === "fixed" ? { feePerTrade } : {}), slippageBps, start: Date.parse(start) / 1000, end: Date.parse(end) / 1000 }; }
   function onlineDataset(symbol = market): Dataset { return { id: "online", symbol, fileName: `Coinbase · ${granularity / 60}m`, importedAt: Date.now(), bars: [], skipped: 0 }; }
-  function changeGranularity(value: number) {
-    setGranularity(value);
-  }
   function cancelBacktest() { backtestAbort.current?.abort(); setRunProgress("Cancelling"); }
   async function runTest() {
     if (backtestAbort.current) return message("A backtest is already running.");
     if (!selectedStrategy) return message("Choose a saved strategy.");
     if (testDatasetId === "online" && !selectedMarkets.length) return message("Check at least one market.");
-    setActiveRunContext({name:runName,description:`${selectedStrategy.name} · ${testDatasetId==="online" ? selectedMarkets.join(", ") : datasets.find(dataset=>dataset.id===testDatasetId)?.symbol} · ${timeframeName(granularity)}`});
     setBusy("backtest"); setRunState('processing'); setError(""); setRunPercent(0);
     const controller = new AbortController();
     backtestAbort.current = controller;
@@ -446,7 +427,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   }
   async function runBatch(plan:BatchPlan,resumeId?:string) {
     if(busy)return;const controller=new AbortController();backtestAbort.current=controller;
-    setBusy('backtest');setRunState('processing');setError('');setPage('backtests');setRunPercent(0);
+    setBusy('backtest');setRunState('processing');setError('');setPage('runsettings');setRunPercent(0);
     const id=resumeId||crypto.randomUUID(),completed:string[]=[],failures:string[]=[];let existing:Run[]=[];
     const writeJob=async(status:string,progress:number)=>{const response=await apiFetch('/api/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'jobs',record:{id,name:plan.name,status,progress,snapshot:plan,completed,failures,updatedAt:Date.now()}})});if(!response.ok){const body=await response.json();throw new Error(body.error||'Could not save batch state.');}};
     try {
@@ -485,10 +466,12 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     }
     if(action.name==='update_settings') {
       if(busy)throw new Error('Wait for the active operation before changing settings.');
-      const allowed=new Set(['strategyId','markets','granularity','capital','start','end','feeBps','feeMode','feePerTrade','slippageBps','riskPct','spreadBps','splitPct','name']);
+      const allowed=new Set(['strategyId','datasetId','markets','granularity','capital','start','end','feeBps','feeMode','feePerTrade','slippageBps','riskPct','spreadBps','splitPct','name']);
       if(Object.keys(input).some(key=>!allowed.has(key)))throw new Error('Unsupported run setting.');
+      const chosenDataset=typeof input.datasetId==='string'?datasets.find(d=>d.id===input.datasetId):undefined;
+      if(input.datasetId!==undefined&&input.datasetId!=='online'&&!chosenDataset)throw new Error('Choose an available dataset or online market data.');
       if(input.strategyId!==undefined&&!strategies.some(s=>s.id===input.strategyId))throw new Error('That strategy is not in your account.');
-      if(input.markets!==undefined&&(!Array.isArray(input.markets)||!input.markets.length||input.markets.length>12||input.markets.some(m=>typeof m!=='string'||!markets.includes(m))))throw new Error('Choose available market symbols.');
+      if(input.markets!==undefined&&(!Array.isArray(input.markets)||!input.markets.length||input.markets.length>12||input.markets.some(m=>typeof m!=='string'||!markets.includes(m)&&!datasets.some(d=>d.symbol===m))))throw new Error('Choose available market symbols.');
       for(const key of ['capital','feeBps','feePerTrade','slippageBps','riskPct','spreadBps','splitPct','granularity'])if(input[key]!==undefined&&(typeof input[key]!=='number'||!Number.isFinite(input[key])))throw new Error('Invalid '+key+'.');
       if(input.capital!==undefined&&(Number(input.capital)<=0||Number(input.capital)>1e9))throw new Error('Capital must be positive.');
       for(const key of ['feeBps','slippageBps'])if(input[key]!==undefined&&(Number(input[key])<0||Number(input[key])>1000))throw new Error('Invalid cost setting.');
@@ -499,9 +482,9 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
       if(input.splitPct!==undefined&&(Number(input.splitPct)<30||Number(input.splitPct)>80))throw new Error('Development split must be between 30 and 80.');
       if(input.granularity!==undefined&&!intervals.some(([value])=>value===input.granularity))throw new Error('Unsupported timeframe.');
       for(const key of ['start','end'])if(input[key]!==undefined&&(typeof input[key]!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(input[key]))||!Number.isFinite(Date.parse(String(input[key])))))throw new Error('Use a valid date and time.');
-      if(Date.parse(String(input.start??start))>=Date.parse(String(input.end??end)))throw new Error('Start must be before end.');
+      if(Date.parse(String(input.start??(chosenDataset?dateInput(chosenDataset.bars[0].time):start)))>=Date.parse(String(input.end??(chosenDataset?dateInput(chosenDataset.bars.at(-1)!.time):end))))throw new Error('Start must be before end.');
       if(input.name!==undefined&&(typeof input.name!=='string'||input.name.length>100))throw new Error('Run name is too long.');
-      flushSync(()=>{if(input.strategyId!==undefined)setStrategyId(String(input.strategyId));if(input.markets!==undefined){setSelectedMarkets(input.markets as string[]);setMultiMarket((input.markets as string[]).length>1);}if(input.granularity!==undefined)setGranularity(Number(input.granularity));if(input.capital!==undefined)setCapital(Number(input.capital));if(input.riskPct!==undefined)setRiskPct(Number(input.riskPct));if(input.spreadBps!==undefined)setSpreadBps(Number(input.spreadBps));if(input.start!==undefined)setStart(String(input.start));if(input.end!==undefined)setEnd(String(input.end));if(input.feeBps!==undefined){setFeeBps(Number(input.feeBps));if(input.feeMode===undefined)setFeeMode('percentage');}if(input.feeMode!==undefined)setFeeMode(input.feeMode as 'fixed'|'percentage');if(input.feePerTrade!==undefined){setFeePerTrade(Number(input.feePerTrade));if(input.feeMode===undefined&&input.feeBps===undefined)setFeeMode('fixed');}if(input.slippageBps!==undefined)setSlippageBps(Number(input.slippageBps));if(input.splitPct!==undefined)setSplitPct(Number(input.splitPct));if(input.name!==undefined)setRunName(String(input.name));setPage('runsettings');});
+      flushSync(()=>{if(input.datasetId!==undefined){setTestDatasetId(String(input.datasetId));if(chosenDataset){setSelectedMarkets([chosenDataset.symbol]);setMultiMarket(false);setGranularity(datasetCoverage(chosenDataset).seconds);if(input.start===undefined)setStart(dateInput(chosenDataset.bars[0].time));if(input.end===undefined)setEnd(dateInput(chosenDataset.bars.at(-1)!.time));}else{setSelectedMarkets(current=>{const valid=current.filter(s=>markets.includes(s));return valid.length?valid:[markets[0]||'BTC-USD'];});if(!intervals.some(([seconds])=>seconds===granularity))setGranularity(3600);}}if(input.strategyId!==undefined)setStrategyId(String(input.strategyId));if(input.markets!==undefined){setSelectedMarkets(input.markets as string[]);setMultiMarket((input.markets as string[]).length>1);}if(input.granularity!==undefined)setGranularity(Number(input.granularity));if(input.capital!==undefined)setCapital(Number(input.capital));if(input.riskPct!==undefined)setRiskPct(Number(input.riskPct));if(input.spreadBps!==undefined)setSpreadBps(Number(input.spreadBps));if(input.start!==undefined)setStart(String(input.start));if(input.end!==undefined)setEnd(String(input.end));if(input.feeBps!==undefined){setFeeBps(Number(input.feeBps));if(input.feeMode===undefined)setFeeMode('percentage');}if(input.feeMode!==undefined)setFeeMode(input.feeMode as 'fixed'|'percentage');if(input.feePerTrade!==undefined){setFeePerTrade(Number(input.feePerTrade));if(input.feeMode===undefined&&input.feeBps===undefined)setFeeMode('fixed');}if(input.slippageBps!==undefined)setSlippageBps(Number(input.slippageBps));if(input.splitPct!==undefined)setSplitPct(Number(input.splitPct));if(input.name!==undefined)setRunName(String(input.name));setPage('runsettings');});
       return {success:true,applied:input};
     }
     if(action.name==='create_strategy') {
@@ -520,7 +503,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     }
     if(action.name==='run_backtest') {
       if(busy||!selectedStrategy)throw new Error('Select a saved strategy and wait for the active operation.');
-      setPage('backtests');const before=new Set((await localStore.runs()).map(r=>r.id));
+      setPage('runsettings');const before=new Set((await localStore.runs()).map(r=>r.id));
       await runTest();const saved=(await localStore.runs()).filter(r=>!before.has(r.id));
       if(!saved.length)throw new Error('No backtest was saved. Check the error on the Backtests page and correct its settings.');
       return {success:true,runs:saved.map(r=>({id:r.id,name:r.name,symbol:r.symbol,metrics:r.metrics,testedPeriod:{start:new Date(r.settings.start*1000).toISOString(),end:new Date(r.settings.end*1000).toISOString(),endExclusive:true},netProfit:r.settings.capital*r.metrics.netReturnPct/100}))};
@@ -601,7 +584,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     setPortfolioNameFilter(value);
     setPortfolioDisplayRunId(value.trim() ? runs.find((run) => run.name.toLowerCase().includes(value.trim().toLowerCase()))?.id || "" : "");
   }
-  async function exportBackup() { const [ds, ss, rs] = await Promise.all([localStore.datasets(), strategyStore.strategies(), localStore.runs()]); download("testify-backup.json", JSON.stringify({ format: "testify-backup-v1", datasets: ds, strategies: ss, runs: rs })); }
+  async function exportBackup() { try { const [ds, ss, rs] = await Promise.all([localStore.datasets(), strategyStore.strategies(), localStore.runs()]); download("testify-backup.json", JSON.stringify({ format: "testify-backup-v1", datasets: ds, strategies: ss, runs: rs })); } catch(e) { message(e); } }
   function createDraft() { setStrategyId(""); setSource(JSON.stringify({ ...exampleStrategy, name: "New strategy" }, null, 2)); setPage("studio"); setError(""); }
   async function importStrategy(file: File, target: Page = "studio") {
     const originHash=location.hash;
@@ -621,13 +604,19 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   async function importData(file: File) {
     try { if(file.size > 50 * 1024 * 1024) throw new Error("Choose a CSV file under 50 MB."); const dataset=parseMarketCsv(await file.text(), market, file.name); await localStore.putDataset(dataset); await refresh(); setDatasetId(dataset.id); setError(""); setNotice(`Imported ${dataset.bars.length.toLocaleString()} candles for ${dataset.symbol}.`); } catch(e) { message(e); }
   }
-  function selectTestDataset(id: string) {
-    setTestDatasetId(id);
-    if (id === "online" && !intervals.some(([seconds])=>seconds===granularity)) setGranularity(3600);
-    const dataset=datasets.find(item=>item.id===id);
-    if(dataset) { const seconds=datasetCoverage(dataset).seconds; setGranularity(seconds); setStart(dateInput(dataset.bars[0].time)); setEnd(dateInput(dataset.bars[dataset.bars.length-1].time)); }
+  async function importBackup(file: File) {
+    let written=0;
+    try {
+      if(file.size>50*1024*1024)throw new Error("Choose a backup under 50 MB.");
+      const backup=parseBackup(await file.text());
+      const [datasets,strategies,runs]=await Promise.all([localStore.datasets(),strategyStore.strategies(),localStore.runs()]);
+      const missing=missingBackupRecords(backup,{datasets,strategies,runs});
+      for(const dataset of missing.datasets){await localStore.putDataset(dataset);written++;}
+      for(const strategy of missing.strategies){await strategyStore.putStrategy(strategy);written++;}
+      for(const run of missing.runs){await localStore.putRun(run);written++;}
+      await refresh();setError("");setNotice(written?`Restored ${written} records to your account. Existing records were kept.`:"Your account already contains every record in this backup.");
+    }catch(e){if(written){await refresh();message(`Restore paused after ${written} records. Completed records are kept; retry the same backup to continue. ${e instanceof Error?e.message:'Could not finish restore.'}`);}else message(e);}
   }
-  async function importBackup(file: File) { try { const data = JSON.parse(await file.text()) as { format: string; datasets: Dataset[]; strategies: SavedStrategy[]; runs: Run[] }; if (data.format !== "testify-backup-v1" || !Array.isArray(data.datasets) || !Array.isArray(data.strategies) || !Array.isArray(data.runs)) throw new Error("Invalid Testify backup."); for (const d of data.datasets) { if (!d.id || !Array.isArray(d.bars)) throw new Error("Invalid dataset in backup."); await localStore.putDataset(d); } for (const s of data.strategies) { parseStrategy(s.source); await strategyStore.putStrategy(s); } for (const r of data.runs) { if (!r.id || !Array.isArray(r.curve)) throw new Error("Invalid run in backup."); await localStore.putRun(r); } await refresh(); setNotice("Backup restored in this browser."); } catch (e) { message(e); } }
 
 
   useEffect(()=>{if(storageLoaded){try{localStorage.setItem(`testify-selected-run:${userId}`,runId);}catch{/* Selection works for this visit. */}}},[runId,storageLoaded]);
@@ -644,7 +633,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
       const parsed=parseStrategy(run.strategySource);
       let snapshot=strategies.find(strategy=>{try{return JSON.stringify(parseStrategy(strategy.source))===JSON.stringify(parsed);}catch{return false;}});
       if(!snapshot){snapshot={id:crypto.randomUUID(),name:`${parsed.name} · saved run`,source:run.strategySource,updatedAt:Date.now()};await localStore.putStrategy(snapshot);await refresh();}
-      setStrategyId(snapshot.id);setSource(snapshot.source);setSelectedMarkets([run.symbol]);setMultiMarket(false);setGranularity(run.granularity||3600);setTestDatasetId(run.datasetId||"online");setCapital(run.settings.capital);setRiskPct(run.settings.riskPct??0);setSpreadBps(run.settings.spreadBps??0);setFeeBps(run.settings.feeBps);setFeeMode(run.settings.feePerTrade === undefined ? "percentage" : "fixed");setFeePerTrade(run.settings.feePerTrade ?? 1);setSlippageBps(run.settings.slippageBps);setStart(dateInput(run.research?.fullStart||run.settings.start));setEnd(dateInput(run.research?.fullEnd||run.settings.end));setSplitPct(run.research?.splitPct||60);setRunName(`${run.name} copy`);setPage("backtests");setNotice("Saved strategy version and settings restored.");
+      setStrategyId(snapshot.id);setSource(snapshot.source);setSelectedMarkets([run.symbol]);setMultiMarket(false);setGranularity(run.granularity||3600);setTestDatasetId(run.datasetId||"online");setCapital(run.settings.capital);setRiskPct(run.settings.riskPct??0);setSpreadBps(run.settings.spreadBps??0);setFeeBps(run.settings.feeBps);setFeeMode(run.settings.feePerTrade === undefined ? "percentage" : "fixed");setFeePerTrade(run.settings.feePerTrade ?? 1);setSlippageBps(run.settings.slippageBps);setStart(dateInput(run.research?.fullStart||run.settings.start));setEnd(dateInput(run.research?.fullEnd||run.settings.end));setSplitPct(run.research?.splitPct||60);setRunName(`${run.name} copy`);setPage("runsettings");setNotice("Saved strategy version and settings restored.");
     }catch(error){message(error);}
   }
   const loadTradeBars = useMemo(() => async (run: Run, trade: Run["trades"][number], signal: AbortSignal) => {
@@ -677,22 +666,18 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
 
 
 
-  const researchTools = <details className="design-card raised design-research-tools"><summary>Research tools</summary>
+  const researchTools = <details className="design-card raised design-research-tools"><summary>Additional tools</summary>
     <div className="design-research-controls">
-    <label>Commission mode<select value={feeMode} onChange={e => setFeeMode(e.target.value as "fixed" | "percentage")}><option value="percentage">Percentage per side</option><option value="fixed">Fixed per trade</option></select></label>
-    {feeMode === "fixed" && <label>Fee per trade<input type="number" min="0" value={feePerTrade} onChange={e => setFeePerTrade(Number(e.target.value))}/></label>}
     <label><input type="checkbox" checked={autoSlippage} onChange={e => setAutoSlippage(e.target.checked)}/> Estimate slippage from market depth</label>
-    <label>AI research context<select value={feedbackMode} onChange={e => setFeedbackMode(e.target.value as "runs" | "portfolio")}><option value="runs">Selected development runs</option><option value="portfolio">Development portfolio</option></select></label>
-    <button className="design-button" disabled={!!busy || !idea.trim()} onClick={() => void askGeminiQuestion()}>Discuss strategy with AI</button>
-    {consultation.map((message,i) => <p key={i}>{message.role}: {message.text}</p>)}
+    <label>Strategy revision context<AnimatedSelect aria-label="Strategy revision context" value={feedbackMode} onChange={e => setFeedbackMode(e.target.value as "runs" | "portfolio")}><option value="runs">Selected development runs</option><option value="portfolio">Development portfolio</option></AnimatedSelect></label>
     <button className="design-button" disabled={!!busy || !runs.length} onClick={() => void uploadHistorySummaries()}>Sync history summaries</button>
-    <label>Backtest to rename<select value={renamingRunId} onChange={e => {setRenamingRunId(e.target.value);setRenameValue(runs.find(run=>run.id===e.target.value)?.name || "");}}><option value="">Select a run</option>{runs.map(run => <option key={run.id} value={run.id}>{run.name}</option>)}</select></label>
+    <label>Backtest to rename<AnimatedSelect aria-label="Backtest to rename" value={renamingRunId} onChange={e => {setRenamingRunId(e.target.value);setRenameValue(runs.find(run=>run.id===e.target.value)?.name || "");}}><option value="">Select a run</option>{runs.map(run => <option key={run.id} value={run.id}>{run.name}</option>)}</AnimatedSelect></label>
     {renamingRunId && <><label>New backtest name<input value={renameValue} onChange={e => setRenameValue(e.target.value)} maxLength={100}/></label><button className="design-button" disabled={renameBusy} onClick={() => void renameRun()}>Rename backtest</button></>}
     </div></details>;
   if (!storageLoaded && page !== "strategies") return withAssistant(<AccountLoading/>);
   if (["overview","strategies","studio","backtests","runsettings","trades","connections"].includes(page)) return withAssistant(<PenpotWorkspace userName={userName} apiFetch={apiFetch} accountControls={accountControls} researchTools={researchTools} batchTools={<BatchBacktests apiFetch={apiFetch} strategy={selectedStrategy} options={{markets:selectedMarkets,start,end,capital,riskPct,spreadBps,feeBps:feeMode==="fixed"?0:feeBps,...(feeMode==="fixed"?{feePerTrade}:{}),slippageBps,splitPct,granularity,datasetId:testDatasetId,name:runName}} busy={!!busy} onRun={(plan,id)=>void runBatch(plan,id)}/>} content={<Connections apiFetch={apiFetch}/>}
     studio={<Suspense fallback={<p role="status">Opening strategy editor…</p>}><PenpotStrategyStudio source={source} onChange={setSource} strategies={strategies} selected={selectedStrategy} onOpen={setStrategyId}
-      beforeSource={draftBefore} onAcceptPreview={()=>setDraftBefore(null)} onUndo={()=>{setSource(draftBefore??selectedStrategy?.source??JSON.stringify(exampleStrategy,null,2));setDraftBefore(null);}} onRun={()=>setPage('backtests')} canRun={!!selectedStrategy&&source===selectedStrategy.source} onValidate={() => void validateDraft()} onSave={() => {setDraftBefore(null);void saveStrategy();}}
+      beforeSource={draftBefore} onAcceptPreview={()=>setDraftBefore(null)} onUndo={()=>{setSource(draftBefore??selectedStrategy?.source??JSON.stringify(exampleStrategy,null,2));setDraftBefore(null);}} onRun={()=>setPage('runsettings')} canRun={!!selectedStrategy&&source===selectedStrategy.source} onValidate={() => void validateDraft()} onSave={() => {setDraftBefore(null);void saveStrategy();}}
       mode={studioMode} onMode={setStudioMode} idea={idea} onIdea={setIdea} busy={busy.startsWith("gemini")} onGenerate={() => void askGemini()} onImprove={() => void askGeminiRevision()}
       canImprove={!!selectedStrategy} feedbackCount={selectedFeedbackRuns.length}
       feedbackPicker={<RunPicker title="Backtests for Gemini" runs={feedbackEligible} selectedIds={feedbackIds} onChange={setFeedbackIds} emptyText="Save and backtest this strategy version on the development period first."/>} /></Suspense>}
@@ -731,28 +716,15 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     onDelete={deleteLibraryStrategy} onDuplicate={duplicateStrategy} onDraft={draft=>{setSource(draft);setStrategyId("");setPage("studio");}}
     onBackup={exportBackup} loadBars={loadTradeBars}
   />);
-  if (page === "overview" && !runs.length) return <EmptyDashboard strategyCount={strategies.length} error={error} onNavigate={(target) => { setPage(target); setError(""); }} onBackup={exportBackup} onImport={importStrategy} />;
-  return withAssistant(<WorkspaceShell accountControls={accountControls} page={page} onNavigate={(target) => { setPage(target === "backtests" && runs.length ? "history" : target); setError(""); }} onBackup={exportBackup}>
+
+  return withAssistant(<WorkspaceShell accountControls={accountControls} page={page} onNavigate={(target) => { setPage(target); setError(""); }} onBackup={exportBackup}>
       {runState !== 'idle' && <RunStatusBadge state={runState} announce/>}
       {error && <div className="banner error" role="alert"><span>{error}</span><button onClick={() => setError("")}>Dismiss</button></div>}{notice && <div className="banner success" role="status"><span>{notice}</span><button onClick={() => setNotice("")}>Dismiss</button></div>}
       {strategyToDelete && <ConfirmStrategyDelete strategy={strategyToDelete} onDelete={deleteLibraryStrategy} onClose={() => setStrategyToDelete(null)} />}
-      {page === "overview" && <ReturningDashboard strategies={strategies} runs={runs} onCreate={createDraft} onBacktest={() => setPage("backtests")} onOpenStrategy={id => { setStrategyId(id); setPage("studio"); }} onOpenRun={run => { setRunId(run.id); setPage("results"); }} onBackup={exportBackup} onRestore={importBackup}/>}
-      {page === "strategies" && <StrategiesPage strategies={strategies} runs={runs} loading={libraryLoading} loadError={libraryLoadError} onRetry={loadWorkspace} onBacktest={(id)=>{ setStrategyId(id); setMultiMarket(false); setPage("backtests"); setError(""); }} onCreate={createDraft} onOpen={(id)=>{ setStrategyId(id); setSource(strategies.find(strategy=>strategy.id===id)!.source); setPage("studio"); }} onDuplicate={duplicateStrategy} onDelete={deleteLibraryStrategy} onImport={(file)=>importStrategy(file,"strategies")} onExport={(ids)=>{ const selected=strategies.filter(strategy=>ids.includes(strategy.id)); download(selected.length===1 ? `${selected[0].name.replace(/\W+/g,"-")}.json` : "testify-strategies.json", selected.length===1 ? selected[0].source : JSON.stringify(selected.map(strategy=>JSON.parse(strategy.source)),null,2)); }} />}
-{page === "data" && <DataPage datasets={datasets} selected={selectedDataset} market={market} setMarket={setMarket} markets={markets} onImport={importData} onSelect={setDatasetId} onRemove={removeDataset} chart={selectedDataset ? <PriceChart dataset={selectedDataset}/> : null} onlineForm={<div className="form-stack"><label>Market<AnimatedSelect aria-label="Market" value={market} onChange={e=>setMarket(e.target.value)}>{[...new Set([market,...markets])].map(symbol=><option key={symbol}>{symbol}</option>)}</AnimatedSelect></label><label>Interval<AnimatedSelect aria-label="Interval" value={granularity} onChange={e=>setGranularity(Number(e.target.value))}>{intervals.map(([value,label])=><option key={value} value={value}>{label}</option>)}</AnimatedSelect></label><div className="form-split"><label>Start<DateTimePicker aria-label="Start" value={historyStart} onChange={e=>setHistoryStart(e.target.value)}/></label><label>End<DateTimePicker aria-label="End" value={historyEnd} onChange={e=>setHistoryEnd(e.target.value)}/></label></div><button className="button primary dashboard-primary testify-primary" disabled={busy==="data"} onClick={()=>void loadCrypto()}>{busy==="data" ? "Loading…" : "Load market data"}</button><p className="help">Historical candles load in batches. Times are stored in UTC.</p></div>} />}
+{page === "data" && <DataPage datasets={datasets} selected={selectedDataset} market={market} setMarket={setMarket} markets={markets} onImport={importData} onSelect={setDatasetId} onRemove={removeDataset} onBackup={exportBackup} onRestore={importBackup} chart={selectedDataset ? <PriceChart dataset={selectedDataset}/> : null} onlineForm={<div className="form-stack"><label>Market<AnimatedSelect aria-label="Market" value={market} onChange={e=>setMarket(e.target.value)}>{[...new Set([market,...markets])].map(symbol=><option key={symbol}>{symbol}</option>)}</AnimatedSelect></label><label>Interval<AnimatedSelect aria-label="Interval" value={granularity} onChange={e=>setGranularity(Number(e.target.value))}>{intervals.map(([value,label])=><option key={value} value={value}>{label}</option>)}</AnimatedSelect></label><div className="form-split"><label>Start<DateTimePicker aria-label="Start" value={historyStart} onChange={e=>setHistoryStart(e.target.value)}/></label><label>End<DateTimePicker aria-label="End" value={historyEnd} onChange={e=>setHistoryEnd(e.target.value)}/></label></div><button className="button primary dashboard-primary testify-primary" disabled={busy==="data"} onClick={()=>void loadCrypto()}>{busy==="data" ? "Loading…" : "Load market data"}</button><p className="help">Historical candles load in batches. Times are stored in UTC.</p></div>} />}
 
-      {page === "backtests" && busy === "backtest" && <BacktestProgress name={activeRunContext.name} description={activeRunContext.description} progress={runProgress} percent={runPercent} onCancel={cancelBacktest}/> }
-      {page === "backtests" && busy !== "backtest" && <BacktestsPage running={busy==="backtest"} onRun={()=>void runTest()} onCancel={cancelBacktest} onNavigate={setPage} multi={multiMarket} onMode={(multi)=>{ setMultiMarket(multi); if(multi) selectTestDataset("online"); else setSelectedMarkets(current=>current.slice(0,1)); }} configuration={<div className="workspace-form-grid">
-<label>Strategy and version<AnimatedSelect aria-label="Strategy and version" value={strategyId} onChange={e=>setStrategyId(e.target.value)}><option value="">Choose a saved strategy</option>{strategies.map(strategy=><option key={strategy.id} value={strategy.id}>{strategy.name}</option>)}</AnimatedSelect></label>
-<label>Market / dataset<AnimatedSelect aria-label="Market / dataset" value={testDatasetId} onChange={e=>selectTestDataset(e.target.value)} disabled={multiMarket}><option value="online">Online market data</option>{datasets.map(dataset=><option key={dataset.id} value={dataset.id}>{dataset.symbol} · {dataset.fileName}</option>)}</AnimatedSelect></label>
-<label>Timeframe<AnimatedSelect aria-label="Timeframe" value={granularity} disabled={testDatasetId!=="online"} onChange={e=>changeGranularity(Number(e.target.value))}>{!intervals.some(([seconds])=>seconds===granularity) && <option value={granularity}>{timeframeName(granularity)}</option>}{intervals.map(([value,label])=><option key={value} value={value}>{label}</option>)}</AnimatedSelect></label>
-{testDatasetId==="online" && (multiMarket ? <div className="market-picker wide"><div className="market-picker-head"><strong>Markets ({selectedMarkets.length} selected)</strong><div className="button-row"><button className="button subtle" onClick={()=>setSelectedMarkets([...markets])}>Check all</button><button className="button ghost" onClick={()=>setSelectedMarkets([])}>Uncheck all</button></div></div><input className="market-search" aria-label="Search markets" placeholder="Search symbols…" value={marketSearch} onChange={e=>setMarketSearch(e.target.value)}/><div className="market-options">{visibleMarkets.map(symbol=><label className="market-check" key={symbol}><input type="checkbox" checked={selectedMarkets.includes(symbol)} onChange={e=>setSelectedMarkets(current=>e.target.checked ? [...current,symbol] : current.filter(item=>item!==symbol))}/>{symbol}</label>)}</div></div> : <label className="wide">Market<AnimatedSelect aria-label="Market" value={selectedMarkets[0] || ""} onChange={e=>setSelectedMarkets([e.target.value])}><option value="">Choose a market</option>{markets.map(symbol=><option key={symbol}>{symbol}</option>)}</AnimatedSelect></label>)}
-<label>Start date<DateTimePicker aria-label="Start date" value={start} onChange={e=>setStart(e.target.value)}/></label><label>End date<DateTimePicker aria-label="End date" value={end} onChange={e=>setEnd(e.target.value)}/></label>
-<label>Starting capital<input type="number" min="1" value={capital} onChange={e=>setCapital(Number(e.target.value))}/></label><label>Run name<input value={runName} onChange={e=>setRunName(e.target.value)}/></label>
-<label>Fee / side (basis points)<input type="number" min="0" step="0.1" value={feeBps} onChange={e=>setFeeBps(Number(e.target.value))}/></label><label>Slippage / fill (basis points)<input type="number" min="0" step="0.1" value={slippageBps} onChange={e=>setSlippageBps(Number(e.target.value))}/></label>
-<label className="wide">Development share: {splitPct}%<RangeSlider min="30" max="80" step="5" value={splitPct} onChange={e=>setSplitPct(Number(e.target.value))}/></label><div className="wide split-caption"><span>Development {splitPct}%</span><span>Reserved validation {100-splitPct}%</span></div>
-</div>} summary={<><p>{selectedStrategy?.name || "Choose a saved strategy"}</p><p>{testDatasetId==="online" ? selectedMarkets.join(", ") || "Choose a market" : datasets.find(dataset=>dataset.id===testDatasetId)?.symbol} · {timeframeName(granularity)}</p><p>{start.replace("T"," ")} – {end.replace("T"," ")}</p><p>{multiMarket ? "Multiple market historical tests" : "Automatic historical test"}</p><div className="run-availability"><strong>{testDatasetId==="online" ? "Online historical data" : "Saved historical data"}</strong><p>{testDatasetId==="online" ? "Candles are loaded for your development period when the test starts." : `${datasets.find(dataset=>dataset.id===testDatasetId)?.bars.length.toLocaleString()} candles stored in this browser.`}</p><p>Your saved strategy is recorded with the run. Orders fill from the next bar.</p>{busy==="backtest" && <p role="status">{runProgress}</p>}</div></>}  />}
 {page === "validation" && renderValidationPage()}
-{page === "history" && <BacktestHistory runs={runs} selected={compareIds.filter(id=>runs.some(run=>run.id===id))} onSelect={setCompareIds} onOpen={(run)=>{setRunId(run.id);setPage("results");}} onCompare={()=>setPage("compare")} onNew={()=>setPage("backtests")} onDelete={removeRun} onClear={clearHistory}/>}
+{page === "history" && <BacktestHistory runs={runs} selected={compareIds.filter(id=>runs.some(run=>run.id===id))} onSelect={setCompareIds} onOpen={(run)=>{setRunId(run.id);setPage("results");}} onCompare={()=>setPage("compare")} onNew={()=>setPage("runsettings")} onDelete={removeRun} onClear={clearHistory}/>}
 
 {page === "compare" && <CompareBacktests runs={runs} selected={compareIds} onSelect={setCompareIds} onHistory={()=>setPage("history")}/>}
 {page === "portfolio" && <><div className="page-header"><div><div className="eyebrow">PORTFOLIO LAB</div><h1>Portfolio equity</h1><p>Select runs for a portfolio view, or filter by your custom Run name to display one saved backtest.</p></div></div><div className="two-col portfolio-layout"><section className="panel"><div className="panel-head"><div><div className="overline">SELECT</div><h3>Saved runs</h3></div><button className="button subtle" type="button" aria-pressed={portfolioAll} onClick={() => { setPortfolioAll((current) => !current); setPortfolioIds([]); setPortfolioDisplayRunId(""); setPortfolioNameFilter(""); }}>{portfolioAll ? "All selected" : "Select all"}</button></div><div className="portfolio-list">{runs.map((r) => <label key={r.id}><input type="checkbox" checked={portfolioAll || portfolioIds.includes(r.id)} onChange={(e) => togglePortfolioRun(r.id, e.target.checked)}/><div><strong>{r.name}</strong><small>{r.symbol} · {r.granularity ? timeframeName(r.granularity) + " · " : ""}{r.strategyName}</small></div><b className={r.metrics.netReturnPct > 0 ? "good" : "bad"}><AnimatedValue tone={metricTone("Return",r.metrics.netReturnPct)} value={pct(r.metrics.netReturnPct)}/></b></label>)}{!runs.length && <p className="empty-copy">Run backtests first to compare them.</p>}</div></section><section className="panel"><div className="panel-head"><div><div className="overline">VIEW</div><h3>{portfolioMode === "overlay" ? "Individual equity curves" : "Combined portfolio curve"}</h3></div></div><div className="portfolio-filter"><label>Filter by Run name<input type="search" value={portfolioNameFilter} onChange={(e) => filterPortfolioByName(e.target.value)} placeholder="Search your run names…"/></label><label>Display run<AnimatedSelect aria-label="Display run" value={activeDisplayRunId} onChange={(e) => { setPortfolioDisplayRunId(e.target.value); if (!e.target.value) setPortfolioNameFilter(""); }} disabled={!runs.length}><option value="">All selected runs</option>{matchingRunNames.map((r) => <option key={r.id} value={r.id}>{r.name} · {r.symbol} · {new Date(r.createdAt).toLocaleString(undefined,{timeZone:getDisplayTimezone()})}</option>)}</AnimatedSelect></label>{portfolioNameFilter.trim() && !matchingRunNames.length && <p className="help">No saved Run names match.</p>}</div><div className="mode-switch" role="group" aria-label="Portfolio view"><button className={portfolioMode === "overlay" ? "active" : ""} onClick={() => setPortfolioMode("overlay")}>Individual lines</button><button className={portfolioMode === "combined" ? "active" : ""} onClick={() => setPortfolioMode("combined")}>Combined portfolio</button></div>{portfolioMode === "overlay" ? <><Chart curves={displayedPortfolio.map((r) => ({ name: `${r.symbol} · ${r.name}`, points: r.curve, capital: r.settings.capital }))}/><div className="inline-note">Each line shows one independent backtest with its own starting capital.</div></> : <>{displayedPortfolio.length > 0 && <div className="metrics three inset"><Metric label="COMBINED RETURN" value={pct(combinedPortfolio.returnPct)}/><Metric label="MAX DRAWDOWN" value={`${fmt(combinedPortfolio.maxDrawdownPct)}%`}/><Metric label="SELECTED RUNS" value={String(displayedPortfolio.length)}/></div>}<Chart curves={combinedPortfolio.curve.length ? [{ name: "Combined portfolio", points: combinedPortfolio.curve }] : []}/><div className="inline-note">Each run contributes its percentage return against the same starting capital. A −10% run and a +15% run combine to +5%. This assumes full starting capital on every selected run, so total exposure grows with the number of runs. Curves are aligned by time; a run contributes 0% before it starts and holds its last value after it ends.</div></>}</section></div></>}

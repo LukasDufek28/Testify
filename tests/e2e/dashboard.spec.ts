@@ -57,11 +57,10 @@ test("dashboard actions open the existing editor and advanced settings", async (
     .getByRole("button", { name: "View backtest", exact: true })
     .click();
   await page
-    .locator(".design-run-simple")
-    .getByRole("button", { name: "Settings", exact: true })
+    .getByRole("button", { name: "Configure backtest", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Run settings", exact: true }),
+    page.getByRole("heading", { name: "Run backtest", exact: true }),
   ).toBeVisible();
 });
 test("JSON import rejects invalid files and persists saved rules", async ({

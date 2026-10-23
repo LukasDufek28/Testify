@@ -1,10 +1,16 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useState,useSyncExternalStore} from 'react';
 import type {ApiFetch} from './api-client';
 import {AnimatedSelect} from './AnimatedControls';
 export type RunDefaults={id:'defaults';timezone:string;feeMode?:'fixed'|'percentage';feePerTrade?:number;capital:number;riskPct?:number;spreadBps?:number;feeBps:number;slippageBps:number;splitPct:number};
 let displayTimezone='UTC';
+const timezoneListeners=new Set<()=>void>();
 export const getDisplayTimezone=()=>displayTimezone;
-export function setDisplayTimezone(timezone:string){displayTimezone=timezone;}
+export function setDisplayTimezone(timezone:string){
+  try{new Intl.DateTimeFormat('en',{timeZone:timezone});}catch{return;}
+  if(displayTimezone===timezone)return;
+  displayTimezone=timezone;timezoneListeners.forEach(listener=>listener());
+}
+export function useDisplayTimezone(){return useSyncExternalStore(listener=>{timezoneListeners.add(listener);return()=>{timezoneListeners.delete(listener);};},getDisplayTimezone);}
 export default function RunDefaultsPanel({apiFetch,current,onApply}:{apiFetch:ApiFetch;current:Omit<RunDefaults,'id'|'timezone'>;onApply:(defaults:RunDefaults)=>void}){
   const [timezone,setTimezone]=useState(getDisplayTimezone()),[saved,setSaved]=useState<RunDefaults|null>(null),[status,setStatus]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   useEffect(()=>{const controller=new AbortController();void apiFetch('/api/workspace?kind=preferences',{signal:controller.signal}).then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.error);const defaults=body.records[0] as RunDefaults|undefined;if(defaults){setSaved(defaults);setTimezone(defaults.timezone);}}).catch(e=>{if(!controller.signal.aborted)setError(e.message);});return()=>controller.abort();},[apiFetch]);

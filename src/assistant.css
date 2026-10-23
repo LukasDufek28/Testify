@@ -33,10 +33,12 @@
 .assistant-activity {display:flex;align-items:center;gap:8px;font-size:12px;color:#aaa5bd;margin:6px 0;line-height:1.4;}
 .assistant-activity>span {height:5px;width:5px;flex:none;border-radius:50%;background:#aa9be7;animation:assistant-pulse 1.4s ease-in-out infinite alternate;}
 @keyframes assistant-pulse {to{opacity:.35}}
-.testify-assistant-layer .assistant-chat form {flex:none;margin:0;min-height:42px;height:42px;}
-.assistant-chat textarea {box-sizing:border-box;resize:none;flex:1;min-width:0;max-height:100%;border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;color:#f9f9fa;font:400 13px Urbanist,sans-serif;line-height:18px;padding:10px 12px;}
+.testify-assistant-layer .assistant-chat form {flex:none;margin:0;min-height:42px;height:auto;align-items:flex-end;}
+.assistant-chat textarea {box-sizing:border-box;resize:none;flex:1;min-width:0;max-height:90px;border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;color:#f9f9fa;font:400 13px Urbanist,sans-serif;line-height:18px;padding:10px 12px;scrollbar-width:thin;}
 .assistant-chat textarea::placeholder {color:#a39ab8;}
 .assistant-chat form button {cursor:pointer;}
+.assistant-chat form button {flex:none;align-self:flex-end;}
+.assistant-notice {font-size:12px;line-height:1.5;color:#bdb7cf;margin:6px 0;}
 .assistant-chat button:disabled {opacity:.45;cursor:default;}
 .assistant-chat-error {font-size:12px;line-height:1.5;color:#efb5bd;}
 .assistant-chat-error button {display:block;background:none;border:0;padding:5px 0;color:#f9f9fa;text-decoration:underline;cursor:pointer;font:inherit;}

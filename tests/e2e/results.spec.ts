@@ -25,6 +25,17 @@ async function openRun(page:any,name='Run A',details=true){
  await expect(page.getByRole('heading',{name:'Backtest results',exact:true})).toHaveCount(0);
  if(details)await page.getByText('Run details & exports',{exact:false}).click();
 }
+
+test('saved display timezone updates trade timestamps and their label immediately and after reload',async({page})=>{
+ await openRun(page,'Run A',false);await clickWorkspaceButton(page,'Trades & chart');
+ const firstEntry=page.locator('.design-trade-history tbody tr').first().locator('td').nth(0);
+ await expect(page.locator('.design-bottom-note')).toContainText('Times shown in UTC');
+ await clickWorkspaceButton(page,'Run backtest');await page.getByText('Saved defaults',{exact:true}).click();
+ await selectWorkspaceOption(page,'Display timezone','Asia/Tokyo');await page.getByRole('button',{name:'Save current settings as defaults'}).click();await expect(page.getByRole('status').filter({hasText:'Defaults saved'})).toBeVisible();
+ await clickWorkspaceButton(page,'Trades & chart');await expect(page.locator('.design-bottom-note')).toContainText('Times shown in Asia/Tokyo');
+ const expected=new Date(a.trades[0].entryTime*1000).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'});
+ await expect(firstEntry).toContainText(expected);await page.reload();await expect(page.locator('.design-bottom-note')).toContainText('Times shown in Asia/Tokyo');await expect(firstEntry).toContainText(expected);
+});
 test('assistant context includes an older selected run and excludes reserved validation',async({page})=>{
  await page.evaluate(async run=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-user-e2e-user',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction('runs','readwrite'),store=tx.objectStore('runs');for(let i=0;i<8;i++)store.put({...run,id:'newer-'+i,name:'Newer '+i,createdAt:run.createdAt+100+i});store.put({...run,id:'reserved',name:'Reserved',createdAt:run.createdAt+200,research:{...run.research,phase:'validation'}});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});},a);
  await page.reload();await openRun(page,'Run A',false);
@@ -48,11 +59,18 @@ test('small asset trade prices and measured risk levels remain readable after re
 });
 test('saved results show real metrics, charts, snapshot settings and full trade exports',async({page})=>{
  await openRun(page);await expect(page.locator('.design-metric')).toHaveCount(3);await expect(page.locator('.responsive-equity-plot svg')).toBeVisible();
- expect((await page.locator('.design-run-simple').boundingBox())!.height).toBeLessThan(900);
+ await expect(page.locator('.design-run-simple')).toHaveCount(0);
  await expect(page.locator('.design-run-statistics')).toContainText(String(a.metrics.tradeCount));await expect(page.locator('.saved-settings')).toContainText('10,000');
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();const file=await download;expect(file.suggestedFilename()).toBe('Run-A-trades.csv');const content=await(await import('node:fs/promises')).readFile((await file.path())!,'utf8');expect(content.split('\r\n')).toHaveLength(a.trades.length+1);
- await page.getByRole('button',{name:'Use these settings',exact:true}).click();await clickWorkspaceButton(page,'Run settings');await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Run A copy');await expect(page.getByLabel('Starting capital',{exact:true})).toHaveValue('10000');
+ await page.getByRole('button',{name:'Use these settings',exact:true}).click();await clickWorkspaceButton(page,'Run backtest');await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Run A copy');await expect(page.getByLabel('Starting capital',{exact:true})).toHaveValue('10000');
  await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await openRun(page);await page.reload();await page.getByText('Run details & exports',{exact:false}).click();await page.getByRole('button',{name:'Improve strategy',exact:true}).click();await expect(page.getByRole('heading',{name:'Strategy creation',exact:true})).toBeVisible();
+});
+
+test('short saved runs show a measured Sharpe estimate without rewriting their original snapshot',async({page})=>{
+ await page.evaluate(async()=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-user-e2e-user',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction('runs','readwrite'),store=tx.objectStore('runs'),get=store.get('result-a');get.onsuccess=()=>store.put({...get.result,metrics:{...get.result.metrics,sharpe:null}});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});});await page.reload();
+ await openRun(page,'Run A',false);const metric=page.locator('.design-metric').filter({hasText:'Sharpe ratio'});
+ await expect(metric.locator('strong')).not.toHaveText('—');await expect(metric).toContainText('Estimate ·');await expect(metric).not.toContainText('Unavailable');
+ await page.getByText('Run details & exports',{exact:false}).click();const downloading=page.waitForEvent('download');await page.getByRole('button',{name:'Export full run',exact:true}).click();const file=await downloading;const snapshot=JSON.parse(await(await import('node:fs/promises')).readFile((await file.path())!,'utf8'));expect(snapshot.metrics.sharpe).toBeNull();expect(snapshot.curve).toEqual(a.curve);
 });
 test('trade selection and filters use saved candles without network and paginate all trades',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/candles?**',r=>r.abort());await openRun(page,'Run A',false);await clickWorkspaceButton(page,'Trades & chart');
@@ -88,18 +106,18 @@ test('results, trades, settings, history and compare resize without outer overfl
 
 
 test('cancelled online backtest preserves settings and saves no partial run',async({page})=>{
-  await page.goto('/#/app/backtests');await page.route('**/api/candles?**',async route=>{await new Promise(resolve=>setTimeout(resolve,1500));try{await route.fulfill({json:{bars}});}catch{/* Request was cancelled. */}});await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Running backtest',exact:true})).toBeVisible();await page.getByRole('button',{name:'Cancel backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Backtests',exact:true})).toBeVisible();await expect(page.locator('.design-notice')).toContainText('Backtest cancelled');await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(2);
+  await page.goto('/#/app/runsettings');await page.route('**/api/candles?**',async route=>{await new Promise(resolve=>setTimeout(resolve,1500));try{await route.fulfill({json:{bars}});}catch{/* Request was cancelled. */}});await page.getByRole('button',{name:'Start backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Running backtest',exact:true})).toBeVisible();await page.getByRole('button',{name:'Cancel backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Run backtest',exact:true})).toBeVisible();await expect(page.locator('.design-notice')).toContainText('Backtest cancelled');await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(2);
 });
 
 
 
 test('online run stores original candles for offline trade inspection after reload',async({page})=>{
- await openRun(page);await page.getByRole('button',{name:'Use these settings',exact:true}).click();await selectWorkspaceOption(page,"Market / dataset",'online');await page.route('**/api/candles?**',route=>{const q=new URL(route.request().url()).searchParams;return route.fulfill({json:{bars:bars.filter(bar=>bar.time>=Number(q.get('start'))&&bar.time<=Number(q.get('end')))}});});await page.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.locator('.design-notice')).toContainText('1 backtest saved');await expect(page).toHaveURL(/#\/app\/backtests$/);await page.route('**/api/candles?**',r=>r.abort());await page.reload();await clickWorkspaceButton(page,'Trades & chart');await expect(page.locator('[data-marker="entry"]')).toBeVisible();await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(3);
+ await openRun(page);await page.getByRole('button',{name:'Use these settings',exact:true}).click();await selectWorkspaceOption(page,"Market / dataset",'online');await page.route('**/api/candles?**',route=>{const q=new URL(route.request().url()).searchParams;return route.fulfill({json:{bars:bars.filter(bar=>bar.time>=Number(q.get('start'))&&bar.time<=Number(q.get('end')))}});});await page.getByRole('button',{name:'Start backtest',exact:true}).click();await expect(page.locator('.design-notice')).toContainText('1 backtest saved');await expect(page).toHaveURL(/#\/app\/backtests$/);await page.route('**/api/candles?**',r=>r.abort());await page.reload();await clickWorkspaceButton(page,'Trades & chart');await expect(page.locator('[data-marker="entry"]')).toBeVisible();await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(3);
 });
 
 
 test('failed run returns to configuration and preserves its settings',async({page})=>{
-  await page.goto('/#/app/runsettings');await page.getByLabel('Run name',{exact:true}).fill('Preserve my test');await page.route('**/api/candles?**',route=>route.fulfill({status:503,json:{error:'Historical data temporarily unavailable'}}));await page.getByRole('button',{name:/Run 1 backtests/}).click();await expect(page.locator('.design-error')).toContainText('Historical data temporarily unavailable');await expect(page.getByRole('heading',{name:'Run settings',exact:true})).toBeVisible();await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Preserve my test');
+  await page.goto('/#/app/runsettings');await page.getByLabel('Run name',{exact:true}).fill('Preserve my test');await page.route('**/api/candles?**',route=>route.fulfill({status:503,json:{error:'Historical data temporarily unavailable'}}));await page.getByRole('button',{name:'Start backtest',exact:true}).click();await expect(page.locator('.design-error')).toContainText('Historical data temporarily unavailable');await expect(page.getByRole('heading',{name:'Run backtest',exact:true})).toBeVisible();await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Preserve my test');
 });
 
 

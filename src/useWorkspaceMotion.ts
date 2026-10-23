@@ -2,7 +2,7 @@ import {useLayoutEffect} from 'react';
 import {useAnimate} from 'motion/react';
 import useReducedMotionPreference from './useReducedMotionPreference';
 
-const panels='.design-page-heading,.design-card:not(.floating),.workspace-page-heading,.workspace-panel,.result-metric,.result-panel';
+const panels='.design-page-heading,.design-card:not(.floating),.workspace-page-heading,.page-header,.workspace-panel,.panel,.result-metric,.result-panel';
 export default function useWorkspaceMotion(page:string) {
  const [scope,animate]=useAnimate<HTMLDivElement>();
  const reduced=useReducedMotionPreference();

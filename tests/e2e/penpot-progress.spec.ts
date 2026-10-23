@@ -30,10 +30,10 @@ test("backtest progress advances with loaded candles, estimates remaining time a
       }),
     ),
   );
-  await page.goto("/#/app/backtests");
+  await page.goto("/#/app/runsettings");
   await page.reload();
   await expect(page.getByRole('combobox',{name:'Strategy',exact:true})).toContainText(exampleStrategy.name);
-  await expect(page.getByRole('textbox',{name:'Start date',exact:true})).toHaveValue('2025-01-01');
+  await expect(page.getByLabel('Start',{exact:true})).toHaveValue('2025-01-01T00:00');
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
   let requests = 0;
@@ -60,7 +60,7 @@ test("backtest progress advances with loaded candles, estimates remaining time a
       },
     });
   });
-  await page.getByRole("button", { name: "Run backtest", exact: true }).click();
+  await page.getByRole("button", { name: "Start backtest", exact: true }).click();
   const bar = page.getByRole("progressbar", { name: "Backtest processing" });
   await expect(bar).toBeVisible();
   await expect(page.locator('[data-run-state="processing"]').first()).toBeVisible();
@@ -80,11 +80,11 @@ test("backtest progress advances with loaded candles, estimates remaining time a
   await expect(bar).toBeVisible();
   release();
   await expect(
-    page.locator(".backtest-result"),
+    page.locator(".design-backtest-overview"),
   ).toBeVisible({ timeout: 20000 });
   await expect(page.getByRole('status').filter({hasText:'1 backtest saved'})).toBeVisible();
   await page.reload();
   await expect(
-    page.locator(".backtest-result"),
+    page.locator(".design-backtest-overview"),
   ).toBeVisible();
 });

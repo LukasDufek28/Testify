@@ -1,4 +1,5 @@
 import {getDisplayTimezone} from "./RunDefaults";
+import {dailySharpeEstimate} from './performance';
 import ResponsiveResultChart from "./ResponsiveResultChart";
 import AnimatedValue from "./AnimatedValue";
 import { equityLines, drawdownColors, metricTone } from "./theme";
@@ -33,7 +34,7 @@ export function SavedRunDetails({run,datasetsLabel,onImprove,onCompare,onReuse,o
       <button className="design-button secondary" onClick={()=>void onReuse(run)}>Use these settings</button>
       <h2>Saved strategy version</h2>{rules?<details><summary>View saved rules</summary><pre className="saved-rules">{JSON.stringify(rules,null,2)}</pre></details>:<p>This older run has no saved strategy snapshot.</p>}
       <h2>Monthly returns</h2><div className="monthly-returns">{monthlyReturns(run).map(month=><article key={month.month}><span>{new Date(`${month.month}-01T00:00:00Z`).toLocaleDateString('en-GB',{month:'short',year:'numeric',timeZone:'UTC'})}</span><strong><AnimatedValue tone={metricTone('Return',month.value)} value={signed(month.value,'%')}/></strong></article>)}</div>
-      {!!run.warnings.length&&<><h2>Simulation notes</h2><ul className="simulation-notes">{run.warnings.map((warning,i)=><li key={i}>{warning}</li>)}</ul></>}
+      {!!run.warnings.length&&<><h2>Simulation notes</h2><ul className="simulation-notes">{run.warnings.map((warning,i)=><li key={i}>{warning.startsWith('Sharpe needs at least 20')?`Sharpe is estimated from saved daily equity when possible; short samples are labeled in the summary. ${dailySharpeEstimate(run.curve).reason}`:warning}</li>)}</ul></>}
       <div className="design-default-actions"><button className="design-button secondary" onClick={onValidate}>Validate holdout</button><button className="design-button secondary" onClick={onPortfolio}>Portfolio</button></div>
     </div>
   </details>;

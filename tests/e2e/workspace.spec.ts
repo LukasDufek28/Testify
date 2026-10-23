@@ -4,6 +4,16 @@ import { exampleStrategy } from "../../src/types";
 const strategy = { ...exampleStrategy, name: "My crossover" };
 const rows = Array.from({length: 120},(_,i)=>`${1735689600+i*3600},${100+i},${102+i},${99+i},${101+i},20`);
 const csv = `time,open,high,low,close,volume\n${rows.join("\n")}`;
+
+test('workspace backup restores account records with fresh strategy revisions and can be repeated safely',async({page})=>{
+ const {runBacktest}=await import('../../src/engine');const dataset={id:'backup-data',symbol:'BTC-USD',fileName:'backup.csv',importedAt:1,bars:rows.map(row=>{const [time,open,high,low,close,volume]=row.split(',').map(Number);return {time,open,high,low,close,volume};}),skipped:0};
+ const run={...runBacktest(dataset,strategy,{capital:10000,feeBps:2,slippageBps:1,start:1735689600,end:1735689600+120*3600},'backup-strategy','Backup run'),strategySource:JSON.stringify(strategy),datasetId:dataset.id,granularity:3600};
+ const backup={format:'testify-backup-v1',datasets:[dataset],strategies:[{id:'backup-strategy',name:strategy.name,source:JSON.stringify(strategy),revision:7,updatedAt:1}],runs:[run]};const file={name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))};
+ await page.goto('/#/app/data');await page.getByText('Workspace backup',{exact:true}).click();await page.getByLabel('Restore workspace backup file').setInputFiles(file);await expect(page.getByRole('status').filter({hasText:'Restored 3 records'})).toBeVisible();await expect(page.locator('.workspace-table tbody tr')).toHaveCount(1);
+ await page.getByLabel('Restore workspace backup file').setInputFiles(file);await expect(page.getByRole('status').filter({hasText:'already contains every record'})).toBeVisible();
+ const downloading=page.waitForEvent('download');await page.getByRole('button',{name:'Download workspace backup',exact:true}).click();const downloaded=await downloading;const restored=JSON.parse(await(await import('node:fs/promises')).readFile((await downloaded.path())!,'utf8'));expect(restored.strategies).toHaveLength(1);expect(restored.strategies[0].revision).toBe(1);expect(restored.runs).toHaveLength(1);expect(restored.runs[0].curve).toEqual(run.curve);
+ const invalid={...backup,datasets:[{...dataset,id:'must-not-be-imported'}],strategies:[{...backup.strategies[0],id:'bad-strategy',source:'{}'}]};await page.getByLabel('Restore workspace backup file').setInputFiles({...file,buffer:Buffer.from(JSON.stringify(invalid))});await expect(page.getByRole('alert')).toBeVisible();await expect(page.locator('.workspace-table tbody tr')).toHaveCount(1);
+});
 test.beforeEach(async ({page}) => {
   await page.route("**/api/markets", route=>route.fulfill({json:{markets:[{id:"BTC-USD"},{id:"ETH-USD"}]}}));
 });
@@ -34,20 +44,20 @@ test("CSV data import validates files and runs the real worker on stored candles
   await page.locator('input[type=file]').setInputFiles({name:"strategy.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(strategy))});
   await expect(page.locator(".strategy-card")).toHaveCount(1);
   await clickWorkspaceButton(page,'Data');
-  await page.locator('input[type=file]').setInputFiles({name:"invalid.csv",mimeType:"text/csv",buffer:Buffer.from("bad,file")});
+  await page.getByLabel('Import historical CSV file').setInputFiles({name:"invalid.csv",mimeType:"text/csv",buffer:Buffer.from("bad,file")});
   await expect(page.locator(".banner.error")).toContainText("Expected CSV columns");
-  await page.locator('input[type=file]').setInputFiles({name:"history.csv",mimeType:"text/csv",buffer:Buffer.from(csv)});
+  await page.getByLabel('Import historical CSV file').setInputFiles({name:"history.csv",mimeType:"text/csv",buffer:Buffer.from(csv)});
   await expect(page.locator(".workspace-table tbody tr")).toHaveCount(1);
   await expect(page.locator(".workspace-table")).toContainText("120");
   await page.getByRole("button",{name:"Details →",exact:true}).click();
   await expect(page.getByText("BTC-USD · 120 candles, sorted timestamps and valid prices.",{exact:true})).toBeVisible();
-  await clickWorkspaceButton(page,'Backtests');
+  await clickWorkspaceButton(page,'Run backtest');
   await selectWorkspaceOption(page,"Market / dataset",{label:"BTC-USD · history.csv"});
   await page.reload();
   await expect(page.getByRole("combobox",{name:"Market / dataset",exact:true})).toContainText("history.csv");
 
-  await page.getByRole("button",{name:"Run backtest",exact:true}).click();
-  await expect(page.locator(".backtest-result")).toBeVisible();
+  await page.getByRole("button",{name:"Start backtest",exact:true}).click();
+  await expect(page.locator(".design-backtest-overview")).toBeVisible();
   await expect(page.locator(".design-notice")).toContainText("1 backtest saved");
   await page.route("**/api/candles?**", route=>route.abort());
   await page.getByText("Run details & exports",{exact:false}).click();

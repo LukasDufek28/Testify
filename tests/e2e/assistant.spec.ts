@@ -1,4 +1,4 @@
-import {test,expect,clickWorkspaceButton} from './fixtures';
+import {test,expect,clickWorkspaceButton,selectWorkspaceOption} from './fixtures';
 import {exampleStrategy} from '../../src/types';
 
 test('assistant grows beside the launcher with a fixed bottom edge and unscaled content',async({page})=>{
@@ -45,6 +45,57 @@ test('assistant explains without generating strategies and recovers from an API 
   await page.setViewportSize({width:390,height:844});await expect(chat).toBeVisible();const bounds=(await chat.boundingBox())!;expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(390);
 });
 
+test('retry resumes completed actions and follow-ups retain their results without duplicating a saved strategy',async({page})=>{
+ let requests=0,generations=0,saves=0;const inputs:any[]=[];
+ await page.route('**/api/generate-strategy',r=>{generations++;return r.fulfill({json:{strategy:{...exampleStrategy,name:'Retry checkpoint'},model:'test'}});});
+ page.on('request',request=>{if(request.url().endsWith('/api/strategies')&&request.method()==='PUT')saves++;});
+ await page.route('**/api/assistant',r=>{
+  const body=r.request().postDataJSON();inputs.push(body);requests++;
+  if(requests===1)return r.fulfill({json:{answer:'',actions:[{id:'save-once',name:'create_strategy',input:{instructions:'Create and save Retry checkpoint',save:true}}],messages:[
+   {role:'assistant',content:[{type:'tool-call',toolCallId:'read-1',toolName:'read_context',input:{}}]},
+   {role:'tool',content:[{type:'tool-result',toolCallId:'read-1',toolName:'read_context',output:{type:'json',value:body.context}}]},
+   {role:'assistant',content:[{type:'tool-call',toolCallId:'save-once',toolName:'create_strategy',input:{instructions:'Create and save Retry checkpoint',save:true}}]}
+  ]}});
+  if(requests===2)return r.fulfill({status:503,json:{error:'Reply interrupted'}});
+  return r.fulfill({json:{answer:requests===3?'Saved **Retry checkpoint** once.':'The saved version is still available.',actions:[],messages:[]}});
+ });
+ await page.goto('/#/app/strategies');await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});
+ await chat.getByLabel('Message AI assistant').fill('Create and save Retry checkpoint');await chat.getByRole('button',{name:'Send assistant message'}).click();
+ await expect(chat.getByRole('alert')).toContainText('Reply interrupted');await chat.getByRole('button',{name:'Try again'}).click();await expect(chat).toContainText('Saved Retry checkpoint once.');
+ expect(generations).toBe(1);expect(saves).toBe(1);await expect(chat.getByRole('article',{name:'Your message'})).toHaveCount(1);
+ const toolResults=(body:any)=>body.messages.filter((m:any)=>m.role==='tool').flatMap((m:any)=>m.content);
+ expect(toolResults(inputs[2])).toEqual([expect.objectContaining({toolName:'create_strategy',output:expect.objectContaining({value:expect.objectContaining({success:true,name:'Retry checkpoint'})})})]);
+ expect(JSON.stringify(inputs[2].messages)).not.toContain('read_context');
+ await chat.getByLabel('Message AI assistant').fill('Which version did you save?');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat).toContainText('The saved version is still available.');
+ expect(toolResults(inputs[3])).toHaveLength(1);expect(saves).toBe(1);
+ await chat.getByRole('button',{name:'Close assistant'}).click();await page.goto('/#/app/strategies');await expect(page.locator('.strategy-card')).toHaveCount(1);
+});
+
+test('Stop ends a waiting reply and leaves the assistant usable for the next message',async({page})=>{
+ let requests=0;let release:()=>void=()=>{};const waiting=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/api/assistant',async r=>{requests++;if(requests===1){await waiting;await r.fulfill({json:{answer:'This cancelled answer must stay hidden.',actions:[],messages:[]}}).catch(()=>{});}else await r.fulfill({json:{answer:'Ready for the next question.',actions:[],messages:[]}});});
+ await page.goto('/#/app/overview');await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});
+ await chat.getByLabel('Message AI assistant').fill('Explain this');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect.poll(()=>requests).toBe(1);
+ await chat.getByRole('button',{name:'Stop assistant'}).click();await expect(chat).toContainText('Response stopped.');await expect(chat.getByRole('button',{name:'Try again'})).toHaveCount(0);
+ release();await chat.getByLabel('Message AI assistant').fill('Try another question');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat).toContainText('Ready for the next question.');await expect(chat).not.toContainText('This cancelled answer');
+});
+
+test('stopping during an action keeps its result and skips the remaining queued actions',async({page})=>{
+ let started=false,release:()=>void=()=>{},requests=0;const waiting=new Promise<void>(resolve=>{release=resolve;});const bodies:any[]=[];
+ await page.route('**/api/generate-strategy',async r=>{started=true;await waiting;return r.fulfill({json:{strategy:{...exampleStrategy,name:'Completed before stopping'},model:'test'}});});
+ await page.route('**/api/assistant',r=>{requests++;const body=r.request().postDataJSON();bodies.push(body);const actions=[{id:'draft',name:'create_strategy',input:{instructions:'Draft a strategy',save:false}},{id:'capital',name:'update_settings',input:{capital:1234}}];return r.fulfill({json:requests===1?{answer:'',actions,messages:[{role:'assistant',content:actions.map(a=>({type:'tool-call',toolCallId:a.id,toolName:a.name,input:a.input}))}]}:{answer:'The draft was kept. Capital was not changed.',actions:[],messages:[]}});});
+ await page.goto('/#/app/overview');await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});
+ await chat.getByLabel('Message AI assistant').fill('Draft a strategy then change capital to 1234');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect.poll(()=>started).toBe(true);await chat.getByRole('button',{name:'Stop assistant'}).click();release();await expect(chat).toContainText('Stopped. Completed changes are kept.');
+ await chat.getByLabel('Message AI assistant').fill('What changed?');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat).toContainText('Capital was not changed.');
+ expect(bodies[1].context.settings.capital).toBe(10000);const outputs=bodies[1].messages.filter((m:any)=>m.role==='tool').flatMap((m:any)=>m.content);expect(outputs).toHaveLength(2);expect(outputs[1].output.value.cancelled).toBe(true);
+});
+
+test('long messages grow within the chat without hiding the send button',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await page.goto('/#/app/overview');await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'}),input=chat.getByLabel('Message AI assistant');
+ const before=(await input.boundingBox())!.height;await input.fill('Describe the strategy rules.\nExplain the entry.\nExplain the exit.\nExplain risk and drawdown.\nKeep the answer readable.');await expect.poll(async()=>(await input.boundingBox())!.height).toBeGreaterThan(before);
+ expect((await input.boundingBox())!.height).toBeLessThanOrEqual(90);await expect(chat.getByRole('button',{name:'Send assistant message'})).toBeInViewport();expect(await chat.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+});
+
 test('creating an AI draft leaves saved strategies untouched until Save',async({page})=>{
  await page.goto('/#/app/strategies');await page.getByLabel('Import strategy JSON file').setInputFiles({name:'s.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(exampleStrategy))});await expect(page.locator('.strategy-card')).toHaveCount(1);
  let calls=0;await page.route('**/api/assistant',r=>{calls++;return r.fulfill({json:calls===1?{answer:'',actions:[{id:'draft-1',name:'create_strategy',input:{instructions:'Draft a new strategy',save:false}}],messages:[{role:'assistant',content:[{type:'tool-call',toolCallId:'draft-1',toolName:'create_strategy',input:{instructions:'Draft a new strategy',save:false}}]}]}:{answer:'The editable draft is ready. Review and Save when you are happy with it.',actions:[],messages:[]}});});
@@ -56,4 +107,12 @@ test('assistant switches between fixed commission and percentage fees without re
  await page.route('**/api/assistant',r=>{const body=r.request().postDataJSON();contexts.push(body.context);calls++;const input=calls===1?{feeMode:'fixed',feePerTrade:4}:{feeBps:6};return r.fulfill({json:calls%2?{answer:'',actions:[{id:'cost-'+calls,name:'update_settings',input}],messages:[{role:'assistant',content:[{type:'tool-call',toolCallId:'cost-'+calls,toolName:'update_settings',input}]}]}:{answer:'Costs updated.',actions:[],messages:[]}});});
  await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});await chat.getByLabel('Message AI assistant').fill('Use a fixed commission of 4 dollars per trade.');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat).toContainText('Costs updated.');expect(contexts[1].settings.feeMode).toBe('fixed');expect(contexts[1].settings.feePerTrade).toBe(4);await expect(page.getByLabel('Fee (basis points)',{exact:true})).toBeDisabled();
  await chat.getByLabel('Message AI assistant').fill('Change the fee to 6 basis points.');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect.poll(()=>calls).toBe(4);expect(contexts[3].settings.feeMode).toBe('percentage');expect(contexts[3].settings.feeBps).toBe(6);await expect(page.getByLabel('Fee (basis points)',{exact:true})).toBeEnabled();
+});
+
+test('assistant selects data sources and reports the updated dataset and test period in follow-ups',async({page})=>{
+ await page.goto('/#/app/data');const rows=Array.from({length:72},(_,i)=>`${1735689600+i*3600},100,101,99,100,20`);await page.getByLabel('Import historical CSV file').setInputFiles({name:'assistant-source.csv',mimeType:'text/csv',buffer:Buffer.from('time,open,high,low,close,volume\n'+rows.join('\n'))});await expect(page.locator('.workspace-table tbody tr')).toHaveCount(1);
+ await clickWorkspaceButton(page,'Run backtest');await selectWorkspaceOption(page,'Market / dataset',{label:'BTC-USD · assistant-source.csv'});const start=await page.getByLabel('Start',{exact:true}).inputValue();let calls=0;const contexts:any[]=[];
+ await page.route('**/api/assistant',r=>{const body=r.request().postDataJSON();contexts.push(body.context);calls++;const input={datasetId:calls===1?'online':body.context.datasets.find((d:any)=>d.name==='assistant-source.csv').id};return r.fulfill({json:calls%2?{answer:'',actions:[{id:'source-'+calls,name:'update_settings',input}],messages:[{role:'assistant',content:[{type:'tool-call',toolCallId:'source-'+calls,toolName:'update_settings',input}]}]}:{answer:'Data source updated.',actions:[],messages:[]}});});
+ await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});await chat.getByLabel('Message AI assistant').fill('Switch to online market data.');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat).toContainText('Data source updated.');expect(contexts[1].settings.datasetId).toBe('online');
+ await chat.getByLabel('Message AI assistant').fill('Switch back to assistant-source.csv and its dates.');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect.poll(()=>calls).toBe(4);expect(contexts[3].settings.datasetId).not.toBe('online');expect(contexts[3].settings.start).toBe(start);await expect(page.getByRole('combobox',{name:'Market / dataset',exact:true})).toContainText('assistant-source.csv');
 });

@@ -1,3 +1,4 @@
+import {dailySharpeEstimate} from "./performance.js";
 import type { Run } from "./types";
 import { combinePortfolio } from "./portfolio.js";
 
@@ -78,5 +79,5 @@ export function summarizeDevelopmentRun(run: Run) {
   const averageTradePnl = trades.length ? netTradePnl / trades.length : 0;
   const lossCount = trades.filter((trade) => trade.pnl < 0).length;
   const reasons = Object.entries(trades.reduce<Record<string, number>>((counts, trade) => { counts[trade.reason] = (counts[trade.reason] || 0) + 1; return counts; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  return { phase: "development" as const, name: run.name.slice(0, 100), symbol: run.symbol, timeframeSeconds: run.granularity || 0, start: run.settings.start, end: run.settings.end, startingCapital: run.settings.capital, feeBps: run.settings.feeBps, feePerTrade: run.settings.feePerTrade, slippageBps: run.settings.slippageBps, netReturnPct: run.metrics.netReturnPct, maxDrawdownPct: run.metrics.maxDrawdownPct, sharpe: run.metrics.sharpe, winRatePct: run.metrics.winRatePct, tradeCount: run.metrics.tradeCount, totalFees: run.metrics.totalFees, profitFactor: run.metrics.profitFactor, averageRMultiple: run.metrics.averageRMultiple, totalFunding: run.metrics.totalFunding, averageTradePnl, lossCount, exitReasons: reasons };
+  return { phase: "development" as const, name: run.name.slice(0, 100), symbol: run.symbol, timeframeSeconds: run.granularity || 0, start: run.settings.start, end: run.settings.end, startingCapital: run.settings.capital, feeBps: run.settings.feeBps, feePerTrade: run.settings.feePerTrade, slippageBps: run.settings.slippageBps, netReturnPct: run.metrics.netReturnPct, maxDrawdownPct: run.metrics.maxDrawdownPct, sharpe: dailySharpeEstimate(run.curve).value, sharpeObservations:dailySharpeEstimate(run.curve).count, sharpeShortSample:dailySharpeEstimate(run.curve).shortSample, winRatePct: run.metrics.winRatePct, tradeCount: run.metrics.tradeCount, totalFees: run.metrics.totalFees, profitFactor: run.metrics.profitFactor, averageRMultiple: run.metrics.averageRMultiple, totalFunding: run.metrics.totalFunding, averageTradePnl, lossCount, exitReasons: reasons };
 }

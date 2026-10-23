@@ -56,7 +56,7 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
               {[
                 ["backtests", "Overview"],
                 ["trades", "Trades & chart"],
-                ["runsettings", "Run settings"],
+                ["runsettings", "Run backtest"],
               ].map(([id, label]) => (
                 <button
                   key={id}

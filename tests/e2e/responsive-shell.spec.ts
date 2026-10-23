@@ -16,7 +16,7 @@ async function verifyShell(page:Page,surface:string,content:string){
   }
 }
 
-for(const route of ['overview','backtests','strategies','studio','data','runsettings','history']){
+for(const route of ['overview','backtests','strategies','studio','data','runsettings','history','compare','validation','portfolio']){
   test(`workspace background and content track viewport changes on ${route}`,async({page})=>{
     await page.emulateMedia({reducedMotion:'reduce'});
     await page.goto('/#/app/'+route);

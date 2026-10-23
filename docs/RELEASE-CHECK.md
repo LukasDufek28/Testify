@@ -1,6 +1,17 @@
-# Testify verification — 14 October 2026
+# Testify verification — updated 23 October 2026
 
 The current interface follows the approved neutral Penpot workspace. Older blue/orange Figma references in Notion have been superseded by Adam's later design instructions.
+
+## Current revision — 23 October 2026
+
+- Run backtest is the single configuration screen at the existing runsettings route. Overview contains measured results and a link to configure a test. Studio, library and saved-setting reuse lead to the same form. The primary Run action and actual progress are near the heading.
+- Library cards remain bounded rather than expanding across a smaller window. Header actions reflow against the available content width. Market checkboxes, nested/document scrollbars, selectors, secondary pages and chart colors share the approved neutral/purple/mint/rose palette.
+- Daily Sharpe is calculated consistently from saved equity where possible. Short samples are labeled, and insufficient, sparse, nonpositive or constant data does not produce an invented number. Original stored snapshots are retained.
+- Assistant retries resume from completed tool results. Stop cancels a waiting answer or skips queued actions after the active action completes. Follow-ups keep action results; duplicate context snapshots are removed from transport history. Online/CSV selection is an explicit supported setting. The old secondary conversation in Research tools is removed.
+- Display timezone changes update the workspace immediately and survive reload. Untouched batch periods follow the main setup; explicitly edited periods are retained. Partial batches resume without duplicating completed children.
+- Workspace backup download and validated restore are available from Data. Restore checks the whole file and conflicts before writing, preserves existing versions, and uses fresh strategy revisions in a new account.
+- Real local Gemini configured and executed `QA polish October 23`: $8,000 capital, 3 bps percentage fees, 2 bps slippage, three development trades, $133.23 net profit and measured bounds 2026-09-30T22:00:00Z to 2026-10-10T17:12:00Z. The displayed Sharpe estimate was 5.01 from ten daily returns. This verifies execution and reporting, not a strategy's investment merit.
+- Final commit checks and deployed-preview acceptance evidence are recorded in the linked Notion integration/release tasks. Physical mobile hardware and review by the other developer are separate requirements.
 
 ## Verified locally
 
@@ -17,7 +28,7 @@ The current interface follows the approved neutral Penpot workspace. Older blue/
 ## Release requirements still external
 
 - Review by the other developer and verification on the actual Vercel staging deployment remain unchecked in Notion.
-- Vercel previously rejected deployments because Git author `ravenus123` lacks access to the Testify project. The project owner must grant access or deploy the reviewed commit through an authorized account. Do not change commit authors or disable deployment checks to bypass this.
+- Vercel author-access errors were observed earlier. On 23 October, GitHub reported successful Testify and MCP preview deployments for `cf3fe85`; the Testify preview returned the application and its account endpoint successfully. Verify the final revision's preview separately before claiming staging acceptance. Do not change commit authors or disable checks to bypass a future failure.
 - Apply `npm run db:init` to the deployment database and retain its server-only Gemini key. Local `.env.local` credentials and the demo database are ignored by Git.
 - Browser automation covers Chromium and core journeys in Firefox, WebKit and touch-device emulation. Physical mobile devices have not been certified.
 

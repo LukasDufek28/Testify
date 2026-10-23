@@ -1,5 +1,24 @@
 import {test,expect} from './fixtures';
 
+test('single run setup is linked from Overview and replaces its duplicate form',async({page})=>{
+ await page.goto('/#/app/backtests');await expect(page.locator('.design-run-simple')).toHaveCount(0);
+ await page.getByRole('button',{name:'Configure backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Run backtest',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Start backtest',exact:true})).toBeVisible();
+ await expect(page.getByRole('navigation',{name:'Workspace navigation'}).getByRole('button',{name:'Run settings',exact:true})).toHaveCount(0);
+ await expect(page.locator('.design-research-tools')).not.toHaveAttribute('open','');
+ const checkbox=page.getByRole('checkbox',{name:'BTC-USD',exact:true});await expect(checkbox).toHaveCSS('appearance','none');await expect(checkbox).toHaveCSS('width','18px');
+ expect(await page.locator('html').evaluate(el=>getComputedStyle(el).scrollbarColor)).toBe('rgb(69, 68, 79) rgba(0, 0, 0, 0)');
+});
+
+test('library cards reflow without a full-width jump or overlapping header actions',async({page})=>{
+ const {exampleStrategy}=await import('../../src/types');await page.goto('/#/app/strategies');await page.getByLabel('Import strategy JSON file').setInputFiles({name:'s.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(exampleStrategy))});
+ for(const width of [1920,1600,1440,1280,1100,800,560,390,320]){
+  await page.setViewportSize({width,height:950});const card=page.locator('.strategy-card');await expect(card).toBeVisible();expect((await card.boundingBox())!.width).toBeLessThanOrEqual(561);
+  const create=(await page.getByRole('button',{name:'Create strategy',exact:true}).boundingBox())!,upload=(await page.getByRole('button',{name:'Import strategy',exact:true}).boundingBox())!;
+  expect(create.x+create.width<=upload.x+1||create.y+create.height<=upload.y+1).toBe(true);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ }
+});
+
 test('equity reveals once in view and keeps its drawn state during hover and resize',async({page})=>{
  await page.goto('/');
  const line=page.locator('[data-chart="strategy"]');

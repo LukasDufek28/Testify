@@ -1,12 +1,13 @@
 import {createContext,useContext,useEffect,useRef,useState,type ReactNode} from 'react';
 import {createPortal} from 'react-dom';
-import {Maximize2,Minimize2,Send,X,Plus} from 'lucide-react';
+import {Maximize2,Minimize2,Send,Square,X,Plus} from 'lucide-react';
 import {AnimatePresence,motion,useReducedMotion} from 'motion/react';
 import type {ModelMessage} from 'ai';
 import type {ApiFetch} from './api-client';
 import Markdown from 'react-markdown';
 import {CardTitle,designIcons} from './PenpotPrimitives';
 import './assistant.css';
+import {requestMessages,withoutContextReads} from './assistant-conversation';
 
 export type AssistantAction={id:string;name:string;input:Record<string,unknown>};
 type Message={role:'user'|'assistant';text:string};
@@ -14,7 +15,7 @@ type Configuration={userId:string;apiFetch:ApiFetch;context:unknown;execute:(act
 const activity:Record<string,string>={update_settings:'Updating run settings…',run_backtest:'Running your backtest…',create_strategy:'Creating your strategy…',revise_strategy:'Preparing a strategy revision…',open_page:'Opening the page…'};
 export function useAssistantController(configuration:Configuration){
   const current=useRef(configuration);current.current=configuration;
-  const [open,setOpenState]=useState(false),[closing,setClosing]=useState(false),[expanded,setExpanded]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState('');
+  const [open,setOpenState]=useState(false),[closing,setClosing]=useState(false),[expanded,setExpanded]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[stopping,setStopping]=useState(false);
   const anchor=useRef<HTMLDivElement>(null);
   const [origin,setOrigin]=useState({left:12,top:Math.max(12,innerHeight-120),width:222,height:106});
   function setOpen(value:boolean){
@@ -23,38 +24,64 @@ export function useAssistantController(configuration:Configuration){
   }
   const [messages,setMessages]=useState<Message[]>(()=>{try{const list=JSON.parse(localStorage.getItem(`testify-assistant-v1:${configuration.userId}`)||'[]');return Array.isArray(list)?list.filter(m=>['user','assistant'].includes(m.role)&&typeof m.text==='string').slice(-30):[];}catch{return [];}});
   const locked=useRef(false),alive=useRef(true);
-  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
+  const history=useRef<ModelMessage[][]>([messages.map(m=>({role:m.role,content:m.text}))]);
+  const pending=useRef<{prompt:string;messages:ModelMessage[];outputs:Map<string,{input:string;output:unknown}>}|null>(null);
+  const operation=useRef<AbortController|null>(null);
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;operation.current?.abort();};},[]);
   useEffect(()=>{try{localStorage.setItem(`testify-assistant-v1:${configuration.userId}`,JSON.stringify(messages.slice(-30)));}catch{/* Chat remains available in this session. */}},[messages,configuration.userId]);
   async function send(prompt:string,retry=false){
-    if(locked.current||!prompt.trim())return;locked.current=true;setOpen(true);setError('');setStatus('Reading your workspace…');
-    const thread=(retry&&messages.at(-1)?.role==='user'&&messages.at(-1)?.text===prompt.trim()?messages:[...messages,{role:'user' as const,text:prompt.trim()}]).slice(-20);setMessages(thread);
-    let modelMessages:ModelMessage[]=thread.map(m=>({role:m.role,content:m.text}));
+    if(locked.current||!prompt.trim()||(retry&&!pending.current))return;
+    locked.current=true;setOpen(true);setError('');setNotice('');setStopping(false);setStatus(retry?'Resuming your request…':'Reading your workspace…');
+    if(!retry){
+      // Preserve any completed actions from an interrupted turn in follow-ups.
+      if(pending.current)history.current.push(pending.current.messages);
+      pending.current={prompt:prompt.trim(),messages:[{role:'user',content:prompt.trim()}],outputs:new Map()};
+      setMessages(previous=>[...previous,{role:'user' as const,text:prompt.trim()}].slice(-30));
+    }
+    const turn=pending.current!;
+    const controller=new AbortController();operation.current=controller;
+    const complete=()=>{history.current=[...history.current,turn.messages].slice(-8);pending.current=null;};
     try{
       for(let step=0;step<8;step++){
-        const response=await current.current.apiFetch('/api/assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:modelMessages,context:current.current.context})});
+        controller.signal.throwIfAborted();
+        const context=current.current.context;
+        const response=await current.current.apiFetch('/api/assistant',{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(60000)]),body:JSON.stringify({messages:requestMessages(history.current,turn.messages,context),context})});
         const body=await response.json();if(!response.ok)throw new Error(body.error||'The assistant is unavailable. Try again.');
         if(!alive.current)return;
-        if(body.answer?.trim())setMessages(previous=>[...previous,{role:'assistant' as const,text:body.answer.trim()}].slice(-30));
-        const actions=body.actions as AssistantAction[];
-        if(!actions?.length){if(!body.answer?.trim())throw new Error('Gemini returned no answer. Please try again.');return;}
+        controller.signal.throwIfAborted();
+        const actions=(Array.isArray(body.actions)?body.actions:[]) as AssistantAction[];
         if(actions.length>4)throw new Error('Please split that request into fewer actions.');
-        modelMessages=[...modelMessages,...body.messages];
+        if(actions.some(action=>!action||typeof action.id!=='string'||!activity[action.name]||!action.input||typeof action.input!=='object'))throw new Error('The assistant returned an unsupported action.');
+        const answer=typeof body.answer==='string'?body.answer.trim():'';
+        if(!actions.length&&!answer)throw new Error('Gemini returned no answer. Please try again.');
+        if(actions.length&&!Array.isArray(body.messages))throw new Error('The assistant could not prepare that action. Please try again.');
+        const responseMessages=Array.isArray(body.messages)?withoutContextReads(body.messages):[];
+        turn.messages.push(...(responseMessages.length?responseMessages:answer?[{role:'assistant' as const,content:answer}]:[]));
+        if(answer)setMessages(previous=>[...previous,{role:'assistant' as const,text:answer}].slice(-30));
+        if(!actions.length){complete();return;}
         for(const action of actions){
-          if(!activity[action.name])throw new Error('The assistant requested an unsupported action.');
-          setStatus(activity[action.name]);
           let output:unknown;
-          try{output=await current.current.execute(action);}catch(e){output={success:false,error:e instanceof Error?e.message:'The action failed.'};}
+          const previous=turn.outputs.get(action.id),input=JSON.stringify({name:action.name,input:action.input});
+          if(previous)output=previous.input===input?previous.output:{success:false,error:'A repeated action identifier had different arguments.'};
+          else if(controller.signal.aborted)output={success:false,cancelled:true,error:'Stopped by the user before this action started.'};
+          else {
+            setStatus(activity[action.name]);
+            try{output=await current.current.execute(action);}catch(e){output={success:false,error:e instanceof Error?e.message:'The action failed.'};}
+            // Checkpoint results before the next network call. Retry resumes here
+            // rather than recreating a saved strategy or running another backtest.
+            turn.outputs.set(action.id,{input,output});
+          }
           if(!alive.current)return;
-          modelMessages.push({role:'tool',content:[{type:'tool-result',toolCallId:action.id,toolName:action.name,output:{type:'json',value:JSON.parse(JSON.stringify(output??null))}}]});
+          turn.messages.push({role:'tool',content:[{type:'tool-result',toolCallId:action.id,toolName:action.name,output:{type:'json',value:JSON.parse(JSON.stringify(output??null))}}]});
           await new Promise(resolve=>setTimeout(resolve,0));
         }
         setStatus('Summarizing the result…');
       }
       throw new Error('That request needs more steps. Send a follow-up to continue.');
-    }catch(e){if(alive.current)setError(e instanceof Error?e.message:'The assistant could not finish.');}
-    finally{locked.current=false;if(alive.current)setStatus('');}
+    }catch(e){if(alive.current){if(controller.signal.aborted){complete();setNotice(turn.outputs.size?'Stopped. Completed changes are kept.':'Response stopped.');}else setError(e instanceof Error&&e.name==='TimeoutError'?'Gemini took too long. Try again to continue.':e instanceof Error?e.message:'The assistant could not finish.');}}
+    finally{locked.current=false;operation.current=null;if(alive.current){setStatus('');setStopping(false);}}
   }
-  return {open,setOpen,closing,finishClose:()=>setClosing(false),anchor,origin,expanded,setExpanded,messages,status,error,send,clear:()=>{if(!locked.current){setMessages([]);setError('');}}};
+  return {open,setOpen,closing,finishClose:()=>setClosing(false),anchor,origin,expanded,setExpanded,messages,status,error,notice,stopping,send,retry:()=>{if(pending.current)void send(pending.current.prompt,true);},stop:()=>{if(operation.current){operation.current.abort();setStopping(true);setStatus('Stopping after the current action…');}},clear:()=>{if(!locked.current){history.current=[];pending.current=null;setMessages([]);setError('');setNotice('');}}};
 }
 type Controller=ReturnType<typeof useAssistantController>;
 const AssistantContext=createContext<Controller|null>(null);
@@ -70,6 +97,7 @@ function AssistantOverlay(){
   const clamp=(left:number,top:number)=>{const r=root.current?.getBoundingClientRect();return {left:Math.max(12,Math.min(left,innerWidth-(r?.width??290)-12)),top:Math.max(12,Math.min(top,innerHeight-(r?.height??343)-12))};};
   useEffect(()=>{if(!a.open)return;restore.current=document.activeElement as HTMLElement;const raf=requestAnimationFrame(()=>input.current?.focus());const escape=(e:KeyboardEvent)=>{if(e.key==='Escape')a.setOpen(false);};addEventListener('keydown',escape);return()=>{cancelAnimationFrame(raf);removeEventListener('keydown',escape);};},[a.open]);
   useEffect(()=>{if(!a.open)return;thread.current?.scrollTo({top:thread.current.scrollHeight});},[a.messages,a.status,a.error,a.open]);
+  useEffect(()=>{const element=input.current;if(element){element.style.height='auto';element.style.height=Math.min(90,Math.max(38,element.scrollHeight))+'px';}},[prompt,a.open,a.expanded]);
   useEffect(()=>{if(a.open||a.closing||!restore.current)return;const previous=restore.current;const launcher=document.querySelector<HTMLButtonElement>('.design-ai-launcher');if(previous!==document.body&&previous.isConnected)previous.focus();else if(launcher?.getClientRects().length)launcher.focus();else document.querySelector<HTMLButtonElement>('.design-mobile-menu')?.focus();},[a.open,a.closing]);
   useEffect(()=>{const resize=()=>{setViewport({width:innerWidth,height:innerHeight});setPosition(p=>p?clamp(p.left,p.top):p);};addEventListener('resize',resize);return()=>removeEventListener('resize',resize);},[]);
   useEffect(()=>{if(position)requestAnimationFrame(()=>setPosition(p=>p?clamp(p.left,p.top):p));},[a.expanded]);
@@ -89,9 +117,10 @@ function AssistantOverlay(){
       <div ref={thread} className="assistant-thread" role="log" aria-label="Conversation history" aria-live="polite">
         {!a.messages.length?<div className="assistant-welcome"><h2>What can I<br/>help you with?</h2><div className="assistant-suggestions">{['Review my strategy','Explain drawdown'].map(text=><button key={text} onClick={()=>void a.send(text)}>{text}</button>)}</div></div>:a.messages.map((m,i)=><div key={i} className={`assistant-message ${m.role}`} role="article" aria-label={m.role==='user'?'Your message':'Assistant response'}>{m.role==='user'?m.text:<Markdown skipHtml allowedElements={['p','strong','em','ul','ol','li','h1','h2','h3','h4','h5','h6','code','pre','blockquote','br','hr','a']} components={{a:({node:_,...props})=><a {...props} target="_blank" rel="noopener noreferrer"/>}}>{m.text}</Markdown>}</div>)}
         {a.status&&<p className="assistant-activity" role="status"><span aria-hidden="true"/>{a.status}</p>}
-        {a.error&&<div className="assistant-chat-error" role="alert">{a.error}<button type="button" onClick={()=>{const last=[...a.messages].reverse().find(m=>m.role==='user');if(last)void a.send(last.text,true);}}>Try again</button></div>}
+        {a.notice&&<p className="assistant-notice" role="status">{a.notice}</p>}
+        {a.error&&<div className="assistant-chat-error" role="alert">{a.error}<button type="button" onClick={a.retry}>Try again</button></div>}
       </div>
-      <form onSubmit={e=>{e.preventDefault();submit();}}><textarea ref={input} rows={1} aria-label="Message AI assistant" placeholder={a.messages.length?'Ask a follow-up…':'Ask anything…'} value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();submit();}}}/><button aria-label="Send assistant message" disabled={!!a.status||!prompt.trim()}><Send size={17}/></button></form>
+      <form onSubmit={e=>{e.preventDefault();submit();}}><textarea ref={input} rows={1} aria-label="Message AI assistant" placeholder={a.messages.length?'Ask a follow-up…':'Ask anything…'} value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();submit();}}}/>{a.status?<button type="button" aria-label="Stop assistant" disabled={a.stopping} onClick={a.stop}><Square size={14}/></button>:<button aria-label="Send assistant message" disabled={!prompt.trim()}><Send size={17}/></button>}</form>
     </motion.section>
   </motion.div>}</AnimatePresence>,document.body);
 }

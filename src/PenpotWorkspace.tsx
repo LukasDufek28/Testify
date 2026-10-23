@@ -1,4 +1,5 @@
 import RunDefaultsPanel, {getDisplayTimezone} from "./RunDefaults";
+import {dailySharpeEstimate} from './performance';
 import {AnimatedSelect} from './AnimatedControls';
 import WorkspaceSidebar from "./WorkspaceSidebar";
 import type { ApiFetch } from "./api-client";
@@ -29,6 +30,7 @@ import RunStatusBadge, { type RunState } from "./RunStatusBadge";
 import useWorkspaceMotion from './useWorkspaceMotion';
 import {motion,useReducedMotion} from 'motion/react';
 import type { Bar, Dataset, Run, SavedStrategy, Trade } from "./types";
+import './run-flow.css';
 
 export type RunOptions = {
   strategyId: string;
@@ -450,7 +452,7 @@ function Library({ p,search,setSearch }: { p: Props;search:string;setSearch:(val
                           <button
                             onClick={() => {
                               p.update("strategyId", s.id);
-                              p.navigate("backtests");
+                              p.navigate("runsettings");
                             }}
                           >
                             New backtest
@@ -510,7 +512,7 @@ function Library({ p,search,setSearch }: { p: Props;search:string;setSearch:(val
           )}
           <button
             className="design-button"
-            onClick={() => p.navigate("backtests")}
+            onClick={() => p.navigate("runsettings")}
           >
             Run backtest
           </button>
@@ -1108,7 +1110,7 @@ function Replay({ p }: { p: Props }) {
       </DesignCard>
       <p className="design-bottom-note">
         {p.selectedRun
-          ? "Saved candles · Times shown in UTC"
+          ? `Saved candles · Times shown in ${getDisplayTimezone()}`
           : "Layout preview · All controls and trade selection are interactive"}
       </p>
     </>
@@ -1165,6 +1167,7 @@ export default function PenpotWorkspace(p: Props) {
     };
   }, [settings]);
   const run = p.selectedRun || p.runs[0];
+  const sharpe=run?dailySharpeEstimate(run.curve):null;
   useEffect(() => {
     function escape(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -1187,7 +1190,7 @@ export default function PenpotWorkspace(p: Props) {
       : p.page === "manual" ? "Manual replay" : p.page === "connections" ? "Connections" : p.page === "studio" ? "Strategy creation" : p.page === "strategies"
         ? "Strategies"
         : p.page === "runsettings"
-          ? "Run settings"
+          ? "Run backtest"
           : p.page === "trades"
             ? "Trades & chart"
             : "Backtests";
@@ -1250,29 +1253,29 @@ export default function PenpotWorkspace(p: Props) {
           label="Sharpe ratio"
           value={
             run
-              ? run.metrics.sharpe?.toFixed(2) || "—"
+              ? sharpe?.value?.toFixed(2) || "—"
               : p.page === "overview"
                 ? "1.25"
                 : "0.87"
           }
           percent={
             run
-              ? run.metrics.sharpe === null
-                ? "Unavailable"
-                : run.metrics.sharpe >= 0
+              ? sharpe?.value == null
+                ? "Need more data"
+                : (sharpe?.value ?? 0) >= 0
                   ? "Positive"
                   : "Negative"
               : "Positive"
           }
           negative={
-            !!run && run.metrics.sharpe !== null && run.metrics.sharpe < 0
+            !!run && sharpe?.value != null && sharpe.value < 0
           }
           hint={
             p.page === "overview"
               ? run
-                ? "Latest backtest sharpe"
+                ? sharpe?.value == null ? sharpe?.reason || "Daily equity estimate" : sharpe.shortSample ? `Estimate · ${sharpe.count} daily returns` : "Annualized · daily equity"
                 : "Portfolio sharpe"
-              : "For this backtest"
+              : sharpe?.value == null ? sharpe?.reason || "Daily equity estimate" : sharpe.shortSample ? `Estimate · ${sharpe.count} daily returns` : "Annualized · daily equity"
           }
           icon={designIcons.sharpe}
         />
@@ -1353,6 +1356,7 @@ export default function PenpotWorkspace(p: Props) {
         <div className={"design-page-heading" + (p.page === "studio" ? " design-studio-heading" : "")}>
           <h1>{title}</h1>
           <p>{subtitle}</p>
+          {p.page === "runsettings" && <button className="design-button" aria-label="Start backtest" disabled={p.running || !p.options.strategyId || !p.options.markets.length} onClick={p.onRun}>{p.running ? <RunStatusBadge state="processing"/> : "Run backtest"}</button>}
           {p.page === "studio" && <button className="design-button" onClick={p.onCreate}>New strategy</button>}
         </div>
         {p.error && (
@@ -1367,7 +1371,34 @@ export default function PenpotWorkspace(p: Props) {
         )}
         {["connections","manual"].includes(p.page) && p.content}
         {p.page === "studio" && p.studio}
-        {["studio","runsettings"].includes(p.page) && p.page !== "studio" && p.researchTools}
+        {p.running && (
+          <DesignCard className="design-progress">
+            <h2>Running backtest</h2>
+            <div
+              role="progressbar"
+              aria-label="Backtest processing"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={p.progress}
+            >
+              <span style={{ width: p.progress + "%" }} />
+            </div>
+            <p>{p.progressText}</p>
+            {p.progress > 0 && elapsed > 0 && (
+              <p role="status">
+                ~
+                {Math.max(
+                  1,
+                  Math.round((elapsed * (100 - p.progress)) / p.progress),
+                )}
+                s remaining · estimate
+              </p>
+            )}
+            <button className="design-button secondary" onClick={p.onCancel}>
+              Cancel backtest
+            </button>
+          </DesignCard>
+        )}
         {p.page === "overview" && (
           <div className="design-dashboard-grid dashboard-unified">
             {metrics()}
@@ -1448,17 +1479,19 @@ export default function PenpotWorkspace(p: Props) {
                 <CardTitle icon={designIcons.layers}>Your library</CardTitle>
                 <div className="design-library-count">
                   <strong>{p.strategies.length}</strong>
-                  <span>saved strategies</span>
-                  <button className="design-create-link" onClick={p.onCreate}>
+                  <span>{p.strategies.length === 1 ? "saved strategy" : "saved strategies"}</span>
+                </div>
+                <div className="design-library-actions">
+                  <button className="design-button secondary" onClick={p.onCreate}>
                     Create strategy
                   </button>
-                </div>
                 <button
                   className="design-button"
                   onClick={() => upload.current?.click()}
                 >
                   Import strategy
                 </button>
+                </div>
                 <input
                   hidden
                   ref={upload}
@@ -1493,30 +1526,8 @@ export default function PenpotWorkspace(p: Props) {
           </div>
         )}
         {p.page === "backtests" && (
-          <div className={"design-dashboard-grid" + (run ? " backtest-result" : "")}>
-            <DesignCard
-              className={
-                "design-run-simple raised " +
-                (p.datasets.length ? "has-datasets" : "")
-              }
-            >
-              <CardTitle icon={designIcons.run}>Run Backtest</CardTitle>
-              <SettingsFields p={p} />
-              <button
-                className="design-button"
-                onClick={p.onRun}
-                disabled={p.running}
-              >
-                <RunStatusBadge state={p.runState} />
-              </button>
-              <button
-                className="design-button secondary"
-                onClick={() => nav("runsettings")}
-              >
-                Settings
-              </button>
-              <small>Advanced instruments &amp; execution</small>
-            </DesignCard>
+          <div className="design-backtest-overview">
+            <div className="design-overview-action"><p>Review a completed result or configure your next test.</p><button className="design-button" aria-label="Configure backtest" onClick={()=>nav("runsettings")}>Run backtest</button></div>
             <div className="design-right-column">
               {metrics()}
               <DesignEquity run={run} />
@@ -1616,6 +1627,8 @@ export default function PenpotWorkspace(p: Props) {
                   />
                 </Field>
                 <Field label="Risk per trade · % of equity"><input type="number" aria-label="Risk per trade percent" min="0" max="10" step=".1" value={p.options.riskPct} onChange={e=>p.update('riskPct',Number(e.target.value))}/></Field><p className="design-help">0 uses the strategy's allocation. A risk override requires a stop loss and is capped at available equity.</p><Field label="Spread · basis points"><input type="number" aria-label="Spread (basis points)" min="0" max="1000" step=".1" value={p.options.spreadBps} onChange={e=>p.update('spreadBps',Number(e.target.value))}/></Field>
+                <Field label="Commission mode"><AnimatedSelect aria-label="Commission mode" value={p.options.feeMode} onChange={e=>p.update('feeMode',e.target.value)}><option value="percentage">Percentage per side</option><option value="fixed">Fixed per trade</option></AnimatedSelect></Field>
+                {p.options.feeMode==='fixed'&&<Field label="Fee per trade"><input type="number" aria-label="Fee per trade" min="0" step=".1" value={p.options.feePerTrade} onChange={e=>p.update('feePerTrade',Number(e.target.value))}/></Field>}
                 <div className="design-fees">
                   <Field label="Fee · basis points">
                     <input
@@ -1646,7 +1659,7 @@ export default function PenpotWorkspace(p: Props) {
                 <p className="design-help">
                   Spot candles do not include bid/ask spread.
                   <br />
-                  Entered spread, fees and slippage model trading costs. {p.options.feeMode === "fixed" && `Fixed commission: ${money(p.options.feePerTrade || 0)} per trade, set in Research tools.`}
+                  Entered spread, fees and slippage model trading costs. {p.options.feeMode === "fixed" && `Fixed commission: ${money(p.options.feePerTrade || 0)} per trade.`}
                 </p>
                 <p className="design-help">
                   Tester options are saved in this browser.
@@ -1671,6 +1684,7 @@ export default function PenpotWorkspace(p: Props) {
                 </div>
               </DesignCard>
             </div>
+            {p.researchTools}
             {p.batchTools}
             <RunDefaultsPanel apiFetch={p.apiFetch} current={{capital:p.options.capital,feeMode:p.options.feeMode,feePerTrade:p.options.feePerTrade,riskPct:p.options.riskPct,spreadBps:p.options.spreadBps,feeBps:p.options.feeBps,slippageBps:p.options.slippageBps,splitPct:p.options.splitPct}} onApply={defaults=>{p.update('feeMode',defaults.feeMode??'percentage');p.update('feePerTrade',defaults.feePerTrade??1);p.update('capital',defaults.capital);p.update('riskPct',defaults.riskPct??0);p.update('spreadBps',defaults.spreadBps??0);p.update('feeBps',defaults.feeBps);p.update('slippageBps',defaults.slippageBps);p.update('splitPct',defaults.splitPct);}}/>
             <div className="design-settings-footer">
@@ -1684,45 +1698,11 @@ export default function PenpotWorkspace(p: Props) {
               >
                 Overview
               </button>
-              <button
-                className="design-button"
-                disabled={p.running}
-                onClick={p.onRun}
-              >
-                {p.runState === 'idle' ? <>Run {p.options.markets.length} backtests</> : <RunStatusBadge state={p.runState} />}
-              </button>
+
             </div>
           </>
         )}
         {p.page === "trades" && <Replay p={p} />}
-        {p.running && (
-          <DesignCard className="design-progress">
-            <h2>Running backtest</h2>
-            <div
-              role="progressbar"
-              aria-label="Backtest processing"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={p.progress}
-            >
-              <span style={{ width: p.progress + "%" }} />
-            </div>
-            <p>{p.progressText}</p>
-            {p.progress > 0 && elapsed > 0 && (
-              <p role="status">
-                ~
-                {Math.max(
-                  1,
-                  Math.round((elapsed * (100 - p.progress)) / p.progress),
-                )}
-                s remaining · estimate
-              </p>
-            )}
-            <button className="design-button secondary" onClick={p.onCancel}>
-              Cancel backtest
-            </button>
-          </DesignCard>
-        )}
         {p.page === "studio" && p.researchTools}
       </main>
       {settings && (

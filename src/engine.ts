@@ -1,3 +1,4 @@
+import {dailySharpeEstimate} from "./performance.js";
 import {adversePrice,executionFee,validateExecutionOverrides} from "./execution-costs.js";
 import type { BacktestSettings, Bar, Dataset, EquityPoint, Formula, Indicator, Rule, RuleSet, Run, Strategy, RuleStrategy, Trade } from "./types";
 
@@ -198,14 +199,9 @@ export function runBacktest(dataset: Dataset, strategy: Strategy, settings: Back
   let peak = settings.capital; let maxDrawdownPct = 0;
   onProgress?.(1);
   for (const point of curve) { peak = Math.max(peak, point.equity); maxDrawdownPct = Math.max(maxDrawdownPct, (peak - point.equity) / peak * 100); }
-  const dailyClose = new Map<string, number>();
-  for (const p of curve) dailyClose.set(new Date(p.time * 1000).toISOString().slice(0, 10), p.equity);
-  const days = [...dailyClose.values()];
-  const returns = days.slice(1).map((value, i) => days[i] > 0 ? value / days[i] - 1 : 0);
-  const avg = returns.reduce((a, b) => a + b, 0) / Math.max(1, returns.length);
-  const variance = returns.reduce((a, b) => a + (b - avg) ** 2, 0) / Math.max(1, returns.length - 1);
-  const sharpe = returns.length >= 20 && variance > 0 ? avg / Math.sqrt(variance) * Math.sqrt(252) : null;
-  if (returns.length < 20) warnings.push("Sharpe needs at least 20 daily returns, so it is unavailable for this short sample.");
+  const estimate=dailySharpeEstimate(curve),sharpe=estimate.value;
+  if(estimate.value===null)warnings.push(`Sharpe: ${estimate.reason}`);
+  else if(estimate.shortSample)warnings.push(`Sharpe is a short-sample estimate from ${estimate.count} daily returns (365-day annualization, 0% benchmark).`);
   const gapCount = intervals.filter((v) => v > barSeconds * 3).length;
   if (gapCount) warnings.push(`${gapCount} gaps exceed three bar intervals; weekends and missing history can affect results.`);
   warnings.push("Bars do not reveal intrabar order; if stop and target both hit, the stop is assumed first.");

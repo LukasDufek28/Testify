@@ -1,4 +1,4 @@
-:root { --testify-profit: #ffffff; --testify-drawdown: #f2842f; }
+:root { --testify-profit: #91f5ab; --testify-drawdown: #e69a9a; }
 .landing .positive { color: var(--testify-profit); }
 .landing .negative { color: var(--testify-drawdown); }
 .animated-value { font-variant-numeric: tabular-nums; }

@@ -112,7 +112,7 @@ test("phone navigation, native chart labels and monthly cards remain usable", as
 test('compact sidebar omits Settings and Help while run configuration stays reachable',async({page})=>{
   await page.goto('/#/app/overview');const nav=page.getByRole('navigation',{name:'Workspace navigation'});
   await expect(nav.getByRole('button',{name:'Settings',exact:true})).toHaveCount(0);await expect(nav.getByRole('button',{name:'Help center',exact:true})).toHaveCount(0);
-  await nav.getByRole('button',{name:'Run settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Run settings',exact:true})).toBeVisible();
+  await nav.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Run backtest',exact:true})).toBeVisible();
 });
 test("monthly mint gradients and separate trade navigation retain the approved design", async ({
   page,

@@ -11,7 +11,7 @@ async function setup(page:any){
   await page.goto('/#/app/data');
   await page.getByLabel('Import historical CSV file').setInputFiles({name:'replay.csv',mimeType:'text/csv',buffer:Buffer.from(csv)});
   await expect(page.locator('.workspace-table tbody tr')).toHaveCount(1);
-  await page.goto('/#/app/backtests');
+  await page.goto('/#/app/runsettings');
   await selectWorkspaceOption(page,"Market / dataset",{label:'BTC-USD · replay.csv'});
 }
 
@@ -45,4 +45,11 @@ test('batch preserves a completed child on failure and resumes only missing runs
   await page.goto('/#/app/runsettings');await page.reload();await page.getByText('Parameter and period batches',{exact:true}).click();fail=false;
   await page.getByRole('button',{name:'Resume remaining runs',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(2,{timeout:20000});expect(calls).toBe(3);
   await page.reload();await expect(page.locator('.history-table tbody tr')).toHaveCount(2);
+});
+
+test('untouched batch dates follow the main setup while explicitly edited periods are preserved',async({page})=>{
+ await setup(page);await page.getByText('Parameter and period batches',{exact:true}).click();
+ await expect(page.getByLabel('Batch period 1 start')).toHaveValue(await page.getByLabel('Start',{exact:true}).inputValue());
+ await page.getByLabel('Start',{exact:true}).fill('2025-01-02T03:00');await expect(page.getByLabel('Batch period 1 start')).toHaveValue('2025-01-02T03:00');
+ await page.getByLabel('Batch period 1 start').fill('2025-01-03T04:00');await page.getByLabel('Start',{exact:true}).fill('2025-01-02T06:00');await expect(page.getByLabel('Batch period 1 start')).toHaveValue('2025-01-03T04:00');
 });
