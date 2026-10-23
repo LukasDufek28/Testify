@@ -1,4 +1,4 @@
-import {ChartNoAxesCombined,ChevronLeft,Database,House,Square} from 'lucide-react';
+import {ChartNoAxesCombined,Database,House,Square,X} from 'lucide-react';
 import type {ReactNode} from 'react';
 import type {WorkspacePage} from './WorkspaceShell';
 import {AssistantLauncher} from './AssistantWorkspace';
@@ -13,11 +13,11 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
             TESTIFY
           </a>
           <button
-            className="design-icon-button"
+            className="design-icon-button design-navigation-close"
             aria-label="Close navigation"
             onClick={() => setNavOpen(false)}
           >
-            <ChevronLeft size={13} />
+            <X size={16} />
           </button>
           <nav aria-label="Workspace navigation">
             {[

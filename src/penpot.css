@@ -85,6 +85,9 @@
   right: 19px;
   top: 22px;
 }
+@media (min-width: 801px) {
+  .design-sidebar-top > .design-navigation-close { display: none; }
+}
 .design-sidebar nav > button {
   display: flex;
   align-items: center;

@@ -1,7 +1,7 @@
 name: Testify checks
 on:
   push:
-    branches: [dev, devAdam, devLukas]
+    branches: [main, dev, devAdam, devLukas]
   pull_request:
   workflow_dispatch:
 permissions:

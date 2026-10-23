@@ -9,6 +9,7 @@ async function verifyShell(page:Page,surface:string,content:string){
       return elements.every(element=>{const box=element.getBoundingClientRect();return Math.abs(box.left)<1&&Math.abs(box.width-viewport)<1&&box.height>=innerHeight-1;})&&document.documentElement.scrollWidth<=viewport;
     })).toBe(true);
     await expect(page.locator('html')).toHaveCSS('background-color','rgb(24, 23, 31)');
+    if(surface==='.penpot-workspace'&&width>800)await expect(page.getByRole('button',{name:'Close navigation',exact:true})).toBeHidden();
     const box=(await page.locator(content).boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x+box.width).toBeLessThanOrEqual(width);
