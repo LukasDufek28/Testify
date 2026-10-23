@@ -12,7 +12,7 @@ export default defineConfig({
   outputDir: 'test-results-cross',
   reporter: [['list'], ['html', {outputFolder:'playwright-report-cross',open:'never'}]],
   testMatch: /(?:auth-integration|assistant|run-modes|workspace|studio|results|responsive-shell|controls|strategy-library|ui-polish)\.spec\.ts/,
-  grep: core,
+  grep: new RegExp(`preview guest identity|${core.source}`),
   projects: [
     { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },

@@ -1,5 +1,14 @@
 import {test,expect,clickWorkspaceButton} from './fixtures';
 import {exampleStrategy} from '../../src/types';
+ test('preview guest identity stays compact without exposing its generated account identifier',async({page})=>{
+  const user={id:'e2e-user',email:'guest-2428189d-cec2-4c47-b0c3-68ade4b62987@preview.testify.invalid',sessionId:'e2e-session',guest:true};
+  await page.route('**/api/auth',r=>r.fulfill({json:{user,previewGuest:true}}));
+  await page.goto('/#/app/overview');
+  const account=page.getByRole('button',{name:'Open account menu',exact:true});
+  await expect(account).toContainText('Preview guest');await expect(account).toContainText('Temporary workspace');await expect(account).not.toContainText('2428189d');
+  await clickWorkspaceButton(page,'Open account menu');await expect(page.getByRole('menu',{name:'Account menu'})).toContainText('Temporary preview workspace');
+  await expect(page.getByRole('menuitem',{name:'Sign out',exact:true})).toBeVisible();
+ });
 test.describe('account entry and workspace isolation',()=>{
  test.use({signedIn:false});
  test('approved account screens stay centered and usable on desktop and phone',async({page})=>{

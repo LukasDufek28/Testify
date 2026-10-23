@@ -3,6 +3,7 @@
 .account-avatar { display:grid; place-items:center; width:34px; height:34px; flex:none; border-radius:50%; background:#2b2a33; }
 .account-identity { min-width:0; flex:1; }
 .account-identity strong,.account-popup-details strong { display:block; font-weight:400; }
+.account-identity strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .account-identity small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#9e9da7; font-size:12px; }
 .account-menu .account-menu-trigger:hover { background:#292832; }
 .account-menu .account-menu-trigger:focus-visible { outline:1px solid #a394e5; outline-offset:3px; }

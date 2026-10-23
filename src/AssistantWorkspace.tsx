@@ -13,6 +13,15 @@ export type AssistantAction={id:string;name:string;input:Record<string,unknown>}
 type Message={role:'user'|'assistant';text:string};
 type Configuration={userId:string;apiFetch:ApiFetch;context:unknown;execute:(action:AssistantAction)=>Promise<unknown>};
 const activity:Record<string,string>={update_settings:'Updating run settings…',run_backtest:'Running your backtest…',create_strategy:'Creating your strategy…',revise_strategy:'Preparing a strategy revision…',open_page:'Opening the page…'};
+async function waitForReply<T>(request:()=>Promise<T>,signal:AbortSignal):Promise<T>{
+  signal.throwIfAborted();
+  let abort=()=>{};
+  const cancelled=new Promise<never>((_,reject)=>{abort=()=>reject(signal.reason);signal.addEventListener('abort',abort,{once:true});});
+  // Some transports keep a pending fetch/body alive after abort. Release the UI
+  // independently; a late reply cannot reach the action loop after this race.
+  try{return await Promise.race([request(),cancelled]);}
+  finally{signal.removeEventListener('abort',abort);}
+}
 export function useAssistantController(configuration:Configuration){
   const current=useRef(configuration);current.current=configuration;
   const [open,setOpenState]=useState(false),[closing,setClosing]=useState(false),[expanded,setExpanded]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[stopping,setStopping]=useState(false);
@@ -45,8 +54,12 @@ export function useAssistantController(configuration:Configuration){
       for(let step=0;step<8;step++){
         controller.signal.throwIfAborted();
         const context=current.current.context;
-        const response=await current.current.apiFetch('/api/assistant',{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(60000)]),body:JSON.stringify({messages:requestMessages(history.current,turn.messages,context),context})});
-        const body=await response.json();if(!response.ok)throw new Error(body.error||'The assistant is unavailable. Try again.');
+        const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(60000)]);
+        const body=await waitForReply(async()=>{
+          const response=await current.current.apiFetch('/api/assistant',{method:'POST',headers:{'Content-Type':'application/json'},signal,body:JSON.stringify({messages:requestMessages(history.current,turn.messages,context),context})});
+          const result=await response.json();if(!response.ok)throw new Error(result.error||'The assistant is unavailable. Try again.');
+          return result;
+        },signal);
         if(!alive.current)return;
         controller.signal.throwIfAborted();
         const actions=(Array.isArray(body.actions)?body.actions:[]) as AssistantAction[];
