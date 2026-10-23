@@ -66,6 +66,9 @@ jobs:
       - run: npm ci
       - run: npm run build:engine
       - name: Core journeys with keyboard and touch
+        env:
+          # Firefox refuses a container HOME owned by the host runner's user.
+          HOME: /root
         run: npx playwright test --config=playwright.cross-browser.config.ts --project=${{ matrix.project }}
       - uses: actions/upload-artifact@v5
         if: ${{ !cancelled() }}
