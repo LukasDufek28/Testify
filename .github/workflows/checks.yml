@@ -12,7 +12,12 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Match the Playwright version in package-lock.json. Browsers and OS libraries
+    # are preinstalled, avoiding unreliable per-job Ubuntu mirror downloads.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --ipc=host
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -24,8 +29,6 @@ jobs:
         run: npm run build
       - name: Engine and API regression tests
         run: npm test
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
       - name: Browser regression tests
         run: npm run test:e2e
       - uses: actions/upload-artifact@v5
@@ -38,7 +41,10 @@ jobs:
           retention-days: 14
   cross-browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --ipc=host
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -59,8 +65,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:engine
-      - name: Install browser
-        run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Core journeys with keyboard and touch
         run: npx playwright test --config=playwright.cross-browser.config.ts --project=${{ matrix.project }}
       - uses: actions/upload-artifact@v5
