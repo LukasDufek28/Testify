@@ -82,6 +82,9 @@ test("three screens keep the shared responsive shell and primary hover effects",
     }
     const button=page.locator(".testify-primary,.design-button").filter({visible:true}).first();
     await button.hover();
-    if(["strategies","backtests","studio"].includes(route))await expect(button).toHaveCSS("filter","brightness(1.12)");else expect(await button.evaluate(e=>getComputedStyle(e,"::after").animationName)).toBe("landing-glare");
+    const secondary=await button.evaluate(e=>e.matches('.secondary,.subtle,.ghost'));
+    await expect(button).toHaveCSS('filter',secondary?'brightness(1.12)':'brightness(1.1)');
+    await expect(button).toHaveCSS('min-height','42px');
+    if(route==='data')expect(await button.evaluate(e=>getComputedStyle(e,'::after').display)).toBe('none');
   }
 });

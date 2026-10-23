@@ -1,4 +1,5 @@
 import {test,expect} from './fixtures';
+import {savePerformanceFixture} from './performance-fixture';
 
 test('single run setup is linked from Overview and replaces its duplicate form',async({page})=>{
  await page.goto('/#/app/backtests');await expect(page.locator('.design-run-simple')).toHaveCount(0);
@@ -115,6 +116,7 @@ test('showcase bars and labels fit their cards from phone to ultrawide',async({p
 
 for(const route of ['/', '/#/app/overview'])test(`equity cursor moves between adjacent pixels and remains after leaving ${route}`,async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});await page.goto(route);
+ if(route.includes('/app/')){await savePerformanceFixture(page);await page.reload();}
  const plot=page.locator('.responsive-equity-plot').first();await plot.scrollIntoViewIfNeeded();
  const box=(await plot.boundingBox())!;
  const marker=plot.locator('[data-chart="equity-marker"]');

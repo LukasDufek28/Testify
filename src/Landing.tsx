@@ -56,7 +56,7 @@ export default function Landing() {
           <figure className="landing-chart" aria-label="Illustrative equity and drawdown chart">
             <DesignEquity responsivePreview />
           </figure>
-          <div className="landing-showcase-row"><DesignMonthly/><StrategyExample name="Your Strategy" example/></div>
+          <div className="landing-showcase-row"><DesignMonthly example/><StrategyExample name="Your Strategy" example/></div>
         </section>
         <section className="landing-process" id="how-it-works" aria-labelledby="process-heading" data-reveal>
           <h2 id="process-heading" className="silver-text">Less friction. More clarity.</h2>

@@ -1,4 +1,4 @@
-import {ChartNoAxesCombined,Database,House,Square,X} from 'lucide-react';
+import {ChartNoAxesCombined,Database,House,Workflow,X,type LucideIcon} from 'lucide-react';
 import type {ReactNode} from 'react';
 import type {WorkspacePage} from './WorkspaceShell';
 import {AssistantLauncher} from './AssistantWorkspace';
@@ -23,8 +23,8 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
             {[
               ["overview", "Dashboard", House],
               ["backtests", "Backtests", ChartNoAxesCombined],
-            ].map(([id, label, Icon]) => {
-              void Icon;
+            ].map(([id, label, icon]) => {
+              const Icon=icon as LucideIcon;
               return (
                 <button
                   key={id as string}
@@ -32,21 +32,7 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
                   onClick={() => nav(id as WorkspacePage)}
                 >
                   <span className="design-icon" aria-hidden="true">
-                    <img
-                      src={
-                        "/design/icon-" +
-                        ({
-                          overview: "home",
-                          backtests: "backtests",
-                          strategies: "strategies",
-                          data: "data",
-                        }[id as string] || "home") +
-                        ".svg"
-                      }
-                      alt=""
-                      width="15"
-                      height="15"
-                    />
+                    <Icon size={16} strokeWidth={1.7}/>
                   </span>
                   {label as string}
                 </button>
@@ -68,10 +54,10 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
               ))}
             </div>
             {[
-              ["strategies", "Strategies", Square],
+              ["strategies", "Strategies", Workflow],
               ["data", "Data", Database],
-            ].map(([id, label, Icon]) => {
-              void Icon;
+            ].map(([id, label, icon]) => {
+              const Icon=icon as LucideIcon;
               return (
                 <button
                   key={id as string}
@@ -79,21 +65,7 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
                   onClick={() => nav(id as WorkspacePage)}
                 >
                   <span className="design-icon" aria-hidden="true">
-                    <img
-                      src={
-                        "/design/icon-" +
-                        ({
-                          overview: "home",
-                          backtests: "backtests",
-                          strategies: "strategies",
-                          data: "data",
-                        }[id as string] || "home") +
-                        ".svg"
-                      }
-                      alt=""
-                      width="15"
-                      height="15"
-                    />
+                    <Icon size={16} strokeWidth={1.7}/>
                   </span>
                   {label as string}
                 </button>
@@ -104,9 +76,9 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
         <div className="design-sidebar-bottom">
           <AssistantLauncher/>
           {accountControls || <div className="design-user">
-            <span>A</span>
+            <span>G</span>
             <div>
-              Adam V.<small>adam.xxx@gmail.com</small>
+              Guest<small>Temporary workspace</small>
             </div>
           </div>}
         </div>

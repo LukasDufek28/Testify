@@ -50,5 +50,6 @@ test('dashboard geometry and gradients match the live 1440px Penpot reference', 
   await expect(balance).toHaveCSS('background-image','linear-gradient(rgba(24, 23, 31, 0), rgba(145, 245, 171, 0.05))');
   for (const metric of await page.locator('.design-metric').all()) await expect(metric).toHaveCSS('background-color','rgb(24, 23, 31)');
   await expect(page.locator('.design-monthly')).toHaveCSS('background-color','rgb(24, 23, 31)');
-  await expect(page.locator('.responsive-equity-plot svg text').filter({ hasText: /^10%$/ })).toHaveCount(1);
+  await expect(page.locator('.responsive-equity-plot')).toHaveCount(0);
+  await expect(page.getByText('Your performance starts here',{exact:true})).toBeVisible();
 });

@@ -20,7 +20,7 @@ function pathY(path: SVGPathElement, x: number) {
   return path.getPointAtLength((lo + hi) / 2).y;
 }
 
-export default function ResponsiveEquity({ run, className = "" }: { run?: Run; className?: string }) {
+export default function ResponsiveEquity({ run, className = "", example = false }: { run?: Run; className?: string; example?: boolean }) {
   const tilt=useCardTilt();
   const root = useRef<HTMLDivElement>(null);
   const inView = useInView(root, {once:true,amount:.1});
@@ -50,15 +50,18 @@ export default function ResponsiveEquity({ run, className = "" }: { run?: Run; c
   const min = data?.min ?? 10000, max = data?.max ?? 25000, maxLoss = data?.maxLoss ?? 40;
   const toY = (value: number) => bottom - (value - min) / (max - min) * (bottom - top);
   const lossY = (value: number) => bottom - value / maxLoss * (bottom - top);
-  const equityD = data ? data.points.map((p, i) => `${i ? "L" : "M"}${left + i / Math.max(1, count - 1) * (right - left)},${toY(p.equity)}`).join("") : curves.equity.d;
-  const lossD = data ? data.losses.map((v, i) => `${i ? "L" : "M"}${left + i / Math.max(1, count - 1) * (right - left)},${lossY(v)}`).join("") : curves.drawdown.d;
+  // Pointer movement changes the cursor, not the saved series geometry.
+  const [equityD,lossD] = useMemo(() => data ? [
+    data.points.map((p, i) => `${i ? "L" : "M"}${left + i / Math.max(1, count - 1) * (right - left)},${bottom - (p.equity-min)/(max-min)*(bottom-top)}`).join(""),
+    data.losses.map((v, i) => `${i ? "L" : "M"}${left + i / Math.max(1, count - 1) * (right - left)},${bottom-v/maxLoss*(bottom-top)}`).join(""),
+  ] : [curves.equity.d,curves.drawdown.d], [data,count,min,max,maxLoss]);
   useEffect(() => {
     const element = root.current;
     if (!element) return;
     const observer = new ResizeObserver(([entry]) => setWidth(Math.max(1, entry.contentRect.width)));
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [!!data,example]);
   useEffect(() => {
     if (data || !equityPath.current || !lossPath.current) return;
     setPreviewY({ equity: pathY(equityPath.current, plotX), loss: pathY(lossPath.current, plotX) });
@@ -101,6 +104,10 @@ export default function ResponsiveEquity({ run, className = "" }: { run?: Run; c
     const box = root.current?.getBoundingClientRect();
     if (box) setSelected(Math.max(0, Math.min(1, (clientX - box.left - gutter) / plotWidth)));
   }
+  if (!data && !example) return <motion.section {...tilt} className={`design-card design-responsive-equity design-equity-empty ${className}`}>
+    <header className="responsive-equity-header"><div className="design-card-title"><span className="design-icon"><img src="/design/icon-chart.svg" width="15" height="15" alt=""/></span><span>Equity &amp; drawdown</span></div></header>
+    <div className="design-empty-chart"><svg width="44" height="32" viewBox="0 0 44 32" fill="none" aria-hidden="true"><path d="M2 2v28h40M8 23l9-9 8 5 11-12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg><h2>{run ? 'No equity data in this run' : 'Your performance starts here'}</h2><p>{run ? 'Choose another saved run to explore its equity and drawdown.' : 'Run your first backtest to see your equity curve and drawdown.'}</p></div>
+  </motion.section>;
   return <motion.section {...tilt} className={`design-card design-responsive-equity ${data ? "design-live-chart" : ""} ${className}`}>
     <header className="responsive-equity-header">
       <div className="design-card-title"><span className="design-icon"><img src="/design/icon-chart.svg" width="15" height="15" alt="" /></span><span>Equity &amp; drawdown</span></div>

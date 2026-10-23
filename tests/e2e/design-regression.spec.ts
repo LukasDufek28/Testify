@@ -29,7 +29,7 @@ test("copied font, icons, card glare and restrained profit gradients load", asyn
       .locator(".design-metric")
       .last()
       .evaluate((e) => getComputedStyle(e).backgroundImage),
-  ).toContain("230, 154, 154");
+  ).toContain("145, 245, 171");
   expect(
     await page
       .locator(".design-card")
@@ -95,6 +95,8 @@ test("phone navigation, native chart labels and monthly cards remain usable", as
   await expect(page.locator('.design-sidebar')).toBeVisible();
   await page.getByRole('button', { name: 'Close navigation', exact: true }).click();
   await expect(page.locator('.design-sidebar')).not.toBeVisible();
+  // Public examples stay interactive; authenticated empty workspaces never borrow them.
+  await page.goto('/');
   const chart = page.locator('.responsive-equity-plot');
   await chart.scrollIntoViewIfNeeded();
   await chart.focus();
@@ -117,7 +119,7 @@ test('compact sidebar omits Settings and Help while run configuration stays reac
 test("monthly mint gradients and separate trade navigation retain the approved design", async ({
   page,
 }) => {
-  await page.goto("/#/app/overview");
+  await page.goto("/");
   const selected = page.getByRole("button", { name: "Apr monthly return" });
   await expect(selected).toHaveAttribute("aria-pressed", "true");
   const g = await selected
@@ -126,16 +128,7 @@ test("monthly mint gradients and separate trade navigation retain the approved d
   expect(g).toContain("145, 245, 171");
   expect(g).toContain("91, 175, 119");
   await page.goto("/#/app/trades");
-  await expect(
-    page.getByRole("button", { name: "Previous trade", exact: true }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "Next trade", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Selected trade · #25", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Previous trade", exact: true }),
-  ).toBeEnabled();
-  await page.getByRole("button", { name: "Next bar", exact: true }).click();
-  await expect(page.getByText("38 / 44 bars", { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading',{name:'No trades to review yet',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Next trade',exact:true})).toHaveCount(0);
+  await expect(page.locator('.design-trade-history')).toHaveCount(0);
 });

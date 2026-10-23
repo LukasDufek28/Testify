@@ -7,6 +7,7 @@ import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
 import "@fontsource/inter/700.css";
 import "./style.css";
+import "./workspace-polish.css";
 createRoot(document.getElementById("root")!).render(
   <MotionConfig reducedMotion="user"><ScreenBoundary><Site /></ScreenBoundary></MotionConfig>,
 );

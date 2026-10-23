@@ -18,12 +18,10 @@ import {
   DesignIcon,
   DesignMonthly,
   MetricCard,
-  StrategyExample,
   designIcons,
 } from "./PenpotPrimitives";
 import { latestStrategyRuns } from "./strategyLibrary";
 import { savedRules, tradeR, tradeLevels, tradesCsv, formatTradePrice } from "./results";
-import { replayPreview } from "./penpotReplayPreview";
 import ConfirmStrategyDelete from "./ConfirmStrategyDelete";
 import type { WorkspacePage } from "./WorkspaceShell";
 import RunStatusBadge, { type RunState } from "./RunStatusBadge";
@@ -119,7 +117,7 @@ function SettingsFields({
   const o = p.options;
   const strategyOptions = p.strategies.length
     ? p.strategies
-    : [{ id: "", name: "BTC trend crossover" }];
+    : [{ id: "", name: "Create a strategy first" }];
   const update = (key: keyof RunOptions, value: string | number | string[]) =>
     p.update(key, value);
   return (
@@ -290,12 +288,6 @@ function Library({ p,search,setSearch }: { p: Props;search:string;setSearch:(val
       ),
     [p.strategies],
   );
-  const examples = [
-    ["BTC trend crossover", "BTC-USD · 1h", "+24.80%", "1.55", "84"],
-    ["ETH breakout", "ETH-USD · 4h", "+12.20%", "1.42", "62"],
-    ["Mean reversion", "BTC-USD · 15m", "-3.20%", "0.91", "124"],
-    ["Momentum filter", "SOL-USD · 1h", "-8.40%", "0.63", "48"],
-  ];
   const list = p.strategies
     .filter(
       (s) =>
@@ -358,22 +350,7 @@ function Library({ p,search,setSearch }: { p: Props;search:string;setSearch:(val
         </p>
       )}
       <div className="design-strategy-grid">
-        {!p.strategies.length
-          ? examples
-              .filter((s) => s[0].toLowerCase().includes(search.toLowerCase()))
-              .map(([name, m, result, factor, trades]) => (
-                <StrategyExample
-                  key={name}
-                  name={name}
-                  market={m}
-                  result={result}
-                  factor={factor}
-                  trades={trades}
-                  negative={result.startsWith("-")}
-                  onOpen={p.onCreate}
-                />
-              ))
-          : list.map((s) => {
+        {!p.strategies.length ? <DesignCard className="design-library-empty"><DesignIcon icon={designIcons.layers}/><h2>Your first idea belongs here</h2><p>Create a strategy or import your own rules. Results appear only after you run a backtest.</p><button className="design-button" onClick={p.onCreate}>Create your first strategy</button></DesignCard> : list.map((s) => {
               const run = latest.get(s.id);
               return (
                 <article
@@ -512,6 +489,7 @@ function Library({ p,search,setSearch }: { p: Props;search:string;setSearch:(val
           )}
           <button
             className="design-button"
+            disabled={!p.strategies.length}
             onClick={() => p.navigate("runsettings")}
           >
             Run backtest
@@ -535,41 +513,9 @@ function Library({ p,search,setSearch }: { p: Props;search:string;setSearch:(val
     </div>
   );
 }
-const sampleTrades: Trade[] = [
-  {
-    entryTime: 1772614800,
-    exitTime: 1772701200,
-    side: 1,
-    entry: 82400,
-    exit: 85696,
-    pnl: 180,
-    returnPct: 1.8,
-    reason: "Take profit",
-  },
-  {
-    entryTime: 1772715600,
-    exitTime: 1772726400,
-    side: 1,
-    entry: 86020,
-    exit: 84300,
-    pnl: -100,
-    returnPct: -1,
-    reason: "Stop loss",
-  },
-  {
-    entryTime: 1772791200,
-    exitTime: 1772802000,
-    side: 1,
-    entry: 85210,
-    exit: 87390,
-    pnl: 120,
-    returnPct: 1.2,
-    reason: "Signal",
-  },
-];
 function Replay({ p }: { p: Props }) {
   const reduced=useReducedMotion();
-  const trades = p.selectedRun?.trades || sampleTrades;
+  const trades = p.selectedRun?.trades || [];
   const [index, setIndex] = useState(0),
     [bar, setBar] = useState(37),
     [playing, setPlaying] = useState(false),
@@ -591,7 +537,7 @@ function Replay({ p }: { p: Props }) {
       });
     return () => abort.abort();
   }, [p.selectedRun?.id, trade]);
-  const count = p.selectedRun ? bars.length : 44;
+  const count = bars.length;
   useEffect(() => {
     if (!playing) return;
     const timer = setInterval(
@@ -618,7 +564,7 @@ function Replay({ p }: { p: Props }) {
     setBar(p.selectedRun ? 1 : 37);
     setPlaying(false);
   }, [p.selectedRun?.id]);
-  const candles = p.selectedRun ? bars : replayPreview;
+  const candles = bars;
   const startIndex = Math.max(0, Math.min(bar, candles.length) - 80);
   const visibleCandles = candles.slice(
     startIndex,
@@ -1179,7 +1125,6 @@ export default function PenpotWorkspace(p: Props) {
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, []);
-  const sample = !p.runs.length;
   const active =
     p.page === "manual" || p.page === "runsettings" || p.page === "trades" || p.page === "results"
       ? "backtests"
@@ -1204,7 +1149,7 @@ export default function PenpotWorkspace(p: Props) {
           : p.page === "trades"
             ? run
               ? run.strategyName + " · " + run.name
-              : "BTC trend crossover · Version 3 · Run #018"
+              : "Review the trades from your saved backtest."
             : "Test a strategy. Review every result.";
   const nav = (page: WorkspacePage) => {
     p.navigate(page);
@@ -1230,19 +1175,15 @@ export default function PenpotWorkspace(p: Props) {
                   (p.page === "overview" ? 0 : run.settings.capital) +
                     (run.settings.capital * run.metrics.netReturnPct) / 100,
                 )
-              : p.page === "overview"
-                ? "$42,480"
-                : "$10,067"
+              : "—"
           }
           percent={
             run
               ? percentage(run.metrics.netReturnPct)
-              : p.page === "overview"
-                ? "+8.4%"
-                : "+0.67%"
+              : "No saved run"
           }
           hint={
-            p.page === "overview" ? "Portfolio return" : "Latest completed run"
+            run ? "Latest completed run" : "Run your first backtest"
           }
           negative={!!run && run.metrics.netReturnPct < 0}
           icon={
@@ -1254,9 +1195,7 @@ export default function PenpotWorkspace(p: Props) {
           value={
             run
               ? sharpe?.value?.toFixed(2) || "—"
-              : p.page === "overview"
-                ? "1.25"
-                : "0.87"
+              : "—"
           }
           percent={
             run
@@ -1265,7 +1204,7 @@ export default function PenpotWorkspace(p: Props) {
                 : (sharpe?.value ?? 0) >= 0
                   ? "Positive"
                   : "Negative"
-              : "Positive"
+              : "No saved run"
           }
           negative={
             !!run && sharpe?.value != null && sharpe.value < 0
@@ -1274,7 +1213,7 @@ export default function PenpotWorkspace(p: Props) {
             p.page === "overview"
               ? run
                 ? sharpe?.value == null ? sharpe?.reason || "Daily equity estimate" : sharpe.shortSample ? `Estimate · ${sharpe.count} daily returns` : "Annualized · daily equity"
-                : "Portfolio sharpe"
+                : "Run your first backtest"
               : sharpe?.value == null ? sharpe?.reason || "Daily equity estimate" : sharpe.shortSample ? `Estimate · ${sharpe.count} daily returns` : "Annualized · daily equity"
           }
           icon={designIcons.sharpe}
@@ -1296,21 +1235,19 @@ export default function PenpotWorkspace(p: Props) {
                     { peak: run.settings.capital, draw: 0 },
                   ).draw,
                 )
-              : p.page === "overview"
-                ? "-$31,430"
-                : "$10,301"
+              : "—"
           }
           percent={
-            run ? "−" + run.metrics.maxDrawdownPct.toFixed(2) + "%" : "-6.2%"
+            run ? "−" + run.metrics.maxDrawdownPct.toFixed(2) + "%" : "No saved run"
           }
           hint={
             p.page === "overview"
               ? run
                 ? "Latest backtest drawdown"
-                : "Portfolio drawdown"
+                : "Run your first backtest"
               : "Peak to trough"
           }
-          negative
+          negative={!!run && run.metrics.maxDrawdownPct > 0}
           icon={designIcons.drawdown}
         />
       </div>
@@ -1326,7 +1263,7 @@ export default function PenpotWorkspace(p: Props) {
         <Menu size={20} />
       </button>
       <WorkspaceSidebar active={active} nav={nav} navOpen={navOpen} setNavOpen={setNavOpen} accountControls={p.accountControls}/>
-      <main ref={scope} className="design-main" data-motion-page={p.page}>
+      <main ref={scope} className="design-main" data-motion-page={p.page} aria-busy={p.loading}>
         <header className="design-topbar">
           <DesignIcon icon={Layers} />
           <input
@@ -1343,7 +1280,7 @@ export default function PenpotWorkspace(p: Props) {
               }
             }}
           />
-          <small>{sample ? "Preview data" : "Saved workspace"}</small>
+          <small>{p.loading ? "Loading workspace…" : "Saved workspace"}</small>
           {!!p.runs.length && (
             <button
               className="design-history-link"
@@ -1369,6 +1306,8 @@ export default function PenpotWorkspace(p: Props) {
             {p.notice}
           </p>
         )}
+        {p.page !== 'strategies' && p.loading && <DesignCard role="status"><p>Loading your saved workspace…</p></DesignCard>}
+        {p.page !== 'strategies' && p.loadError && <DesignCard role="alert" className="design-library-empty"><h2>Could not load your workspace</h2><p>{p.loadError}</p><button className="design-button" onClick={()=>void p.onRetry()}>Try again</button></DesignCard>}
         {["connections","manual"].includes(p.page) && p.content}
         {p.page === "studio" && p.studio}
         {p.running && (
@@ -1399,7 +1338,7 @@ export default function PenpotWorkspace(p: Props) {
             </button>
           </DesignCard>
         )}
-        {p.page === "overview" && (
+        {p.page === "overview" && !p.loading && !p.loadError && (
           <div className="design-dashboard-grid dashboard-unified">
             {metrics()}
             <div className="dashboard-chart-row">
@@ -1421,32 +1360,31 @@ export default function PenpotWorkspace(p: Props) {
                             run.settings.capital *
                               (1 + run.metrics.netReturnPct / 100),
                           )
-                        : "$12,480"}
+                        : "—"}
                     </strong>
                     <small>Final balance</small>
                   </div>
                   <small>
-                    {run ? percentage(run.metrics.netReturnPct) : "+8.4%"}
+                    {run ? percentage(run.metrics.netReturnPct) : "No saved run"}
                   </small>
                 </div>
                 <dl>
                   <div>
                     <dt>Market</dt>
                     <dd>
-                      {run?.symbol || "BTC-USD"} ·{" "}
-                      {timeframe(run?.granularity || 3600)}
+                      {run ? `${run.symbol} · ${timeframe(run.granularity || 3600)}` : "—"}
                     </dd>
                   </div>
                   <div>
                     <dt>Strategy</dt>
-                    <dd>{run?.strategyName || "Trend crossover"}</dd>
+                    <dd>{run?.strategyName || "—"}</dd>
                   </div>
                 </dl>
                 <motion.button whileTap={reduced?undefined:{scale:.985}} transition={{duration:.12}}
                   className="design-button"
-                  onClick={() => nav("backtests")}
+                  onClick={() => nav(run ? "backtests" : "runsettings")}
                 >
-                  View backtest
+                  {run ? "View backtest" : "Set up a backtest"}
                 </motion.button>
               </DesignCard>
             </div>
@@ -1466,7 +1404,7 @@ export default function PenpotWorkspace(p: Props) {
                         : p.onCreate()
                     }
                   >
-                    Open
+                    {p.strategies[0] ? "Open" : "Create strategy"}
                   </button></div>
                 </DesignCard>
               </div>
@@ -1525,7 +1463,7 @@ export default function PenpotWorkspace(p: Props) {
             )}
           </div>
         )}
-        {p.page === "backtests" && (
+        {p.page === "backtests" && !p.loading && !p.loadError && (
           <div className="design-backtest-overview">
             <div className="design-overview-action"><p>Review a completed result or configure your next test.</p><button className="design-button" aria-label="Configure backtest" onClick={()=>nav("runsettings")}>Run backtest</button></div>
             <div className="design-right-column">
@@ -1534,15 +1472,12 @@ export default function PenpotWorkspace(p: Props) {
               <DesignCard className="design-trades-summary">
                 <CardTitle icon={designIcons.trades}>Trades</CardTitle>
                 <h2>
-                  {run?.metrics.tradeCount ?? 3} trades ·{" "}
-                  {run?.metrics.winRatePct?.toFixed(2) ?? "33.33"}% win rate
+                  {run ? `${run.metrics.tradeCount} trades · ${run.metrics.winRatePct.toFixed(2)}% win rate` : "No trades yet"}
                 </h2>
                 <p>
-                  {run?.symbol || "RNBW-USD"} ·{" "}
-                  {timeframe(run?.granularity || 3600)} ·{" "}
-                  {run?.strategyName || "SMA crossover"}
+                  {run ? `${run.symbol} · ${timeframe(run.granularity || 3600)} · ${run.strategyName}` : "Your trades will appear after your first completed backtest."}
                 </p>
-                <motion.button whileTap={reduced?undefined:{scale:.985}} transition={{duration:.12}} className="design-button" onClick={() => nav("trades")}>
+                <motion.button whileTap={reduced?undefined:{scale:.985}} transition={{duration:.12}} className="design-button" disabled={!run} onClick={() => nav("trades")}>
                   View trades
                 </motion.button>
               </DesignCard>
@@ -1552,6 +1487,7 @@ export default function PenpotWorkspace(p: Props) {
         )}
         {p.page === "runsettings" && (
           <>
+            {!p.loading && !p.loadError && !p.strategies.length && <DesignCard className="design-library-empty"><h2>Start with a strategy</h2><p>Create and save your trading rules first, then choose your market and test period below.</p><button className="design-button" onClick={p.onCreate}>Create strategy</button></DesignCard>}
             <div className="design-settings-grid">
               <DesignCard>
                 <h2>Run &amp; instruments</h2>
@@ -1702,7 +1638,7 @@ export default function PenpotWorkspace(p: Props) {
             </div>
           </>
         )}
-        {p.page === "trades" && <Replay p={p} />}
+        {p.page === "trades" && !p.loading && !p.loadError && (run ? <Replay p={{...p,selectedRun:run}} /> : <DesignCard className="design-library-empty"><DesignIcon icon={designIcons.trades}/><h2>No trades to review yet</h2><p>Complete a backtest, then explore its entries, exits and price chart here.</p><button className="design-button" onClick={()=>nav("runsettings")}>Set up a backtest</button></DesignCard>)}
         {p.page === "studio" && p.researchTools}
       </main>
       {settings && (

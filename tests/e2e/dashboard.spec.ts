@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
     r.fulfill({ json: { markets: [{ id: "BTC-USD" }] } }),
   );
 });
-test("approved dashboard geometry, preview data and responsive shell", async ({
+test("empty dashboard retains approved geometry without sample performance", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -13,7 +13,9 @@ test("approved dashboard geometry, preview data and responsive shell", async ({
   await expect(
     page.getByRole("heading", { name: "Hello, Adam!", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Preview data", { exact: true })).toBeVisible();
+  await expect(page.getByText("Saved workspace", { exact: true })).toBeVisible();
+  await expect(page.getByText("Your performance starts here", { exact: true })).toBeVisible();
+  await expect(page.locator('.design-metric-value strong')).toHaveText(['—','—','—']);
   const b = await page.locator(".design-dashboard-grid").boundingBox();
   expect(b!.x).toBe(266);
   expect(b!.y).toBe(178);
@@ -47,17 +49,14 @@ test("dashboard actions open the existing editor and advanced settings", async (
   await page.goto("/#/app/overview");
   await page
     .locator(".design-continue")
-    .getByRole("button", { name: "Open", exact: true })
+    .getByRole("button", { name: "Create strategy", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Strategy creation", exact: true }),
   ).toBeVisible();
   await page.goto("/#/app/overview");
   await page
-    .getByRole("button", { name: "View backtest", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Configure backtest", exact: true })
+    .getByRole("button", { name: "Set up a backtest", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Run backtest", exact: true }),

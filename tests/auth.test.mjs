@@ -20,6 +20,8 @@ test("custom auth separates concurrent accounts, rejects forgery, expires and re
     const [alice, bob] = await Promise.all([call(request("register", "Alice@example.com")), call(request("register", "bob@example.com"))]);
     assert.equal(alice.statusCode, 200); assert.equal(bob.statusCode, 200);
     assert.notEqual(alice.body.user.id, bob.body.user.id);
+    // Registration creates an identity and session, never sample strategies or results.
+    assert.equal((await db.query('SELECT count(*)::int AS count FROM testify_strategies')).rows[0].count,0);
     const ac = alice.headers["Set-Cookie"].split(";")[0], bc = bob.headers["Set-Cookie"].split(";")[0];
     assert.match(alice.headers["Set-Cookie"], /HttpOnly; SameSite=Lax/);
     assert.equal((await call(request(null, null, ac))).body.user.email, "alice@example.com");

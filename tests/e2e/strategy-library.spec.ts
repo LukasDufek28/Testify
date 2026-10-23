@@ -410,7 +410,7 @@ test("selection uses foundation checkboxes and never shifts strategy cards", asy
     const before = await rect();
     await checkbox.check();
     await expect(checkbox).toHaveCSS("appearance", "none");
-    await expect(checkbox).toHaveCSS("background-color", "rgb(101, 86, 183)");
+    await expect(checkbox).toHaveCSS("background-color", "rgb(54, 53, 63)");
     expect(
       await checkbox.evaluate(
         (el) => getComputedStyle(el, "::after").borderBottomColor,

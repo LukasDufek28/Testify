@@ -18,7 +18,7 @@ import type { Run } from "./types";
 import ResponsiveEquity from "./ResponsiveEquity";
 import AnimatedValue from './AnimatedValue';
 import useCardTilt from './useCardTilt';
-import { motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion, type HTMLMotionProps } from "motion/react";
 import "./penpot.css";
 
 export const designIcons = {
@@ -79,12 +79,10 @@ export function DesignIcon({
 export function DesignCard({
   children,
   className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+  ...props
+}: HTMLMotionProps<'section'>) {
   const tilt=useCardTilt(className.includes('floating'));
-  return <motion.section {...tilt} className={"design-card " + className}>{children}</motion.section>;
+  return <motion.section {...props} {...tilt} className={"design-card " + className}>{children}</motion.section>;
 }
 export function CardTitle({
   children,
@@ -145,9 +143,11 @@ const months = [
 const sampleHeights = [0.253, 0.458, 0.687, 1, 0.675, 0.482, 0.723];
 export function DesignMonthly({
   run,
+  example = false,
   className = "",
 }: {
   run?: Run;
+  example?: boolean;
   className?: string;
 }) {
   const [selected, setSelected] = useState(3);
@@ -179,11 +179,11 @@ export function DesignMonthly({
         height: Math.abs(r.end - r.start) / max,
         negative: r.end < r.start,
       }))
-    : sampleHeights.map((height, index) => ({
+    : example ? sampleHeights.map((height, index) => ({
         label: months[index],
         height,
         negative: false,
-      }));
+      })) : [];
   return (
     <DesignCard className={"design-monthly profit-glow " + className}>
       <div className="design-monthly-heading">
@@ -198,7 +198,7 @@ export function DesignMonthly({
                     maximumFractionDigits: 0,
                   })
                 : "—"
-              : "$" + Math.round(564 * sampleHeights[selected])}
+              : example ? "$" + Math.round(564 * sampleHeights[selected]) : "—"}
           </strong>
           <small>
             {run
@@ -207,11 +207,12 @@ export function DesignMonthly({
                   ((active.end / active.start - 1) * 100).toFixed(1) +
                   "%"
                 : "No curve data"
-              : "+" + (8.4 * sampleHeights[selected]).toFixed(1) + "%"}
+              : example ? "+" + (8.4 * sampleHeights[selected]).toFixed(1) + "%" : "No saved returns"}
           </small>
         </div>
       </div>
-      <div className="design-monthly-bars">
+      {!bars.length && <div className="design-empty-chart"><CalendarDays size={26} strokeWidth={1.3}/><p>Your monthly returns will appear after your first backtest.</p></div>}
+      {!!bars.length && <div className="design-monthly-bars">
         {bars.map(({ height, label, negative }, index) => (
           <button
             key={(run?.id || 'preview') + label + index}
@@ -226,11 +227,17 @@ export function DesignMonthly({
             <small>{label}</small>
           </button>
         ))}
-      </div>
+      </div>}
     </DesignCard>
   );
 }
-export function DesignEquity({ run, className = "" }: { run?: Run; className?: string; responsivePreview?: boolean }) { return <ResponsiveEquity run={run} className={className} />; }
+export function DesignEquity({ run, className = "", responsivePreview = false }: { run?: Run; className?: string; responsivePreview?: boolean }) {
+  if (!run?.curve.length && !responsivePreview) return <DesignCard className={`design-responsive-equity design-equity-empty ${className}`}>
+    <header className="responsive-equity-header"><CardTitle icon={designIcons.chart}>Equity &amp; drawdown</CardTitle></header>
+    <div className="design-empty-chart"><ChartNoAxesCombined size={38} strokeWidth={1.3}/><h2>{run ? 'No equity data in this run' : 'Your performance starts here'}</h2><p>{run ? 'Choose another saved run to explore its equity and drawdown.' : 'Run your first backtest to see your equity curve and drawdown.'}</p></div>
+  </DesignCard>;
+  return <ResponsiveEquity key={run?.id || 'public-example'} run={run} className={className} example={responsivePreview}/>;
+}
 export function StrategyExample({
   name = "BTC trend crossover",
   market = "BTC-USD · 1h",

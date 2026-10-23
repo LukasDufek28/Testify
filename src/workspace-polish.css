@@ -1,0 +1,51 @@
+/* One control treatment across the workspace, including data and saved results. */
+:root .penpot-workspace :is(.design-button,.dashboard-button,.button) {
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:42px;max-width:100%;padding:9px 24px;
+  border:1px solid transparent;border-radius:999px;
+  background:linear-gradient(180deg,#3b3a43,#302f39) padding-box,linear-gradient(135deg,#dedce6,#797582 35%,#36333f 70%,#787581) border-box;
+  color:#e7e6ee;font:400 14px/20px Urbanist,sans-serif;
+  text-decoration:none;white-space:normal;text-align:center;cursor:pointer;
+  transition:translate 180ms ease,filter 180ms ease,opacity 180ms ease;
+}
+:root .penpot-workspace :is(.design-button.secondary,.button.subtle,.button.ghost) {
+  background:linear-gradient(#18171f,#18171f) padding-box,linear-gradient(135deg,#dddbe5,#605c69 45%,#36333f) border-box;
+}
+:root .penpot-workspace .raised .design-button.secondary {
+  background:linear-gradient(#222128,#222128) padding-box,linear-gradient(135deg,#dddbe5,#605c69 45%,#36333f) border-box;
+}
+:root .penpot-workspace :is(.design-button,.dashboard-button,.button):disabled {opacity:.42;filter:none;translate:none;cursor:not-allowed;}
+:root .penpot-workspace :is(.design-button,.dashboard-button,.button):focus-visible {outline:2px solid #a394e5;outline-offset:4px;}
+:root .penpot-workspace :is(.design-button,.dashboard-button,.button):active:not(:disabled) {translate:0 0;filter:brightness(.97);}
+.penpot-workspace .banner button {border:1px solid #686474;border-radius:999px;padding:6px 14px;min-height:32px;background:#ffffff05;color:#e7e6ee;text-decoration:none;font:400 13px/18px Urbanist,sans-serif;transition:background 180ms ease;}
+.penpot-workspace .banner button:hover {background:#ffffff0c;}
+.penpot-workspace .banner {gap:16px;line-height:1.6;}
+:root .testify-legacy :is(.workspace-panel,.panel,.result-panel,.result-metric) {position:relative;isolation:isolate;}
+:root .testify-legacy .workspace-panel {background:#222128;border-color:transparent;}
+:root .testify-legacy :is(.workspace-page-heading,.page-header) {padding-inline:20px;}
+:root .testify-legacy :is(.workspace-page-heading,.page-header) h1 {font:400 34px/45px Urbanist,sans-serif;letter-spacing:-.015em;color:#d8d7df;margin-bottom:0;}
+:root .testify-legacy :is(.workspace-page-heading,.page-header) p {font-size:14px;line-height:20px;color:#9e9da7;}
+:root .testify-legacy .workspace-panel p {color:#9e9da7;}
+.design-sidebar nav > button .design-icon {transition:background-color 180ms ease,color 180ms ease;}
+.design-sidebar nav > button[aria-current=page] .design-icon {color:#222128;}
+.design-empty-chart {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:150px;padding:26px 12px;text-align:center;color:#9e9da7;}
+.design-empty-chart h2 {font-size:20px;font-weight:400;line-height:1.3;color:#e7e6ee;}
+.design-empty-chart p {font-size:14px;line-height:1.65;max-width:340px;}
+.design-equity-empty {min-height:310px;}
+.design-equity-empty .design-empty-chart {min-height:240px;}
+.design-monthly:has(.design-empty-chart) .design-empty-chart {min-height:130px;padding:16px 0;}
+.design-library-empty {grid-column:1/-1;max-width:none;padding:36px;display:flex;flex-direction:column;align-items:flex-start;gap:18px;}
+.design-library-empty h2 {font-size:24px;font-weight:400;line-height:1.35;}
+.design-library-empty p {max-width:460px;color:#9e9da7;line-height:1.65;}
+.penpot-workspace .design-strategy-title input[type=checkbox] {width:20px;height:20px;position:relative;margin-left:auto;border-radius:6px;}
+:root .penpot-workspace input[type=checkbox]::after {width:5px;height:9px;translate:0 -1px;}
+:root .penpot-workspace input[type=checkbox]:checked {background:#36353f;border-color:#9a8ed3;}
+@media(hover:hover) and (pointer:fine) {
+  :root .penpot-workspace :is(.design-button,.dashboard-button,.button):hover:not(:disabled) {translate:0 -1px;filter:brightness(1.1);}
+  :root .penpot-workspace :is(.design-button.secondary,.button.subtle,.button.ghost):hover:not(:disabled) {translate:none;filter:brightness(1.12);}
+  .design-sidebar nav > button:not([aria-current=page]):hover .design-icon {background:#35343f;color:#e7e6ee;}
+}
+@media(prefers-reduced-motion:reduce) {
+  :root .penpot-workspace :is(.design-button,.dashboard-button,.button),.design-sidebar nav > button .design-icon {transition:none;translate:none!important;}
+}
+@media(max-width:800px){:root .testify-legacy :is(.workspace-page-heading,.page-header){padding-inline:0;}:root .testify-legacy :is(.workspace-page-heading,.page-header) h1{font-size:30px;}}

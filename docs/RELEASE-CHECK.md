@@ -1,8 +1,16 @@
-# Testify verification — updated 23 October 2026
+# Testify verification — updated 24 October 2026
 
 The current interface follows the approved neutral Penpot workspace. Older blue/orange Figma references in Notion have been superseded by Adam's later design instructions.
 
-## Current revision — 23 October 2026
+## Current revision — 24 October 2026
+
+- Fresh accounts now show empty states throughout Dashboard, Strategies, Backtests Overview, Trades and monthly returns. Preview strategies, metrics and trade candles are no longer substituted for missing account records. Landing-page examples are explicit opt-ins. Database read errors expose recovery instead of pretending the account is empty.
+- Real local registration returned zero strategies, datasets and runs. A strategy import, 720-candle dataset and six-trade backtest were saved through the authenticated APIs. Reload and sign-in in a clean browser context restored all three from the database. A second registered account remained empty and received 404 for the first account's run. Saved 8000-capital defaults restored in the clean context while the completed run retained its original 10000 capital.
+- Only the current sidebar section receives the white icon treatment. Strategies uses a workflow icon. Data and main workspace actions share the same silver gradient, sizing and focus styles. Secondary headings, muted copy, card glares and dismiss actions match the approved workspace. The old absolutely positioned strategy checkmark is removed.
+- Cards reveal as they enter the viewport, primary actions respond subtly to hover/press, and passive cards retain restrained mouse tilt. Form controls remain steady. Reduced-motion preferences are retained. Equity path geometry is memoized so pointer movement updates the cursor without rebuilding the series.
+- The real account was inspected on Dashboard, Strategies, Data, Run backtest, Overview and Trades at 320, 390, 800, 1440 and 3440 pixels with no document overflow or browser errors. Fresh-account, sidebar, shared-control, checkbox and database-error regressions now run in the browser matrix. Engine/API tests passed 99/99 locally with sequential execution; the initial concurrent Windows run exhausted machine memory.
+
+## Previous deployed revision — 23 October 2026
 
 - The integrated checkpoint was published to `main` as Lukáš Dufek and deployed to Testify and MCP production. Its complete main-branch matrix passed: 99 engine/API tests and 336 browser checks. A dedicated production QA account signed out and back in, imported and retained a strategy, completed an online BTC backtest, reopened its result after reload and exported the original CSV/JSON. Gemini correctly read the 133.23 net profit, three trades, ten-return Sharpe estimate and exact development bounds.
 - Final visual inspection found that normalized animated SVG dash lengths could truncate non-scaling chart strokes inside an enlarged responsive group. Curve entrances now use a Motion clip reveal in plot coordinates, preserving the complete equity/drawdown strokes, their thickness and their final state on resize. Chromium and WebKit regressions cover the reveal, wide/narrow resizing, hover and reduced motion.
