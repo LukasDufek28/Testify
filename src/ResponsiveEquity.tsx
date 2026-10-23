@@ -1,5 +1,5 @@
 import {getDisplayTimezone} from './RunDefaults';
-import { motion, useMotionTemplate, useReducedMotion, useSpring } from "motion/react";
+import { motion, useInView, useMotionTemplate, useReducedMotion, useSpring } from "motion/react";
 import GraphNumber from "./GraphNumber";
 import useCardTilt from './useCardTilt';
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -23,6 +23,7 @@ function pathY(path: SVGPathElement, x: number) {
 export default function ResponsiveEquity({ run, className = "" }: { run?: Run; className?: string }) {
   const tilt=useCardTilt();
   const root = useRef<HTMLDivElement>(null);
+  const inView = useInView(root, {once:true,amount:.1});
   const equityPath = useRef<SVGPathElement>(null);
   const lossPath = useRef<SVGPathElement>(null);
   const id = useId().replaceAll(":", "");
@@ -115,13 +116,20 @@ export default function ResponsiveEquity({ run, className = "" }: { run?: Run; c
           <linearGradient id={`${id}-equity`} x1="0" y1="0" x2="1" y2="0"><stop stopColor="#395f49" /><stop offset=".36" stopColor="#9beead" /><stop offset=".55" stopColor="#90e5a5" /><stop offset="1" stopColor="#385d4a" /></linearGradient>
           <mask id={`${id}-mask`}><rect x={left} y={top} width={right - left} height={bottom - top} fill={`url(#${id}-fade)`} /></mask>
           <pattern id={`${id}-stripes`} width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(42)"><rect width="4" height="10" fill="#e69a9a" opacity=".45" /></pattern>
+          <clipPath id={`${id}-reveal`}>
+            {/* Reveal in plot coordinates: normalized dash lengths truncate a
+                non-scaling stroke when the responsive group is enlarged. */}
+            <motion.rect key={(run?.id||'preview')+'-reveal'} data-chart="reveal" x={left-2} y={-1000} height={3000} width={right-left+4} initial={reduced?false:{width:0}} animate={{width:reduced||inView?right-left+4:0}} transition={{duration:reduced?0:.75,ease:[.22,1,.36,1]}} />
+          </clipPath>
         </defs>
         {equityLabels.map((label,i) => <text key={i} data-axis="equity" x="1" y={5 + i * (height - 10) / 3} fill="#66636e" fontSize="11">{label}</text>)}
         {[0, 1, 2, 3, 4].map(i => <text key={i} x={width - 1} y={5 + i * (height - 10) / 4} textAnchor="end" fill="#66636e" fontSize="11">{Math.round(maxLoss - i * maxLoss / 4)}%</text>)}
         <g transform={`translate(${gutter} 0) scale(${plotWidth / (right - left)} ${height / (bottom - top)}) translate(${-left} ${-top})`}>
           <motion.path key={(run?.id||'preview')+'-area'} initial={reduced?false:{opacity:0}} whileInView={{opacity:1}} viewport={{once:true}} animate={reduced?{opacity:1}:undefined} transition={{duration:reduced?0:.5,delay:reduced?0:.15}} d={`${lossD}L${right},${bottom}L${left},${bottom}Z`} fill={`url(#${id}-stripes)`} mask={`url(#${id}-mask)`} />
-          <motion.path key={(run?.id||'preview')+'-drawdown'} initial={reduced?false:{pathLength:0}} whileInView={{pathLength:1}} viewport={{once:true}} animate={reduced?{pathLength:1}:undefined} transition={{duration:reduced?0:.75,ease:[.22,1,.36,1]}} ref={lossPath} data-chart="benchmark" d={lossD} fill="none" stroke="#e69a9a" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
-          <motion.path key={(run?.id||'preview')+'-equity'} initial={reduced?false:{pathLength:0}} whileInView={{pathLength:1}} viewport={{once:true}} animate={reduced?{pathLength:1}:undefined} transition={{duration:reduced?0:.75,ease:[.22,1,.36,1]}} ref={equityPath} data-chart="strategy" d={equityD} fill="none" stroke={`url(#${id}-equity)`} strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+          <g clipPath={`url(#${id}-reveal)`}>
+            <path ref={lossPath} data-chart="benchmark" d={lossD} fill="none" stroke="#e69a9a" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+            <path ref={equityPath} data-chart="strategy" d={equityD} fill="none" stroke={`url(#${id}-equity)`} strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+          </g>
         </g>
         <motion.line x1={cursorX} x2={cursorX} y1="0" y2={height} stroke="#9e9da7" strokeWidth=".8" />
         <motion.circle data-chart="equity-marker" cx={cursorX} cy={cursorY} r="3" fill="#91f5ab" /><motion.circle cx={cursorX} cy={drawdownY} r="3" fill="#e69a9a" />

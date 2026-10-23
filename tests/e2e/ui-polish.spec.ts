@@ -22,15 +22,18 @@ test('library cards reflow without a full-width jump or overlapping header actio
 test('equity reveals once in view and keeps its drawn state during hover and resize',async({page})=>{
  await page.goto('/');
  const line=page.locator('[data-chart="strategy"]');
- await expect(line).toHaveAttribute('stroke-dasharray','0 1');
- await line.scrollIntoViewIfNeeded();
- await expect.poll(()=>line.getAttribute('stroke-dasharray')).toBe('1 1');
- const plot=page.locator('.responsive-equity-plot');await plot.hover({position:{x:300,y:80}});
- await expect(line).toHaveAttribute('stroke-dasharray','1 1');
- await page.setViewportSize({width:390,height:844});await expect(line).toHaveAttribute('stroke-dasharray','1 1');
+ const reveal=page.locator('[data-chart="reveal"]');
+ await expect(reveal).toHaveAttribute('width',/^0(?:px)?$/);
+ const plot=page.locator('.responsive-equity-plot');await plot.scrollIntoViewIfNeeded();
+ await expect(reveal).toHaveAttribute('width',/^740(?:px)?$/);
+ // A normalized dash and non-scaling stroke paint only part of a stretched path.
+ await expect(line).toHaveCSS('stroke-dasharray','none');
+ await plot.hover({position:{x:300,y:80}});
+ await expect(reveal).toHaveAttribute('width',/^740(?:px)?$/);
+ for(const width of [1920,390]){await page.setViewportSize({width,height:844});await expect(reveal).toHaveAttribute('width',/^740(?:px)?$/);await expect(line).toHaveCSS('stroke-dasharray','none');}
  await page.emulateMedia({reducedMotion:'reduce'});await page.reload();
  // Reduced motion draws the final curve even before scrolling to the showcase.
- await expect(line).toHaveAttribute('stroke-dasharray','1 1');
+ await expect(reveal).toHaveAttribute('width',/^740(?:px)?$/);
 });
 
 test('late loaded strategy cards animate once and remain visible after filtering',async({page})=>{

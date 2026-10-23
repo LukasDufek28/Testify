@@ -4,6 +4,9 @@ The current interface follows the approved neutral Penpot workspace. Older blue/
 
 ## Current revision — 23 October 2026
 
+- The integrated checkpoint was published to `main` as Lukáš Dufek and deployed to Testify and MCP production. Its complete main-branch matrix passed: 99 engine/API tests and 336 browser checks. A dedicated production QA account signed out and back in, imported and retained a strategy, completed an online BTC backtest, reopened its result after reload and exported the original CSV/JSON. Gemini correctly read the 133.23 net profit, three trades, ten-return Sharpe estimate and exact development bounds.
+- Final visual inspection found that normalized animated SVG dash lengths could truncate non-scaling chart strokes inside an enlarged responsive group. Curve entrances now use a Motion clip reveal in plot coordinates, preserving the complete equity/drawdown strokes, their thickness and their final state on resize. Chromium and WebKit regressions cover the reveal, wide/narrow resizing, hover and reduced motion.
+
 - Run backtest is the single configuration screen at the existing runsettings route. Overview contains measured results and a link to configure a test. Studio, library and saved-setting reuse lead to the same form. The primary Run action and actual progress are near the heading.
 - Library cards remain bounded rather than expanding across a smaller window. Header actions reflow against the available content width. Market checkboxes, nested/document scrollbars, selectors, secondary pages and chart colors share the approved neutral/purple/mint/rose palette.
 - Daily Sharpe is calculated consistently from saved equity where possible. Short samples are labeled, and insufficient, sparse, nonpositive or constant data does not produce an invented number. Original stored snapshots are retained.
