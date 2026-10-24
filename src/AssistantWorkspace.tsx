@@ -60,7 +60,7 @@ export function useAssistantController(configuration:Configuration){
         const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(60000)]);
         const body=await waitForReply(async()=>{
           const response=await current.current.apiFetch('/api/assistant',{method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},signal,body:JSON.stringify({messages:requestMessages(history.current,turn.messages,context),context})});
-          return readAssistantReply(response,text=>{if(alive.current&&!controller.signal.aborted)setStatus(text);});
+          return readAssistantReply(response,text=>{if(alive.current&&operation.current===controller&&!signal.aborted)setStatus(text);});
         },signal);
         if(!alive.current)return;
         controller.signal.throwIfAborted();

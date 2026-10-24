@@ -27,6 +27,25 @@ test('assistant keeps an interrupted conversation readable after reload without 
  await chat.getByLabel('Message AI assistant').fill('Are you there?');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat.getByRole('article',{name:'Assistant response'})).toContainText('I’m here.');await expect(chat.locator('.assistant-notice')).toHaveCount(0);
 });
 
+test('assistant keeps timed-out stream activity from overwriting the next reply',async({page})=>{
+ await page.addInitScript(()=>{
+  const originalFetch=window.fetch,originalTimeout=AbortSignal.timeout.bind(AbortSignal);let shortened=false;
+  AbortSignal.timeout=ms=>{if(ms===60000&&!shortened){shortened=true;return originalTimeout(100);}return originalTimeout(ms);};
+  (window as any).qaStreams=[];
+  window.fetch=(input,init)=>{
+   if(String(input).includes('/api/assistant'))return Promise.resolve(new Response(new ReadableStream({start(controller){(window as any).qaStreams.push(controller);}}),{headers:{'Content-Type':'text/event-stream'}}));
+   return originalFetch(input,init);
+  };
+ });
+ await page.goto('/#/app/overview');await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});
+ await chat.getByLabel('Message AI assistant').fill('First question');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat.getByRole('alert')).toContainText('took too long');
+ await chat.getByLabel('Message AI assistant').fill('Second question');await chat.getByRole('button',{name:'Send assistant message'}).click();await page.waitForFunction(()=>(window as any).qaStreams.length===2);
+ await page.evaluate(()=>{(window as any).qaStreams[0].enqueue(new TextEncoder().encode('event: activity\ndata: {"text":"Reading your workspace…"}\n\n'));});
+ await expect(chat.locator('.assistant-activity')).toHaveText('Preparing a reply…');
+ await page.evaluate(()=>{const streams=(window as any).qaStreams;streams[1].enqueue(new TextEncoder().encode('event: result\ndata: {"answer":"The second reply is ready.","actions":[]}\n\n'));streams[1].close();streams[0].close();});
+ await expect(chat.getByRole('article',{name:'Assistant response'})).toHaveText('The second reply is ready.');await expect(chat.getByRole('alert')).toHaveCount(0);
+});
+
 test('assistant grows beside the launcher with a fixed bottom edge and unscaled content',async({page})=>{
  await page.setViewportSize({width:1440,height:1000});await page.goto('/#/app/overview');
  const launcher=page.getByRole('button',{name:'Open AI assistant',exact:true});await expect(launcher).toBeVisible();const origin=(await launcher.boundingBox())!;await launcher.click();
