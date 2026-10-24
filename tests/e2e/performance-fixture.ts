@@ -12,4 +12,4 @@ export async function savePerformanceFixture(page:Page){
  await expectWorkspace(page);
  await page.evaluate(async record=>{const response=await fetch('/api/workspace',{method:'POST',headers:{'Content-Type':'application/json','X-Testify-Session':'e2e-session'},body:JSON.stringify({kind:'runs',record})});if(!response.ok)throw new Error('Could not save chart test fixture');},run);
 }
-async function expectWorkspace(page:Page){await page.getByText('Saved workspace',{exact:true}).waitFor();}
+async function expectWorkspace(page:Page){await page.locator('.design-main[aria-busy="false"]').waitFor();}

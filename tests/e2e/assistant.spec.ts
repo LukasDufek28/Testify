@@ -1,6 +1,32 @@
 import {test,expect,clickWorkspaceButton,selectWorkspaceOption} from './fixtures';
 import {exampleStrategy} from '../../src/types';
 
+test('assistant greets on the first turn with compact bubbles and truthful streamed activity',async({page})=>{
+ await page.goto('/#/app/overview');
+ const launcher=page.getByRole('button',{name:'Open AI assistant',exact:true});await launcher.hover();await expect(launcher.locator('.assistant-launcher-label')).toHaveCSS('opacity','0.85');
+ await launcher.focus();await expect(launcher.locator('.assistant-launcher-label')).toHaveCSS('opacity','0.85');
+ let requests=0;
+ await page.route('**/api/assistant',async r=>{requests++;expect(r.request().headers().accept).toBe('text/event-stream');await r.fulfill({contentType:'text/event-stream',body:'event: activity\ndata: {"text":"Preparing a reply…"}\n\nevent: result\ndata: {"answer":"Hey! What would you like to work on?","actions":[]}\n\n'});});
+ await launcher.click();const chat=page.getByRole('dialog',{name:'AI assistant'});await chat.getByLabel('Message AI assistant').fill('yo');await chat.getByRole('button',{name:'Send assistant message'}).click();
+ await expect(chat.getByRole('article',{name:'Assistant response'})).toHaveText('Hey! What would you like to work on?');expect(requests).toBe(1);await expect(chat).not.toContainText('Reading your workspace');
+ const bubble=chat.getByRole('article',{name:'Your message'});expect((await bubble.boundingBox())!.width).toBeLessThan(65);await expect(bubble).toHaveCSS('white-space','pre-wrap');
+ await chat.getByRole('button',{name:'Expand assistant'}).click();await expect.poll(async()=>(await bubble.boundingBox())!.width).toBeLessThan(65);
+});
+
+test('assistant keeps a failed first reply visible beside the composer and retries without duplicating the question',async({page})=>{
+ await page.route('**/api/assistant',r=>r.fulfill({contentType:'text/event-stream',body:'event: error\ndata: {"error":"The reply was interrupted. Try again."}\n\n'}));
+ await page.goto('/#/app/overview');await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});
+ await chat.getByLabel('Message AI assistant').fill('hello');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat.getByRole('alert')).toBeInViewport();await expect(chat.getByRole('button',{name:'Try again'})).toBeInViewport();
+ await page.route('**/api/assistant',r=>r.fulfill({json:{answer:'Hello! I’m here.',actions:[]}}));await chat.getByRole('button',{name:'Try again'}).click();await expect(chat.getByRole('article',{name:'Assistant response'})).toHaveText('Hello! I’m here.');await expect(chat.getByRole('article',{name:'Your message'})).toHaveCount(1);await expect(chat.getByRole('alert')).toHaveCount(0);
+});
+
+test('assistant keeps an interrupted conversation readable after reload without silently replaying actions',async({page})=>{
+ await page.goto('/#/app/overview');await page.evaluate(()=>localStorage.setItem('testify-assistant-v1:e2e-user',JSON.stringify([{role:'user',text:'hello'}])));await page.reload();
+ let calls=0;await page.route('**/api/assistant',r=>{calls++;return r.fulfill({json:{answer:'I’m here. What would you like to do?',actions:[]}});});
+ await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});await expect(chat.getByRole('status')).toContainText('previous reply was interrupted');expect(calls).toBe(0);
+ await chat.getByLabel('Message AI assistant').fill('Are you there?');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat.getByRole('article',{name:'Assistant response'})).toContainText('I’m here.');await expect(chat.locator('.assistant-notice')).toHaveCount(0);
+});
+
 test('assistant grows beside the launcher with a fixed bottom edge and unscaled content',async({page})=>{
  await page.setViewportSize({width:1440,height:1000});await page.goto('/#/app/overview');
  const launcher=page.getByRole('button',{name:'Open AI assistant',exact:true});await expect(launcher).toBeVisible();const origin=(await launcher.boundingBox())!;await launcher.click();

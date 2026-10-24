@@ -15,6 +15,6 @@ export default function WorkspaceShell({page,onNavigate,children,accountControls
   return <div className="penpot-workspace workspace-shell testify-legacy">
     <button className="design-mobile-menu design-icon-button" aria-label="Open navigation" onClick={()=>setNavOpen(!navOpen)}><Menu size={20}/></button>
     <WorkspaceSidebar active={active} nav={target=>{onNavigate(target);setNavOpen(false);}} navOpen={navOpen} setNavOpen={setNavOpen} accountControls={accountControls}/>
-    <main className="design-main"><header className="design-topbar"><DesignIcon icon={Layers}/><span>Testify workspace</span><small>Saved workspace</small></header><div ref={scope} data-motion-page={page} className="workspace-content">{children}</div></main>
+    <main className="design-main" aria-busy={false}><header className="design-topbar"><DesignIcon icon={Layers}/><span>Testify workspace</span></header><div ref={scope} data-motion-page={page} className="workspace-content">{children}</div></main>
   </div>;
 }

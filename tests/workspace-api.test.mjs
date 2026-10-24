@@ -61,3 +61,16 @@ test('assistant authenticates, validates conversation roles, and never returns t
     const denied=reply();await createAssistantHandler(async(_req,res)=>{res.status(401).json({error:'Sign in'});return null;})(req,denied);assert.equal(denied.code,401);
   }finally{if(previous===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=previous;}
 });
+
+test('assistant streams factual activity and a final answer, keeping provider failures visible',async()=>{
+ const previous=process.env.GEMINI_API_KEY;process.env.GEMINI_API_KEY='server-only-test-key';
+ const request={method:'POST',headers:{host:'testify.test',accept:'text/event-stream'},body:{messages:[{role:'user',content:'Hi'}],context:{strategies:[]}}};
+ const reply=()=>({code:0,headers:{},chunks:[],ended:false,setHeader(key,value){this.headers[key]=value;},status(code){this.code=code;return this;},write(chunk){this.chunks.push(chunk);},end(){this.ended=true;}});
+ try{
+  const response=reply();await createAssistantHandler(async()=>({id:'alice'}),async({onActivity})=>{onActivity('Preparing a reply…');return {answer:'Hello!',actions:[]};})(request,response);
+  assert.equal(response.code,200);assert.match(response.headers['Content-Type'],/text\/event-stream/);assert.ok(response.ended);
+  assert.match(response.chunks.join(''),/event: activity/);assert.match(response.chunks.join(''),/event: result/);assert.ok(!response.chunks.join('').includes(process.env.GEMINI_API_KEY));
+  const failed=reply();await createAssistantHandler(async()=>({id:'alice'}),async()=>{throw Object.assign(new Error('provider private details'),{statusCode:429});})(request,failed);
+  assert.match(failed.chunks.join(''),/event: error/);assert.match(failed.chunks.join(''),/quota/);assert.ok(failed.ended);assert.ok(!failed.chunks.join('').includes('private details'));
+ }finally{if(previous===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=previous;}
+});

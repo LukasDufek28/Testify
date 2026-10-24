@@ -6,6 +6,28 @@ const input={apiKey:'provider-test-key',model:'gemini-flash-lite-latest',message
 const generated=parts=>Response.json({candidates:[{content:{role:'model',parts:parts.map(part=>part.functionCall?{...part,thoughtSignature:'test-signature'}:part)},finishReason:'STOP'}],usageMetadata:{promptTokenCount:5,candidatesTokenCount:10,totalTokenCount:15}});
 const busy=status=>Response.json({error:{code:status,message:'Temporarily unavailable',status:status===429?'RESOURCE_EXHAUSTED':'UNAVAILABLE'}},{status});
 
+test('greetings reply on the first call without a workspace read or site action',async()=>{
+ for(const greeting of ['whatsup','hello??','yo','ahoj!']){
+  const events=[],calls=[];
+  const result=await answerAssistant({...input,messages:[{role:'user',content:greeting}],onActivity:text=>events.push(text),providerFetch:async(_url,init)=>{calls.push(JSON.parse(init.body));return generated([{text:'Hey! What would you like to work on?'}]);}});
+  assert.equal(calls.length,1);assert.ok(result.answer.startsWith('Hey!'));assert.deepEqual(result.actions,[]);
+  assert.ok(!events.includes('Reading your workspace…'));assert.ok(!JSON.stringify(calls[0].contents).includes('saved-run'));
+ }
+});
+
+test('an empty first reply falls back instead of silently completing the turn',async()=>{
+ const events=[];let calls=0;
+ const result=await answerAssistant({...input,messages:[{role:'user',content:'hello'}],onActivity:text=>events.push(text),providerFetch:async()=>generated(++calls===1?[]:[{text:'Hello!'}])});
+ assert.equal(calls,2);assert.equal(result.answer,'Hello!');assert.ok(events.includes('Trying another available model…'));
+});
+
+test('workspace activity is emitted by a real context tool, and context reads cannot loop',async()=>{
+ const events=[],bodies=[];
+ await answerAssistant({...input,onActivity:text=>events.push(text),providerFetch:async(_url,init)=>{const body=JSON.parse(init.body);bodies.push(body);return generated(bodies.length===1?[{functionCall:{name:'read_context',args:{}}}]:[{text:'Your measured result is available.'}]);}});
+ assert.deepEqual(events,['Reading your workspace…','Preparing a reply…']);
+ assert.ok(!JSON.stringify(bodies[1].tools).includes('"name":"read_context"'));
+});
+
 test('assistant falls back from an overloaded model and reads the same workspace before replying',async()=>{
   const calls=[];
   const providerFetch=async(url,init)=>{

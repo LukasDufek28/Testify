@@ -20,6 +20,10 @@
 .penpot-workspace .banner button {border:1px solid #686474;border-radius:999px;padding:6px 14px;min-height:32px;background:#ffffff05;color:#e7e6ee;text-decoration:none;font:400 13px/18px Urbanist,sans-serif;transition:background 180ms ease;}
 .penpot-workspace .banner button:hover {background:#ffffff0c;}
 .penpot-workspace .banner {gap:16px;line-height:1.6;}
+.design-portfolio-caption {font-size:12px;line-height:1.6;color:#9e9da7;margin:0 16px;}
+.design-history-link {display:flex;justify-content:flex-end;margin-block:0 16px;}
+.design-result-context {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px;color:#9e9da7;font-size:13px;overflow-wrap:anywhere;}
+.design-overview-actions {display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;}
 :root .testify-legacy :is(.workspace-panel,.panel,.result-panel,.result-metric) {position:relative;isolation:isolate;}
 :root .testify-legacy .workspace-panel {background:#222128;border-color:transparent;}
 :root .testify-legacy :is(.workspace-page-heading,.page-header) {padding-inline:20px;}

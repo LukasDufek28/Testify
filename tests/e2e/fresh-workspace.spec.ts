@@ -7,7 +7,7 @@ test('fresh accounts show no sample strategies, returns, trades or portfolio cur
   for(const route of ['overview','strategies','backtests','trades','portfolio','history','data']){
     await page.goto('/#/app/'+route);
     await expect(page.locator('.penpot-workspace')).toBeVisible();
-    await expect(page.getByText('Saved workspace',{exact:true})).toBeVisible();
+    await expect(page.locator('.design-main[aria-busy="false"]')).toBeVisible();
     await expect(page.locator('.design-main')).not.toContainText(/BTC trend crossover|ETH breakout|RNBW-USD|42,480|12,480|33\.33%|Preview data/);
     await expect(page.locator('.strategy-card,.responsive-equity-plot,.design-monthly-bars button,.design-trade-history')).toHaveCount(0);
     if(route==='overview'||route==='backtests')await expect(page.locator('.design-metric-value strong')).toHaveText(['—','—','—']);

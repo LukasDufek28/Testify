@@ -26,6 +26,18 @@ async function openRun(page:any,name='Run A',details=true){
  if(details)await page.getByText('Run details & exports',{exact:false}).click();
 }
 
+test('saved results show all runs as a dashboard portfolio and default Backtests to the latest strategy',async({page})=>{
+ await openRun(page,'Run A',false);await expect(page.locator('.design-result-context')).toContainText('Saved run · Run A');await expect(page.getByRole('button',{name:'Latest: Run B',exact:true})).toBeVisible();
+ await clickWorkspaceButton(page,'Dashboard');await expect(page.locator('.design-main[aria-busy="false"]')).toBeVisible();
+ const capital=a.settings.capital+b.settings.capital,profit=a.curve.at(-1)!.equity+b.curve.at(-1)!.equity-capital;
+ await expect(page.locator('.design-metric').first()).toContainText('Combined · 2 saved runs');
+ await expect(page.locator('.design-metric').first().locator('strong')).toHaveText(new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(profit));
+ await expect(page.locator('.design-portfolio-caption')).toContainText('$30,000 combined starting capital');await expect(page.locator('.design-latest')).toContainText('Result strategy');
+ await expect(page.locator('.design-topbar')).not.toContainText('Saved workspace');await expect(page.locator('.design-topbar').getByRole('button',{name:'Saved backtests'})).toHaveCount(0);
+ await clickWorkspaceButton(page,'Backtests');await expect(page.locator('.design-result-context')).toContainText('Latest run · Run B');await expect(page.locator('.design-page-heading')).toContainText('Result strategy · BTC-USD · 1h');
+ await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await openRun(page,'Run A',false);await page.getByRole('button',{name:'Latest: Run B',exact:true}).click();await expect(page.locator('.design-result-context')).toContainText('Latest run · Run B');
+});
+
 test('saved display timezone updates trade timestamps and their label immediately and after reload',async({page})=>{
  await openRun(page,'Run A',false);await clickWorkspaceButton(page,'Trades & chart');
  const firstEntry=page.locator('.design-trade-history tbody tr').first().locator('td').nth(0);

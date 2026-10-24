@@ -1,11 +1,13 @@
 import RunDefaultsPanel, {getDisplayTimezone} from "./RunDefaults";
+import {aggregateRunPortfolio} from './portfolio';
 import {dailySharpeEstimate} from './performance';
 import {AnimatedSelect} from './AnimatedControls';
 import WorkspaceSidebar from "./WorkspaceSidebar";
 import type { ApiFetch } from "./api-client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Layers,
+  History,
   Menu,
   Search,
   X,
@@ -58,6 +60,7 @@ type Props = {
   navigate: (page: WorkspacePage) => void;
   strategies: SavedStrategy[];
   runs: Run[];
+  portfolio: ReturnType<typeof aggregateRunPortfolio>;
   selectedRun?: Run;
   options: RunOptions;
   update: (key: keyof RunOptions, value: string | number | string[]) => void;
@@ -1112,8 +1115,12 @@ export default function PenpotWorkspace(p: Props) {
       before?.focus();
     };
   }, [settings]);
-  const run = p.selectedRun || p.runs[0];
-  const sharpe=run?dailySharpeEstimate(run.curve):null;
+  const latestRun=p.runs[0];
+  const run = p.page==='overview' ? latestRun : p.selectedRun || latestRun;
+  const portfolio=p.portfolio;
+  const portfolioSeries=useMemo(()=>portfolio.runCount?{id:'saved-run-portfolio',settings:{capital:portfolio.capital},curve:portfolio.curve}:undefined,[portfolio]);
+  const performance=p.page==='overview'?portfolioSeries:run;
+  const sharpe=performance?dailySharpeEstimate(performance.curve):null;
   useEffect(() => {
     function escape(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -1150,7 +1157,7 @@ export default function PenpotWorkspace(p: Props) {
             ? run
               ? run.strategyName + " · " + run.name
               : "Review the trades from your saved backtest."
-            : "Test a strategy. Review every result.";
+            : run ? run.strategyName + ' · ' + run.symbol + ' · ' + timeframe(run.granularity || 3600) : "Test a strategy. Review every result.";
   const nav = (page: WorkspacePage) => {
     p.navigate(page);
     setNavOpen(false);
@@ -1165,93 +1172,17 @@ export default function PenpotWorkspace(p: Props) {
     ]),
   ].filter((s) => s.toLowerCase().includes(symbolSearch.toLowerCase()));
   function metrics() {
-    return (
-      <div className="design-metrics">
-        <MetricCard
-          label={p.page === "overview" ? "Net profit" : "Balance"}
-          value={
-            run
-              ? money(
-                  (p.page === "overview" ? 0 : run.settings.capital) +
-                    (run.settings.capital * run.metrics.netReturnPct) / 100,
-                )
-              : "—"
-          }
-          percent={
-            run
-              ? percentage(run.metrics.netReturnPct)
-              : "No saved run"
-          }
-          hint={
-            run ? "Latest completed run" : "Run your first backtest"
-          }
-          negative={!!run && run.metrics.netReturnPct < 0}
-          icon={
-            p.page === "overview" ? designIcons.profit : designIcons.balance
-          }
-        />
-        <MetricCard
-          label="Sharpe ratio"
-          value={
-            run
-              ? sharpe?.value?.toFixed(2) || "—"
-              : "—"
-          }
-          percent={
-            run
-              ? sharpe?.value == null
-                ? "Need more data"
-                : (sharpe?.value ?? 0) >= 0
-                  ? "Positive"
-                  : "Negative"
-              : "No saved run"
-          }
-          negative={
-            !!run && sharpe?.value != null && sharpe.value < 0
-          }
-          hint={
-            p.page === "overview"
-              ? run
-                ? sharpe?.value == null ? sharpe?.reason || "Daily equity estimate" : sharpe.shortSample ? `Estimate · ${sharpe.count} daily returns` : "Annualized · daily equity"
-                : "Run your first backtest"
-              : sharpe?.value == null ? sharpe?.reason || "Daily equity estimate" : sharpe.shortSample ? `Estimate · ${sharpe.count} daily returns` : "Annualized · daily equity"
-          }
-          icon={designIcons.sharpe}
-        />
-        <MetricCard
-          label="Max drawdown"
-          value={
-            run
-              ? "−" +
-                money(
-                  run.curve.reduce(
-                    (s, point) => ({
-                      peak: Math.max(s.peak, point.equity),
-                      draw: Math.max(
-                        s.draw,
-                        Math.max(s.peak, point.equity) - point.equity,
-                      ),
-                    }),
-                    { peak: run.settings.capital, draw: 0 },
-                  ).draw,
-                )
-              : "—"
-          }
-          percent={
-            run ? "−" + run.metrics.maxDrawdownPct.toFixed(2) + "%" : "No saved run"
-          }
-          hint={
-            p.page === "overview"
-              ? run
-                ? "Latest backtest drawdown"
-                : "Run your first backtest"
-              : "Peak to trough"
-          }
-          negative={!!run && run.metrics.maxDrawdownPct > 0}
-          icon={designIcons.drawdown}
-        />
-      </div>
-    );
+    const combined=p.page==='overview';
+    const returnPct=combined?portfolio.returnPct:run?.metrics.netReturnPct??0;
+    const drawdownPct=combined?portfolio.maxDrawdownPct:run?.metrics.maxDrawdownPct??0;
+    let drawdown=portfolio.maxDrawdown;
+    if(!combined&&run){let peak=run.settings.capital;drawdown=0;for(const point of run.curve){peak=Math.max(peak,point.equity);drawdown=Math.max(drawdown,peak-point.equity);}}
+    const profit=combined?portfolio.netProfit:run?run.settings.capital*returnPct/100:0;
+    return <div className="design-metrics">
+      <MetricCard label={combined?'Net profit':'Balance'} value={performance?money(combined?profit:(run?.settings.capital??0)+profit):'—'} percent={performance?percentage(returnPct):'No saved run'} hint={performance?combined?`Combined · ${portfolio.runCount} saved ${portfolio.runCount===1?'run':'runs'}`:run?.id===latestRun?.id?'Latest completed run':'Selected saved run':'Run your first backtest'} negative={!!performance&&profit<0} icon={combined?designIcons.profit:designIcons.balance}/>
+      <MetricCard label="Sharpe ratio" value={sharpe?.value?.toFixed(2)??'—'} percent={!performance?'No saved run':sharpe?.value==null?'Need more data':sharpe.value>=0?'Positive':'Negative'} negative={sharpe?.value!=null&&sharpe.value<0} hint={!performance?'Run your first backtest':sharpe?.value==null?sharpe?.reason||'Daily equity estimate':sharpe.shortSample?`Estimate · ${sharpe.count} daily returns`:'Annualized · daily equity'} icon={designIcons.sharpe}/>
+      <MetricCard label="Max drawdown" value={performance?'−'+money(drawdown):'—'} percent={performance?'−'+drawdownPct.toFixed(2)+'%':'No saved run'} hint={performance?combined?'Combined portfolio · peak to trough':'Peak to trough':'Run your first backtest'} negative={!!performance&&drawdownPct>0} icon={designIcons.drawdown}/>
+    </div>;
   }
   return (
     <div className="penpot-workspace">
@@ -1280,22 +1211,15 @@ export default function PenpotWorkspace(p: Props) {
               }
             }}
           />
-          <small>{p.loading ? "Loading workspace…" : "Saved workspace"}</small>
-          {!!p.runs.length && (
-            <button
-              className="design-history-link"
-              onClick={() => nav("history")}
-            >
-              Saved backtests
-            </button>
-          )}
         </header>
         <div className={"design-page-heading" + (p.page === "studio" ? " design-studio-heading" : "")}>
           <h1>{title}</h1>
           <p>{subtitle}</p>
+          {p.page==='backtests'&&run&&<div className="design-result-context"><span>{run.id===latestRun?.id?'Latest run':'Saved run'} · {run.name}</span>{run.id!==latestRun?.id&&latestRun&&<button className="design-button secondary" onClick={()=>nav('backtests')}>Latest: {latestRun.name}</button>}</div>}
           {p.page === "runsettings" && <button className="design-button" aria-label="Start backtest" disabled={p.running || !p.options.strategyId || !p.options.markets.length} onClick={p.onRun}>{p.running ? <RunStatusBadge state="processing"/> : "Run backtest"}</button>}
           {p.page === "studio" && <button className="design-button" onClick={p.onCreate}>New strategy</button>}
         </div>
+        {['runsettings','trades'].includes(p.page)&&<div className="design-history-link"><button className="design-button secondary" onClick={()=>nav('history')}><History size={16}/>Saved backtests</button></div>}
         {p.error && (
           <p className="design-error" role="alert">
             {p.error}
@@ -1342,7 +1266,7 @@ export default function PenpotWorkspace(p: Props) {
           <div className="design-dashboard-grid dashboard-unified">
             {metrics()}
             <div className="dashboard-chart-row">
-              <DesignEquity run={run}/>
+              <DesignEquity run={portfolioSeries}/>
               <DesignCard className="design-latest raised">
                 <CardTitle icon={designIcons.latest}>Latest backtest</CardTitle>
                 <div
@@ -1388,8 +1312,9 @@ export default function PenpotWorkspace(p: Props) {
                 </motion.button>
               </DesignCard>
             </div>
+            <p className="design-portfolio-caption">{portfolio.runCount?`Backtest portfolio · ${portfolio.runCount} saved ${portfolio.runCount===1?'run':'runs'} · ${money(portfolio.capital)} combined starting capital`:"Your saved backtests will combine here."}{portfolio.excludedCount>0&&` · ${portfolio.excludedCount} without equity data excluded`}{portfolio.summaryCount>0&&` · ${portfolio.summaryCount} use daily summaries; intraday drawdown is estimated`}</p>
               <div className="design-dashboard-bottom">
-                <DesignMonthly run={run} />
+                <DesignMonthly run={portfolioSeries} />
                 <DesignCard className="design-continue">
                   <CardTitle icon={designIcons.edit}>
                     Continue working
@@ -1465,7 +1390,7 @@ export default function PenpotWorkspace(p: Props) {
         )}
         {p.page === "backtests" && !p.loading && !p.loadError && (
           <div className="design-backtest-overview">
-            <div className="design-overview-action"><p>Review a completed result or configure your next test.</p><button className="design-button" aria-label="Configure backtest" onClick={()=>nav("runsettings")}>Run backtest</button></div>
+            <div className="design-overview-action"><p>{run&&run.id===latestRun?.id?'Your latest completed backtest.':'Review a saved result or configure your next test.'}</p><div className="design-overview-actions"><button className="design-button secondary" onClick={()=>nav('history')}><History size={16}/>Saved backtests</button><button className="design-button" aria-label="Configure backtest" onClick={()=>nav('runsettings')}>Run backtest</button></div></div>
             <div className="design-right-column">
               {metrics()}
               <DesignEquity run={run} />

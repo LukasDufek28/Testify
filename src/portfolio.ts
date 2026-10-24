@@ -2,6 +2,26 @@ import type { EquityPoint, Run } from "./types";
 
 export type CombinedPortfolio = { curve: EquityPoint[]; returnPct: number; maxDrawdownPct: number; capital: number };
 
+// The dashboard funds each saved backtest with its own actual starting capital.
+// Before a run begins its capital is idle; after it ends its final balance stays.
+// This differs from the research page's normalized full-capital comparison below.
+export function aggregateRunPortfolio(runs:Run[]) {
+  const valid=runs.filter(run=>Number.isFinite(run.settings.capital)&&run.settings.capital>0&&run.curve.length&&run.curve.every((point,i)=>Number.isFinite(point.time)&&Number.isFinite(point.equity)&&(!i||point.time>=run.curve[i-1].time)));
+  const capital=valid.reduce((sum,run)=>sum+run.settings.capital,0);
+  const changes=new Map<number,number>();
+  for(const run of valid){
+    let previous=run.settings.capital;
+    for(const point of run.curve){changes.set(point.time,(changes.get(point.time)??0)+point.equity-previous);previous=point.equity;}
+  }
+  let equity=capital,peak=capital,maxDrawdown=0,maxDrawdownPct=0;
+  const curve=[...changes.entries()].sort(([a],[b])=>a-b).map(([time,change])=>{
+    equity+=change;peak=Math.max(peak,equity);maxDrawdown=Math.max(maxDrawdown,peak-equity);if(peak>0)maxDrawdownPct=Math.max(maxDrawdownPct,(peak-equity)/peak*100);
+    return {time,equity};
+  });
+  const netProfit=curve.length?curve[curve.length-1].equity-capital:0;
+  return {capital,curve,netProfit,returnPct:capital?netProfit/capital*100:0,maxDrawdown,maxDrawdownPct,runCount:valid.length,excludedCount:runs.length-valid.length,summaryCount:valid.filter(run=>run.summaryOnly).length};
+}
+
 // Each selected run uses one full starting-capital sleeve. Returns add, so
 // -10% on one pair and +15% on another produce +5% on the reference capital.
 export function combinePortfolio(runs: Run[]): CombinedPortfolio {

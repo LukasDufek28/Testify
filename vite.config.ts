@@ -21,6 +21,9 @@ function localApi(): Plugin {
         const response = {
           setHeader: (key: string, value: string | number | string[]) =>
             res.setHeader(key, value),
+          write: (chunk: string) => res.write(chunk),
+          end: () => res.end(),
+          flushHeaders: () => res.flushHeaders(),
           status(code: number) {
             res.statusCode = code;
             return response;

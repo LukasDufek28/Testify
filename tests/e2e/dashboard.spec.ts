@@ -13,7 +13,7 @@ test("empty dashboard retains approved geometry without sample performance", asy
   await expect(
     page.getByRole("heading", { name: "Hello, Adam!", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Saved workspace", { exact: true })).toBeVisible();
+  await expect(page.locator('.design-main[aria-busy="false"]')).toBeVisible();
   await expect(page.getByText("Your performance starts here", { exact: true })).toBeVisible();
   await expect(page.locator('.design-metric-value strong')).toHaveText(['—','—','—']);
   const b = await page.locator(".design-dashboard-grid").boundingBox();
@@ -127,7 +127,7 @@ test("saved results replace preview metrics and monthly values", async ({
   });
   await page.reload();
   await expect(
-    page.getByText("Saved workspace", { exact: true }),
+    page.locator('.design-main[aria-busy="false"]'),
   ).toBeVisible();
   await expect(page.locator(".design-final-balance")).toContainText("$11,200");
   await expect(page.locator(".design-metric").first()).toContainText("$1,200");

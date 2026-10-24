@@ -14,7 +14,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import type { Run } from "./types";
+import type { EquitySeries } from "./types";
 import ResponsiveEquity from "./ResponsiveEquity";
 import AnimatedValue from './AnimatedValue';
 import useCardTilt from './useCardTilt';
@@ -146,7 +146,7 @@ export function DesignMonthly({
   example = false,
   className = "",
 }: {
-  run?: Run;
+  run?: EquitySeries;
   example?: boolean;
   className?: string;
 }) {
@@ -231,7 +231,7 @@ export function DesignMonthly({
     </DesignCard>
   );
 }
-export function DesignEquity({ run, className = "", responsivePreview = false }: { run?: Run; className?: string; responsivePreview?: boolean }) {
+export function DesignEquity({ run, className = "", responsivePreview = false }: { run?: EquitySeries; className?: string; responsivePreview?: boolean }) {
   if (!run?.curve.length && !responsivePreview) return <DesignCard className={`design-responsive-equity design-equity-empty ${className}`}>
     <header className="responsive-equity-header"><CardTitle icon={designIcons.chart}>Equity &amp; drawdown</CardTitle></header>
     <div className="design-empty-chart"><ChartNoAxesCombined size={38} strokeWidth={1.3}/><h2>{run ? 'No equity data in this run' : 'Your performance starts here'}</h2><p>{run ? 'Choose another saved run to explore its equity and drawdown.' : 'Run your first backtest to see your equity curve and drawdown.'}</p></div>

@@ -23,7 +23,7 @@ import type {BatchPlan} from "./batch-plan";
 import Connections from "./Connections";
 import { browserSummary, cloudRequest, loadCloudRuns, mergeCloudRuns } from "./cloud-research";
 
-import { combinePortfolio } from "./portfolio";
+import { aggregateRunPortfolio, combinePortfolio } from "./portfolio";
 import { researchWindow, sameResearchWindow, summarizeDevelopmentRun, summarizeDevelopmentPortfolio } from "./research";
 import { createStrategyStore, StrategyStoreError } from "./strategy-store";
 import RunPicker from "./RunPicker";
@@ -206,6 +206,13 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   const selectedDataset = datasets.find((d) => d.id === datasetId);
   const selectedStrategy = strategies.find((s) => s.id === strategyId);
   const selectedRun = runs.find((r) => r.id === runId);
+  const dashboardPortfolio=useMemo(()=>aggregateRunPortfolio(runs),[runs]);
+  const assistantPortfolio=useMemo(()=>{
+    if(runs.some(run=>run.research?.phase==='validation'))return {available:false,reason:'The portfolio contains reserved validation results.'};
+    const {curve,...summary}=dashboardPortfolio;
+    return {available:true,...summary,sharpeEstimate:dailySharpeEstimate(curve),method:'Sum of actual starting capitals and dollar equity changes across all saved runs.'};
+  },[runs,dashboardPortfolio]);
+  function navigateWorkspace(target:Page){if(target==='backtests')setRunId(runs[0]?.id??'');setPage(target);}
   const selectedPortfolio = useMemo(() => runs.filter((r) => portfolioAll || portfolioIds.includes(r.id)), [runs, portfolioIds, portfolioAll]);
   const matchingRunNames = useMemo(() => runs.filter(run => run.name.toLowerCase().includes(portfolioNameFilter.trim().toLowerCase())), [runs, portfolioNameFilter]);
   const activeDisplayRunId = matchingRunNames.some(run => run.id === portfolioDisplayRunId) ? portfolioDisplayRunId : "";
@@ -228,7 +235,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     return selected?[selected,...eligible.filter(r=>r.id!==selected.id)].slice(0,5):eligible.slice(0,5);
   },[runs,runId]);
 
-  const assistant = useAssistantController({userId,apiFetch,context:{page,latestDevelopmentRunId:runs.find(r=>r.research?.phase==='development')?.id??null,selectedRunId:selectedRun?.research?.phase==='development'||selectedRun?.mode==='manual'?selectedRun.id:null,settings:{strategyId,datasetId:testDatasetId,markets:selectedMarkets,granularity,capital,riskPct,spreadBps,start,end,feeBps,feeMode,feePerTrade,slippageBps,splitPct,name:runName},datasets:datasets.slice(0,40).map(d=>({id:d.id,name:d.fileName,symbol:d.symbol,candles:d.bars.length})),selectedStrategy:selectedStrategy?{id:selectedStrategy.id,name:selectedStrategy.name,revision:selectedStrategy.revision,strategy:JSON.parse(selectedStrategy.source)}:null,strategies:strategies.slice(0,40).map(s=>({id:s.id,name:s.name,revision:s.revision})),runs:assistantRuns.map(r=>({... (r.research?.phase==='development'?summarizeDevelopmentRun(r):{name:r.name,strategyName:r.strategyName,symbol:r.symbol,metrics:{...r.metrics,sharpe:dailySharpeEstimate(r.curve).value},mode:r.mode}),metrics:{...r.metrics,sharpe:dailySharpeEstimate(r.curve).value},sharpeEstimate:{...dailySharpeEstimate(r.curve),annualPeriods:365,benchmarkPct:0},id:r.id,createdAt:new Date(r.createdAt).toISOString(),testedPeriod:{start:new Date(r.settings.start*1000).toISOString(),end:new Date(r.settings.end*1000).toISOString(),endExclusive:true},netProfit:r.settings.capital*r.metrics.netReturnPct/100,settings:r.settings,trades:r.trades.slice(-12)}))},execute:executeAssistant});
+  const assistant = useAssistantController({userId,apiFetch,context:{page,portfolio:assistantPortfolio,latestDevelopmentRunId:runs.find(r=>r.research?.phase==='development')?.id??null,selectedRunId:selectedRun?.research?.phase==='development'||selectedRun?.mode==='manual'?selectedRun.id:null,settings:{strategyId,datasetId:testDatasetId,markets:selectedMarkets,granularity,capital,riskPct,spreadBps,start,end,feeBps,feeMode,feePerTrade,slippageBps,splitPct,name:runName},datasets:datasets.slice(0,40).map(d=>({id:d.id,name:d.fileName,symbol:d.symbol,candles:d.bars.length})),selectedStrategy:selectedStrategy?{id:selectedStrategy.id,name:selectedStrategy.name,revision:selectedStrategy.revision,strategy:JSON.parse(selectedStrategy.source)}:null,strategies:strategies.slice(0,40).map(s=>({id:s.id,name:s.name,revision:s.revision})),runs:assistantRuns.map(r=>({... (r.research?.phase==='development'?summarizeDevelopmentRun(r):{name:r.name,strategyName:r.strategyName,symbol:r.symbol,metrics:{...r.metrics,sharpe:dailySharpeEstimate(r.curve).value},mode:r.mode}),metrics:{...r.metrics,sharpe:dailySharpeEstimate(r.curve).value},sharpeEstimate:{...dailySharpeEstimate(r.curve),annualPeriods:365,benchmarkPct:0},id:r.id,createdAt:new Date(r.createdAt).toISOString(),testedPeriod:{start:new Date(r.settings.start*1000).toISOString(),end:new Date(r.settings.end*1000).toISOString(),endExclusive:true},netProfit:r.settings.capital*r.metrics.netReturnPct/100,settings:r.settings,trades:r.trades.slice(-12)}))},execute:executeAssistant});
   const withAssistant = (view:ReactNode) => <AssistantProvider controller={assistant}>{view}</AssistantProvider>;
   useEffect(() => () => { sessionController.abort(); backtestAbort.current?.abort(); validationAbort.current?.abort(); }, [sessionController]);
   async function refresh() {
@@ -675,14 +682,14 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     {renamingRunId && <><label>New backtest name<input value={renameValue} onChange={e => setRenameValue(e.target.value)} maxLength={100}/></label><button className="design-button" disabled={renameBusy} onClick={() => void renameRun()}>Rename backtest</button></>}
     </div></details>;
   if (!storageLoaded && page !== "strategies") return withAssistant(<AccountLoading/>);
-  if (["overview","strategies","studio","backtests","runsettings","trades","connections"].includes(page)) return withAssistant(<PenpotWorkspace userName={userName} apiFetch={apiFetch} accountControls={accountControls} researchTools={researchTools} batchTools={<BatchBacktests apiFetch={apiFetch} strategy={selectedStrategy} options={{markets:selectedMarkets,start,end,capital,riskPct,spreadBps,feeBps:feeMode==="fixed"?0:feeBps,...(feeMode==="fixed"?{feePerTrade}:{}),slippageBps,splitPct,granularity,datasetId:testDatasetId,name:runName}} busy={!!busy} onRun={(plan,id)=>void runBatch(plan,id)}/>} content={<Connections apiFetch={apiFetch}/>}
+  if (["overview","strategies","studio","backtests","runsettings","trades","connections"].includes(page)) return withAssistant(<PenpotWorkspace userName={userName} portfolio={dashboardPortfolio} apiFetch={apiFetch} accountControls={accountControls} researchTools={researchTools} batchTools={<BatchBacktests apiFetch={apiFetch} strategy={selectedStrategy} options={{markets:selectedMarkets,start,end,capital,riskPct,spreadBps,feeBps:feeMode==="fixed"?0:feeBps,...(feeMode==="fixed"?{feePerTrade}:{}),slippageBps,splitPct,granularity,datasetId:testDatasetId,name:runName}} busy={!!busy} onRun={(plan,id)=>void runBatch(plan,id)}/>} content={<Connections apiFetch={apiFetch}/>}
     studio={<Suspense fallback={<p role="status">Opening strategy editor…</p>}><PenpotStrategyStudio source={source} onChange={setSource} strategies={strategies} selected={selectedStrategy} onOpen={setStrategyId}
       beforeSource={draftBefore} onAcceptPreview={()=>setDraftBefore(null)} onUndo={()=>{setSource(draftBefore??selectedStrategy?.source??JSON.stringify(exampleStrategy,null,2));setDraftBefore(null);}} onRun={()=>setPage('runsettings')} canRun={!!selectedStrategy&&source===selectedStrategy.source} onValidate={() => void validateDraft()} onSave={() => {setDraftBefore(null);void saveStrategy();}}
       mode={studioMode} onMode={setStudioMode} idea={idea} onIdea={setIdea} busy={busy.startsWith("gemini")} onGenerate={() => void askGemini()} onImprove={() => void askGeminiRevision()}
       canImprove={!!selectedStrategy} feedbackCount={selectedFeedbackRuns.length}
       feedbackPicker={<RunPicker title="Backtests for Gemini" runs={feedbackEligible} selectedIds={feedbackIds} onChange={setFeedbackIds} emptyText="Save and backtest this strategy version on the development period first."/>} /></Suspense>}
     loading={libraryLoading} loadError={libraryLoadError} onRetry={loadWorkspace} datasets={datasets}
-    page={page} navigate={setPage} strategies={strategies} runs={runs} selectedRun={selectedRun}
+    page={page} navigate={navigateWorkspace} strategies={strategies} runs={runs} selectedRun={selectedRun}
     resultDetails={selectedRun&&<SavedRunDetails key={runId} run={selectedRun} datasetsLabel={datasets.find(dataset=>dataset.id===(selectedRun?.datasetId||selectedRun?.priceDatasetId))?.fileName} onImprove={improveSavedRun} onCompare={(run)=>{setCompareIds(ids=>ids.includes(run.id)?ids:[run.id,...ids]);setPage("compare");}} onReuse={reuseRunSettings} onValidate={()=>{setValidationIds(selectedRun?[selectedRun.id]:[]);setPage("validation");}} onPortfolio={()=>setPage("portfolio")}/>}
     options={{strategyId,markets:selectedMarkets,granularity,capital,riskPct,spreadBps,start,end,feeBps,feeMode,feePerTrade,slippageBps,splitPct,name:runName,datasetId:testDatasetId}}
     update={(key:keyof RunOptions,value:string|number|string[])=>{
@@ -717,7 +724,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     onBackup={exportBackup} loadBars={loadTradeBars}
   />);
 
-  return withAssistant(<WorkspaceShell accountControls={accountControls} page={page} onNavigate={(target) => { setPage(target); setError(""); }} onBackup={exportBackup}>
+  return withAssistant(<WorkspaceShell accountControls={accountControls} page={page} onNavigate={(target) => { navigateWorkspace(target); setError(""); }} onBackup={exportBackup}>
       {runState !== 'idle' && <RunStatusBadge state={runState} announce/>}
       {error && <div className="banner error" role="alert"><span>{error}</span><button onClick={() => setError("")}>Dismiss</button></div>}{notice && <div className="banner success" role="status"><span>{notice}</span><button onClick={() => setNotice("")}>Dismiss</button></div>}
       {strategyToDelete && <ConfirmStrategyDelete strategy={strategyToDelete} onDelete={deleteLibraryStrategy} onClose={() => setStrategyToDelete(null)} />}

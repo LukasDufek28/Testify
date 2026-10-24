@@ -3,7 +3,7 @@ import { motion, useInView, useMotionTemplate, useReducedMotion, useSpring } fro
 import GraphNumber from "./GraphNumber";
 import useCardTilt from './useCardTilt';
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { Run } from "./types";
+import type { EquitySeries } from "./types";
 import { sampleCurve } from "./results";
 import curves from "./previewCurves.json";
 
@@ -20,7 +20,7 @@ function pathY(path: SVGPathElement, x: number) {
   return path.getPointAtLength((lo + hi) / 2).y;
 }
 
-export default function ResponsiveEquity({ run, className = "", example = false }: { run?: Run; className?: string; example?: boolean }) {
+export default function ResponsiveEquity({ run, className = "", example = false }: { run?: EquitySeries; className?: string; example?: boolean }) {
   const tilt=useCardTilt();
   const root = useRef<HTMLDivElement>(null);
   const inView = useInView(root, {once:true,amount:.1});
