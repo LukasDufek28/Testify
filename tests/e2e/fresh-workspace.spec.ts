@@ -37,7 +37,7 @@ test('sidebar highlights only the current section and uses a workflow strategy i
 test('data and overview actions share the same controls and card glares',async({page})=>{
   await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/#/app/backtests');
   const appearance=async(selector:string)=>page.locator(selector).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundImage,radius:s.borderRadius,height:s.minHeight,font:s.font,padding:s.padding,border:s.borderWidth};});
-  const expected=await appearance('.design-overview-action .design-button');
+  const expected=await appearance('.design-overview-action [aria-label="Configure backtest"]');
   const heading=await page.getByRole('heading',{level:1}).evaluate(el=>{const s=getComputedStyle(el);return {font:s.fontSize,lineHeight:s.lineHeight,color:s.color};});
   await clickWorkspaceButton(page,'Data');
   expect(await page.getByRole('heading',{level:1}).evaluate(el=>{const s=getComputedStyle(el);return {font:s.fontSize,lineHeight:s.lineHeight,color:s.color};})).toEqual(heading);
