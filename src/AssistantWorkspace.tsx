@@ -1,4 +1,6 @@
-import {createContext,useContext,useEffect,useRef,useState,type ReactNode} from 'react';
+import {useEffect,useRef,useState,type ReactNode} from 'react';
+import {AssistantContext,useAssistantContext} from './assistant-context';
+export {useAssistantContext} from './assistant-context';
 import {createPortal} from 'react-dom';
 import {Maximize2,Minimize2,Send,Square,X,Plus} from 'lucide-react';
 import {AnimatePresence,motion,useReducedMotion} from 'motion/react';
@@ -97,8 +99,6 @@ export function useAssistantController(configuration:Configuration){
   return {open,setOpen,closing,finishClose:()=>setClosing(false),anchor,origin,expanded,setExpanded,messages,status,error,notice,stopping,send,retry:()=>{if(pending.current)void send(pending.current.prompt,true);},stop:()=>{if(operation.current){operation.current.abort();setStopping(true);setStatus('Stopping after the current action…');}},clear:()=>{if(!locked.current){history.current=[];pending.current=null;setMessages([]);setError('');setNotice('');}}};
 }
 type Controller=ReturnType<typeof useAssistantController>;
-const AssistantContext=createContext<Controller|null>(null);
-export function useAssistantContext(){const context=useContext(AssistantContext);if(!context)throw new Error('Assistant context is missing.');return context;}
 export function AssistantProvider({controller,children}:{controller:Controller;children:ReactNode}){return <AssistantContext.Provider value={controller}>{children}<AssistantOverlay/></AssistantContext.Provider>;}
 export function AssistantLauncher(){const a=useAssistantContext();const reduced=useReducedMotion();return <div ref={a.anchor} className="assistant-launcher-slot">{!a.open&&!a.closing&&<motion.button className="design-ai-launcher" style={{borderRadius:24}} initial={{opacity:0}} animate={{opacity:1}} transition={{duration:reduced?0:.12}} aria-label="Open AI assistant" onClick={()=>a.setOpen(true)}><img src="/design/ai-wall.svg" alt=""/><span className="assistant-launcher-label" aria-hidden="true">AI Assistant</span></motion.button>}</div>;}
 function AssistantOverlay(){
