@@ -45,6 +45,10 @@ import { createApiClient, type ApiFetch } from "./api-client";
 const pct = (n: number) => `${n >= 0 ? "+" : ""}${fmt(n)}%`;
 const date = (seconds: number) => new Date(seconds * 1000).toLocaleString(undefined,{timeZone:getDisplayTimezone()});
 const dateInput = (seconds: number) => { const d = new Date(seconds * 1000); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
+function assistantDataset(dataset:Dataset){
+  const seconds=datasetCoverage(dataset).seconds;
+  return {id:dataset.id,name:dataset.fileName,symbol:dataset.symbol,candles:dataset.bars.length,granularity:seconds,availablePeriod:dataset.bars.length?{start:dateInput(dataset.bars[0].time),end:dateInput(dataset.bars.at(-1)!.time+seconds),endExclusive:true,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone}:null};
+}
 const timeframeName = (seconds: number) => ({ 60: "1m", 300: "5m", 900: "15m", 1800: "30m", 3600: "1h", 14400: "4h", 21600: "6h", 86400: "1d" } as Record<number, string>)[seconds] || `${seconds}s`;
 const intervals: [number, string][] = [[60, "1 minute"], [300, "5 minutes"], [900, "15 minutes"], [1800, "30 minutes"], [3600, "1 hour"], [14400, "4 hours"], [21600, "6 hours"], [86400, "1 day"]];
 const TESTER_OPTIONS_KEY = "testify-tester-options-v1";
@@ -207,6 +211,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   const selectedStrategy = strategies.find((s) => s.id === strategyId);
   const selectedRun = runs.find((r) => r.id === runId);
   const dashboardPortfolio=useMemo(()=>aggregateRunPortfolio(runs),[runs]);
+  const assistantDatasets=useMemo(()=>datasets.slice(0,40).map(assistantDataset),[datasets]);
   const assistantPortfolio=useMemo(()=>{
     if(runs.some(run=>run.research?.phase==='validation'))return {available:false,reason:'The portfolio contains reserved validation results.'};
     const {curve,...summary}=dashboardPortfolio;
@@ -235,7 +240,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     return selected?[selected,...eligible.filter(r=>r.id!==selected.id)].slice(0,5):eligible.slice(0,5);
   },[runs,runId]);
 
-  const assistant = useAssistantController({userId,apiFetch,context:{page,portfolio:assistantPortfolio,latestDevelopmentRunId:runs.find(r=>r.research?.phase==='development')?.id??null,selectedRunId:selectedRun?.research?.phase==='development'||selectedRun?.mode==='manual'?selectedRun.id:null,settings:{strategyId,datasetId:testDatasetId,markets:selectedMarkets,granularity,capital,riskPct,spreadBps,start,end,feeBps,feeMode,feePerTrade,slippageBps,splitPct,name:runName},datasets:datasets.slice(0,40).map(d=>({id:d.id,name:d.fileName,symbol:d.symbol,candles:d.bars.length})),selectedStrategy:selectedStrategy?{id:selectedStrategy.id,name:selectedStrategy.name,revision:selectedStrategy.revision,strategy:JSON.parse(selectedStrategy.source)}:null,strategies:strategies.slice(0,40).map(s=>({id:s.id,name:s.name,revision:s.revision})),runs:assistantRuns.map(r=>({... (r.research?.phase==='development'?summarizeDevelopmentRun(r):{name:r.name,strategyName:r.strategyName,symbol:r.symbol,metrics:{...r.metrics,sharpe:dailySharpeEstimate(r.curve).value},mode:r.mode}),metrics:{...r.metrics,sharpe:dailySharpeEstimate(r.curve).value},sharpeEstimate:{...dailySharpeEstimate(r.curve),annualPeriods:365,benchmarkPct:0},id:r.id,createdAt:new Date(r.createdAt).toISOString(),testedPeriod:{start:new Date(r.settings.start*1000).toISOString(),end:new Date(r.settings.end*1000).toISOString(),endExclusive:true},netProfit:r.settings.capital*r.metrics.netReturnPct/100,settings:r.settings,trades:r.trades.slice(-12)}))},execute:executeAssistant});
+  const assistant = useAssistantController({userId,apiFetch,context:{page,settingsTimezone:Intl.DateTimeFormat().resolvedOptions().timeZone,portfolio:assistantPortfolio,latestDevelopmentRunId:runs.find(r=>r.research?.phase==='development')?.id??null,selectedRunId:selectedRun?.research?.phase==='development'||selectedRun?.mode==='manual'?selectedRun.id:null,settings:{strategyId,datasetId:testDatasetId,markets:selectedMarkets,granularity,capital,riskPct,spreadBps,start,end,feeBps,feeMode,feePerTrade,slippageBps,splitPct,name:runName},datasets:assistantDatasets,selectedStrategy:selectedStrategy?{id:selectedStrategy.id,name:selectedStrategy.name,revision:selectedStrategy.revision,strategy:JSON.parse(selectedStrategy.source)}:null,strategies:strategies.slice(0,40).map(s=>({id:s.id,name:s.name,revision:s.revision})),runs:assistantRuns.map(r=>({... (r.research?.phase==='development'?summarizeDevelopmentRun(r):{name:r.name,strategyName:r.strategyName,symbol:r.symbol,metrics:{...r.metrics,sharpe:dailySharpeEstimate(r.curve).value},mode:r.mode}),metrics:{...r.metrics,sharpe:dailySharpeEstimate(r.curve).value},sharpeEstimate:{...dailySharpeEstimate(r.curve),annualPeriods:365,benchmarkPct:0},id:r.id,createdAt:new Date(r.createdAt).toISOString(),testedPeriod:{start:new Date(r.settings.start*1000).toISOString(),end:new Date(r.settings.end*1000).toISOString(),endExclusive:true},netProfit:r.settings.capital*r.metrics.netReturnPct/100,settings:r.settings,trades:r.trades.slice(-12)}))},execute:executeAssistant});
   const withAssistant = (view:ReactNode) => <AssistantProvider controller={assistant}>{view}</AssistantProvider>;
   useEffect(() => () => { sessionController.abort(); backtestAbort.current?.abort(); validationAbort.current?.abort(); }, [sessionController]);
   async function refresh() {
@@ -361,14 +366,16 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   function onlineDataset(symbol = market): Dataset { return { id: "online", symbol, fileName: `Coinbase · ${granularity / 60}m`, importedAt: Date.now(), bars: [], skipped: 0 }; }
   function cancelBacktest() { backtestAbort.current?.abort(); setRunProgress("Cancelling"); }
   async function runTest() {
-    if (backtestAbort.current) return message("A backtest is already running.");
-    if (!selectedStrategy) return message("Choose a saved strategy.");
-    if (testDatasetId === "online" && !selectedMarkets.length) return message("Check at least one market.");
+    const rejected=(error:string)=>{message(error);return {completed:[] as Run[],error,cancelled:false};};
+    if (backtestAbort.current) return rejected("A backtest is already running.");
+    if (!selectedStrategy) return rejected("Choose a saved strategy.");
+    if (testDatasetId === "online" && !selectedMarkets.length) return rejected("Check at least one market.");
     setBusy("backtest"); setRunState('processing'); setError(""); setRunPercent(0);
     const controller = new AbortController();
     backtestAbort.current = controller;
     const completed: Run[] = [];
     const failures: string[] = [];
+    let runError='';
     const jobId=crypto.randomUUID();let snapshot:BatchPlan|undefined;
     const saveJob=async(status:string,progress:number)=>{if(!snapshot)return;const response=await apiFetch('/api/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'jobs',record:{id:jobId,name:runName,status,progress,snapshot,completed:completed.map(r=>r.id),failures,updatedAt:Date.now()}})});if(!response.ok){const body=await response.json();throw new Error(body.error||'Could not save run progress.');}};
     try {
@@ -428,9 +435,10 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
         setNotice(`${completed.length} backtest${completed.length === 1 ? "" : "s"} saved to History.${controller.signal.aborted ? " Remaining markets cancelled." : failures.length ? ` ${failures.length} failed.` : ""}`);
       }
       if (controller.signal.aborted && !completed.length) setNotice("Backtest cancelled.");
-      if (failures.length) setError(failures.slice(0, 5).join(" · "));
+      if (failures.length) {runError=failures.slice(0,5).join(' · ');setError(runError);}
       setRunState(controller.signal.aborted ? 'cancelled' : failures.length ? 'error' : completed.length ? 'success' : 'error');
-    } catch (e) { if(snapshot)await saveJob(controller.signal.aborted?'cancelled':'failed',completed.length/snapshot.children.length*100).catch(()=>{}); setRunState(controller.signal.aborted ? 'cancelled' : 'error'); if (controller.signal.aborted) setNotice(completed.length ? `${completed.length} completed backtest${completed.length === 1 ? "" : "s"} saved. Remaining markets cancelled.` : "Backtest cancelled."); else message(e); } finally { if(snapshot&&failures.length&&!completed.length)await saveJob('failed',0).catch(()=>{}); if (backtestAbort.current === controller) backtestAbort.current = null; setBusy(""); setRunProgress(""); }
+    } catch (e) { if(snapshot)await saveJob(controller.signal.aborted?'cancelled':'failed',completed.length/snapshot.children.length*100).catch(()=>{}); setRunState(controller.signal.aborted ? 'cancelled' : 'error'); if (controller.signal.aborted) setNotice(completed.length ? `${completed.length} completed backtest${completed.length === 1 ? "" : "s"} saved. Remaining markets cancelled.` : "Backtest cancelled."); else {runError=e instanceof Error?e.message:String(e);message(e);} } finally { if(snapshot&&failures.length&&!completed.length)await saveJob('failed',0).catch(()=>{}); if (backtestAbort.current === controller) backtestAbort.current = null; setBusy(""); setRunProgress(""); }
+    return {completed,error:runError,cancelled:controller.signal.aborted};
   }
   async function runBatch(plan:BatchPlan,resumeId?:string) {
     if(busy)return;const controller=new AbortController();backtestAbort.current=controller;
@@ -489,9 +497,18 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
       if(input.splitPct!==undefined&&(Number(input.splitPct)<30||Number(input.splitPct)>80))throw new Error('Development split must be between 30 and 80.');
       if(input.granularity!==undefined&&!intervals.some(([value])=>value===input.granularity))throw new Error('Unsupported timeframe.');
       for(const key of ['start','end'])if(input[key]!==undefined&&(typeof input[key]!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(input[key]))||!Number.isFinite(Date.parse(String(input[key])))))throw new Error('Use a valid date and time.');
+      const effectiveDataset=input.datasetId==='online'?undefined:chosenDataset??datasets.find(d=>d.id===testDatasetId);
+      if(effectiveDataset&&['datasetId','start','end','granularity'].some(key=>input[key]!==undefined)){
+        const seconds=datasetCoverage(effectiveDataset).seconds;
+        const first=effectiveDataset.bars[0].time,last=effectiveDataset.bars.at(-1)!.time+seconds;
+        const proposedStart=Date.parse(String(input.start??(chosenDataset?dateInput(first):start)))/1000;
+        const proposedEnd=Date.parse(String(input.end??(chosenDataset?dateInput(last):end)))/1000;
+        const proposedTimeframe=Number(input.granularity??(chosenDataset?seconds:granularity));
+        if(proposedStart<first||proposedEnd>last||proposedTimeframe!==seconds)throw new Error(`CSV coverage is ${dateInput(first)} to ${dateInput(last)} (end exclusive), in ${Intl.DateTimeFormat().resolvedOptions().timeZone}; timeframe ${seconds} seconds. Use these local dates and the CSV timeframe.`);
+      }
       if(Date.parse(String(input.start??(chosenDataset?dateInput(chosenDataset.bars[0].time):start)))>=Date.parse(String(input.end??(chosenDataset?dateInput(chosenDataset.bars.at(-1)!.time):end))))throw new Error('Start must be before end.');
       if(input.name!==undefined&&(typeof input.name!=='string'||input.name.length>100))throw new Error('Run name is too long.');
-      flushSync(()=>{if(input.datasetId!==undefined){setTestDatasetId(String(input.datasetId));if(chosenDataset){setSelectedMarkets([chosenDataset.symbol]);setMultiMarket(false);setGranularity(datasetCoverage(chosenDataset).seconds);if(input.start===undefined)setStart(dateInput(chosenDataset.bars[0].time));if(input.end===undefined)setEnd(dateInput(chosenDataset.bars.at(-1)!.time));}else{setSelectedMarkets(current=>{const valid=current.filter(s=>markets.includes(s));return valid.length?valid:[markets[0]||'BTC-USD'];});if(!intervals.some(([seconds])=>seconds===granularity))setGranularity(3600);}}if(input.strategyId!==undefined)setStrategyId(String(input.strategyId));if(input.markets!==undefined){setSelectedMarkets(input.markets as string[]);setMultiMarket((input.markets as string[]).length>1);}if(input.granularity!==undefined)setGranularity(Number(input.granularity));if(input.capital!==undefined)setCapital(Number(input.capital));if(input.riskPct!==undefined)setRiskPct(Number(input.riskPct));if(input.spreadBps!==undefined)setSpreadBps(Number(input.spreadBps));if(input.start!==undefined)setStart(String(input.start));if(input.end!==undefined)setEnd(String(input.end));if(input.feeBps!==undefined){setFeeBps(Number(input.feeBps));if(input.feeMode===undefined)setFeeMode('percentage');}if(input.feeMode!==undefined)setFeeMode(input.feeMode as 'fixed'|'percentage');if(input.feePerTrade!==undefined){setFeePerTrade(Number(input.feePerTrade));if(input.feeMode===undefined&&input.feeBps===undefined)setFeeMode('fixed');}if(input.slippageBps!==undefined)setSlippageBps(Number(input.slippageBps));if(input.splitPct!==undefined)setSplitPct(Number(input.splitPct));if(input.name!==undefined)setRunName(String(input.name));setPage('runsettings');});
+      flushSync(()=>{if(input.datasetId!==undefined){setTestDatasetId(String(input.datasetId));if(chosenDataset){setSelectedMarkets([chosenDataset.symbol]);setMultiMarket(false);setGranularity(datasetCoverage(chosenDataset).seconds);if(input.start===undefined)setStart(dateInput(chosenDataset.bars[0].time));if(input.end===undefined)setEnd(dateInput(chosenDataset.bars.at(-1)!.time+datasetCoverage(chosenDataset).seconds));}else{setSelectedMarkets(current=>{const valid=current.filter(s=>markets.includes(s));return valid.length?valid:[markets[0]||'BTC-USD'];});if(!intervals.some(([seconds])=>seconds===granularity))setGranularity(3600);}}if(input.strategyId!==undefined)setStrategyId(String(input.strategyId));if(input.markets!==undefined){setSelectedMarkets(input.markets as string[]);setMultiMarket((input.markets as string[]).length>1);}if(input.granularity!==undefined)setGranularity(Number(input.granularity));if(input.capital!==undefined)setCapital(Number(input.capital));if(input.riskPct!==undefined)setRiskPct(Number(input.riskPct));if(input.spreadBps!==undefined)setSpreadBps(Number(input.spreadBps));if(input.start!==undefined)setStart(String(input.start));if(input.end!==undefined)setEnd(String(input.end));if(input.feeBps!==undefined){setFeeBps(Number(input.feeBps));if(input.feeMode===undefined)setFeeMode('percentage');}if(input.feeMode!==undefined)setFeeMode(input.feeMode as 'fixed'|'percentage');if(input.feePerTrade!==undefined){setFeePerTrade(Number(input.feePerTrade));if(input.feeMode===undefined&&input.feeBps===undefined)setFeeMode('fixed');}if(input.slippageBps!==undefined)setSlippageBps(Number(input.slippageBps));if(input.splitPct!==undefined)setSplitPct(Number(input.splitPct));if(input.name!==undefined)setRunName(String(input.name));setPage('runsettings');});
       return {success:true,applied:input};
     }
     if(action.name==='create_strategy') {
@@ -510,10 +527,9 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     }
     if(action.name==='run_backtest') {
       if(busy||!selectedStrategy)throw new Error('Select a saved strategy and wait for the active operation.');
-      setPage('runsettings');const before=new Set((await localStore.runs()).map(r=>r.id));
-      await runTest();const saved=(await localStore.runs()).filter(r=>!before.has(r.id));
-      if(!saved.length)throw new Error('No backtest was saved. Check the error on the Backtests page and correct its settings.');
-      return {success:true,runs:saved.map(r=>({id:r.id,name:r.name,symbol:r.symbol,metrics:r.metrics,testedPeriod:{start:new Date(r.settings.start*1000).toISOString(),end:new Date(r.settings.end*1000).toISOString(),endExclusive:true},netProfit:r.settings.capital*r.metrics.netReturnPct/100}))};
+      setPage('runsettings');const outcome=await runTest();
+      if(!outcome.completed.length)throw new Error(outcome.error||(outcome.cancelled?'Backtest cancelled.':'No backtest was saved. Check the selected strategy and settings.'));
+      return {success:true,...(outcome.error?{warning:outcome.error}:{}),runs:outcome.completed.map(r=>({id:r.id,name:r.name,symbol:r.symbol,metrics:r.metrics,testedPeriod:{start:new Date(r.settings.start*1000).toISOString(),end:new Date(r.settings.end*1000).toISOString(),endExclusive:true},netProfit:r.settings.capital*r.metrics.netReturnPct/100}))};
     }
     throw new Error('Unsupported assistant action.');
   }
@@ -712,8 +728,9 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
         const chosen=datasets.find(dataset=>dataset.id===value);
         if(chosen?.bars.length) {
           setStart(dateInput(chosen.bars[0].time));
-          setEnd(dateInput(chosen.bars[chosen.bars.length-1].time));
-          setSelectedMarkets([chosen.symbol]);setMultiMarket(false);setGranularity(chosen.bars.length>1 ? Math.max(1,chosen.bars[1].time-chosen.bars[0].time) : 3600);
+          const seconds=datasetCoverage(chosen).seconds;
+          setEnd(dateInput(chosen.bars[chosen.bars.length-1].time+seconds));
+          setSelectedMarkets([chosen.symbol]);setMultiMarket(false);setGranularity(seconds);
         }
       }
     }} markets={markets} error={error} notice={notice}

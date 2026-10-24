@@ -99,7 +99,7 @@ const tradeDate = (time: number) =>
     timeZone: getDisplayTimezone(),
   });
 const money = (n: number,digits=0) =>
-  "$" + n.toLocaleString("en-US", { minimumFractionDigits:digits,maximumFractionDigits:digits });
+  (n<0?"-":"")+"$" + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits:digits,maximumFractionDigits:digits });
 const percentage = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (

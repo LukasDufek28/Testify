@@ -37,7 +37,7 @@ export function useAssistantController(configuration:Configuration){
   const [messages,setMessages]=useState<Message[]>(()=>{try{const list=JSON.parse(localStorage.getItem(`testify-assistant-v1:${configuration.userId}`)||'[]');return Array.isArray(list)?list.filter(m=>['user','assistant'].includes(m.role)&&typeof m.text==='string').slice(-30):[];}catch{return [];}});
   const locked=useRef(false),alive=useRef(true);
   const history=useRef<ModelMessage[][]>([messages.map(m=>({role:m.role,content:m.text}))]);
-  const pending=useRef<{prompt:string;messages:ModelMessage[];outputs:Map<string,{input:string;output:unknown}>}|null>(null);
+  const pending=useRef<{prompt:string;messages:ModelMessage[];outputs:Map<string,{input:string;output:unknown}>;failedRuns:Map<string,string>;completedRuns:Map<string,unknown>}|null>(null);
   const operation=useRef<AbortController|null>(null);
   useEffect(()=>{alive.current=true;if(messages.at(-1)?.role==='user')setNotice('The previous reply was interrupted. Send a follow-up to continue; completed changes are kept.');return()=>{alive.current=false;operation.current?.abort();};},[]);
   useEffect(()=>{try{localStorage.setItem(`testify-assistant-v1:${configuration.userId}`,JSON.stringify(messages.slice(-30)));}catch{/* Chat remains available in this session. */}},[messages,configuration.userId]);
@@ -47,7 +47,7 @@ export function useAssistantController(configuration:Configuration){
     if(!retry){
       // Preserve any completed actions from an interrupted turn in follow-ups.
       if(pending.current)history.current.push(pending.current.messages);
-      pending.current={prompt:prompt.trim(),messages:[{role:'user',content:prompt.trim()}],outputs:new Map()};
+      pending.current={prompt:prompt.trim(),messages:[{role:'user',content:prompt.trim()}],outputs:new Map(),failedRuns:new Map(),completedRuns:new Map()};
       setMessages(previous=>[...previous,{role:'user' as const,text:prompt.trim()}].slice(-30));
     }
     const turn=pending.current!;
@@ -76,18 +76,26 @@ export function useAssistantController(configuration:Configuration){
         if(!actions.length){complete();return;}
         for(const action of actions){
           let output:unknown;
+          let repeatedFailure='';
+          const runSettings=action.name==='run_backtest'?JSON.stringify((current.current.context as {settings?:unknown})?.settings??null):'';
           const previous=turn.outputs.get(action.id),input=JSON.stringify({name:action.name,input:action.input});
           if(previous)output=previous.input===input?previous.output:{success:false,error:'A repeated action identifier had different arguments.'};
           else if(controller.signal.aborted)output={success:false,cancelled:true,error:'Stopped by the user before this action started.'};
           else {
             setStatus(activity[action.name]);
-            try{output=await current.current.execute(action);}catch(e){output={success:false,error:e instanceof Error?e.message:'The action failed.'};}
+            const failed=runSettings&&turn.failedRuns.get(runSettings);
+            if(runSettings&&turn.completedRuns.has(runSettings))output=turn.completedRuns.get(runSettings);
+            else if(failed){repeatedFailure=failed;output={success:false,error:failed};}
+            else try{output=await current.current.execute(action);}catch(e){output={success:false,error:e instanceof Error?e.message:'The action failed.'};}
+            if(runSettings&&output&&typeof output==='object'&&'success' in output&&output.success===false&&'error' in output&&typeof output.error==='string')turn.failedRuns.set(runSettings,output.error);
+            if(runSettings&&output&&typeof output==='object'&&'success' in output&&output.success===true)turn.completedRuns.set(runSettings,output);
             // Checkpoint results before the next network call. Retry resumes here
             // rather than recreating a saved strategy or running another backtest.
             turn.outputs.set(action.id,{input,output});
           }
           if(!alive.current)return;
           turn.messages.push({role:'tool',content:[{type:'tool-result',toolCallId:action.id,toolName:action.name,output:{type:'json',value:JSON.parse(JSON.stringify(output??null))}}]});
+          if(repeatedFailure)throw new Error(repeatedFailure+' Update the run settings before trying again.');
           await new Promise(resolve=>setTimeout(resolve,0));
         }
         setStatus('Summarizing the result…');

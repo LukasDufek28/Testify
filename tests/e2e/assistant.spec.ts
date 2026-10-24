@@ -1,13 +1,40 @@
 import {test,expect,clickWorkspaceButton,selectWorkspaceOption} from './fixtures';
 import {exampleStrategy} from '../../src/types';
 
+test.describe('assistant CSV dates in the workspace timezone',()=>{
+ test.use({timezoneId:'Europe/Bratislava'});
+ test('global chat uses CSV local coverage, rejects incorrect UTC dates atomically, and saves one real backtest',async({page})=>{
+  await page.goto('/#/app/strategies');await page.getByLabel('Import strategy JSON file').setInputFiles({name:'rules.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(exampleStrategy))});await expect(page.locator('.strategy-card')).toHaveCount(1);
+  await clickWorkspaceButton(page,'Data');const rows=Array.from({length:72},(_,i)=>`${1735689600+i*3600},100,102,99,101,20`);await page.getByLabel('Import historical CSV file').setInputFiles({name:'local-coverage.csv',mimeType:'text/csv',buffer:Buffer.from('time,open,high,low,close,volume\n'+rows.join('\n'))});await expect(page.locator('.workspace-table tbody tr')).toHaveCount(1);
+  let calls=0;const bodies:any[]=[];await page.route('**/api/assistant',r=>{
+   calls++;const body=r.request().postDataJSON();bodies.push(body);const data=body.context.datasets[0];
+   const input=calls===1?{datasetId:data.id,start:'2025-01-01T00:00',capital:7500}:calls===2?{datasetId:data.id,start:data.availablePeriod.start,end:data.availablePeriod.end,granularity:data.granularity,capital:7500}:{};
+   const name=calls<=2?'update_settings':'run_backtest',id='coverage-'+calls;
+   return r.fulfill({json:calls<5?{answer:'',actions:[{id,name,input}],messages:[{role:'assistant',content:[{type:'tool-call',toolCallId:id,toolName:name,input}]}]}:{answer:'The CSV backtest was saved.',actions:[]}});
+  });
+  await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});await chat.getByLabel('Message AI assistant').fill('Run my CSV with 7500 starting capital.');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat).toContainText('The CSV backtest was saved.');expect(calls).toBe(5);
+  expect(bodies[0].context.settingsTimezone).toBe('Europe/Bratislava');expect(bodies[0].context.datasets[0].availablePeriod).toEqual({start:'2025-01-01T01:00',end:'2025-01-04T01:00',endExclusive:true,timezone:'Europe/Bratislava'});
+  const results=(body:any)=>body.messages.filter((m:any)=>m.role==='tool').flatMap((m:any)=>m.content);
+  expect(results(bodies[1])[0].output.value).toEqual(expect.objectContaining({success:false,error:expect.stringContaining('CSV coverage is 2025-01-01T01:00')}));expect(bodies[1].context.settings.capital).toBe(10000);
+  expect(bodies[2].context.settings.capital).toBe(7500);expect(results(bodies[3]).at(-1).output.value.success).toBe(true);expect(bodies[3].context.runs).toHaveLength(1);expect(bodies[4].context.runs).toHaveLength(1);expect(results(bodies[4]).at(-1).output.value.runs[0].id).toBe(results(bodies[3]).at(-1).output.value.runs[0].id);expect(bodies[3].context.runs[0].settings.capital).toBe(7500);await expect(chat.getByRole('alert')).toHaveCount(0);
+ });
+});
+
+test('assistant keeps the actual backtest failure visible and blocks unchanged automatic retries',async({page})=>{
+ await page.goto('/#/app/strategies');await page.getByLabel('Import strategy JSON file').setInputFiles({name:'rules.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(exampleStrategy))});await expect(page.locator('.strategy-card')).toHaveCount(1);
+ let calls=0;const bodies:any[]=[];await page.route('**/api/assistant',r=>{calls++;bodies.push(r.request().postDataJSON());const name=calls===1?'update_settings':'run_backtest',input=calls===1?{start:'2025-01-01T00:00',end:'2025-01-01T01:00'}:{},id='failed-run-'+calls;return r.fulfill({json:{answer:'',actions:[{id,name,input}],messages:[{role:'assistant',content:[{type:'tool-call',toolCallId:id,toolName:name,input}]}]}});});
+ await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});await chat.getByLabel('Message AI assistant').fill('Run a backtest');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat.getByRole('alert')).toContainText('Choose a wider range');await expect(chat.getByRole('alert')).toContainText('Update the run settings before trying again.');expect(calls).toBe(3);
+ expect(bodies[2].messages.filter((m:any)=>m.role==='tool').at(-1).content[0].output.value.error).toContain('at least 20 candle slots');await expect(chat).not.toContainText('That request needs more steps');
+});
+
 test('assistant greets on the first turn with compact bubbles and truthful streamed activity',async({page})=>{
- await page.goto('/#/app/overview');
- const launcher=page.getByRole('button',{name:'Open AI assistant',exact:true});await launcher.hover();await expect(launcher.locator('.assistant-launcher-label')).toHaveCSS('opacity','0.85');
- await launcher.focus();await expect(launcher.locator('.assistant-launcher-label')).toHaveCSS('opacity','0.85');
+ await page.goto('/#/app/overview');await expect(page.locator('.penpot-workspace')).toBeVisible();
+ const launcher=page.getByRole('button',{name:'Open AI assistant',exact:true});if(!await launcher.isVisible())await page.getByRole('button',{name:'Open navigation',exact:true}).click();
+ if(await page.evaluate(()=>matchMedia('(hover:none)').matches))await expect(launcher.locator('.assistant-launcher-label')).toHaveCSS('opacity','0.7');
+ else {await launcher.hover();await expect(launcher.locator('.assistant-launcher-label')).toHaveCSS('opacity','0.85');await launcher.focus();await expect(launcher.locator('.assistant-launcher-label')).toHaveCSS('opacity','0.85');}
  let requests=0;
  await page.route('**/api/assistant',async r=>{requests++;expect(r.request().headers().accept).toBe('text/event-stream');await r.fulfill({contentType:'text/event-stream',body:'event: activity\ndata: {"text":"Preparing a reply…"}\n\nevent: result\ndata: {"answer":"Hey! What would you like to work on?","actions":[]}\n\n'});});
- await launcher.click();const chat=page.getByRole('dialog',{name:'AI assistant'});await chat.getByLabel('Message AI assistant').fill('yo');await chat.getByRole('button',{name:'Send assistant message'}).click();
+ await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});await chat.getByLabel('Message AI assistant').fill('yo');await chat.getByRole('button',{name:'Send assistant message'}).click();
  await expect(chat.getByRole('article',{name:'Assistant response'})).toHaveText('Hey! What would you like to work on?');expect(requests).toBe(1);await expect(chat).not.toContainText('Reading your workspace');
  const bubble=chat.getByRole('article',{name:'Your message'});expect((await bubble.boundingBox())!.width).toBeLessThan(65);await expect(bubble).toHaveCSS('white-space','pre-wrap');
  await chat.getByRole('button',{name:'Expand assistant'}).click();await expect.poll(async()=>(await bubble.boundingBox())!.width).toBeLessThan(65);
