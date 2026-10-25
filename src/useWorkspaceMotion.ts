@@ -20,8 +20,15 @@ export default function useWorkspaceMotion(page:string) {
    fresh.forEach(node=>played.add(node));
    if(reduced||!fresh.length)return;
    // Only opacity and translation change; controls keep their final layout.
-   const cards=fresh.filter(node=>!node.matches(rows)),tableRows=fresh.filter(node=>node.matches(rows));
+   const tableRows=fresh.filter(node=>node.matches(rows));
+   const surfaces=fresh.filter(node=>!node.matches(rows));
+   const interactive=(node:HTMLElement)=>node.matches('details')||!!node.querySelector('button,a,input,select,textarea,summary,[role="combobox"]');
+   const cards=surfaces.filter(node=>!interactive(node)),controls=surfaces.filter(interactive);
    if(cards.length)animations.push(animate(cards,{opacity:[0,1],translate:['0 12px','0 0']},{duration:.46,delay:i=>Math.min(i*.045,.18),ease:easeOut}));
+   // Scrolling to a form must never move its click target between pointer down
+   // and pointer up. Interactive surfaces fade in at their final coordinates.
+   controls.forEach(node=>{node.style.translate='0 0';});
+   if(controls.length)animations.push(animate(controls,{opacity:[0,1]},{duration:.25,delay:i=>Math.min(i*.035,.1),ease:easeOut}));
    if(tableRows.length)animations.push(animate(tableRows,{opacity:[0,1]},{duration:.22,delay:i=>Math.min(i*.014,.1),ease:easeOut}));
   }
   const visibility=new IntersectionObserver(entries=>{

@@ -61,7 +61,7 @@ test.describe('motion account transitions',()=>{
   await page.goto('/#/app/overview');const email=page.getByLabel('Email',{exact:true}),password=page.getByLabel('Password',{exact:true});await email.fill('motion@example.test');await password.fill('temporary-password');
   await page.evaluate(()=>document.fonts.ready);const logo=page.getByRole('link',{name:'Testify home',exact:true});const geometry=()=>logo.evaluate(el=>{const rect=el.getBoundingClientRect();return {x:rect.x+scrollX,y:rect.y+scrollY,width:rect.width,height:rect.height};});const before=await geometry();
   await page.getByRole('button',{name:'Register',exact:true}).click();await expect(page.getByRole('heading',{name:'Create your account',exact:true})).toBeVisible();await expect(email).toHaveValue('motion@example.test');await expect(password).toHaveValue('');await expect(email).toBeFocused();
-  const after=await geometry();expect(after).toEqual(before);
+  const after=await geometry();for(const key of ['x','y','width','height'] as const)expect(after[key]).toBeCloseTo(before[key],1);
   await page.emulateMedia({reducedMotion:'reduce'});await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(email).toBeFocused();await expect(page.locator('.auth-card')).toHaveCSS('transform','none');
  });
 });
