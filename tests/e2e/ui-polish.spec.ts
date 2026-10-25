@@ -62,7 +62,7 @@ test('static cards tilt slightly with a mouse, settle on leave, and stay flat fo
  await page.emulateMedia({reducedMotion:'reduce'});await card.hover({position:{x:200,y:20}});await expect(card).toHaveCSS('transform','none');
 });
 
-test('account popup opens above the profile, closes with Escape or outside click, and offers motion and sign-out controls',async({page})=>{
+test('account popup opens above the profile, closes with Escape or outside click, and offers animation and sign-out controls',async({page})=>{
  await page.goto('/#/app/overview');
  const trigger=page.getByRole('button',{name:'Open account menu',exact:true});
  await expect(page.getByRole('menuitem',{name:'Sign out'})).toHaveCount(0);
