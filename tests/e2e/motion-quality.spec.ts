@@ -59,9 +59,9 @@ test.describe('motion account transitions',()=>{
  test.use({signedIn:false});
  test('motion auth switch preserves email and header geometry and focuses the new form',async({page})=>{
   await page.goto('/#/app/overview');const email=page.getByLabel('Email',{exact:true}),password=page.getByLabel('Password',{exact:true});await email.fill('motion@example.test');await password.fill('temporary-password');
-  const logo=page.getByRole('link',{name:'Testify home',exact:true}),before=(await logo.boundingBox())!;
+  await page.evaluate(()=>document.fonts.ready);const logo=page.getByRole('link',{name:'Testify home',exact:true});const geometry=()=>logo.evaluate(el=>{const rect=el.getBoundingClientRect();return {x:rect.x+scrollX,y:rect.y+scrollY,width:rect.width,height:rect.height};});const before=await geometry();
   await page.getByRole('button',{name:'Register',exact:true}).click();await expect(page.getByRole('heading',{name:'Create your account',exact:true})).toBeVisible();await expect(email).toHaveValue('motion@example.test');await expect(password).toHaveValue('');await expect(email).toBeFocused();
-  const after=(await logo.boundingBox())!;expect(after).toEqual(before);
+  const after=await geometry();expect(after).toEqual(before);
   await page.emulateMedia({reducedMotion:'reduce'});await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(email).toBeFocused();await expect(page.locator('.auth-card')).toHaveCSS('transform','none');
  });
 });
