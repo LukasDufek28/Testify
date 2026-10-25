@@ -21,11 +21,11 @@ test.beforeEach(async ({ page }) => {
     route.fulfill({ json: { markets: [{ id: "BTC-USD" }] } }),
   );
 });
-test('workspace search opens matching saved strategies and clearing it restores the library',async({page})=>{
+for(const entry of ['Dashboard','Data'])test(`workspace search from ${entry} opens matching saved strategies and clearing it restores the library`,async({page})=>{
  await page.goto('/#/app/strategies');
  await importJson(page,[{...exampleStrategy,name:'BTC momentum'},{...exampleStrategy,name:'ETH breakout'}]);
  await expect(page.locator('.strategy-card')).toHaveCount(2);
- await clickWorkspaceButton(page,'Dashboard');
+ await clickWorkspaceButton(page,entry);
  const search=page.getByRole('searchbox',{name:'Search your workspace'});
  await search.fill('ETH breakout');await search.press('Enter');
  await expect(page).toHaveURL(/#\/app\/strategies$/);

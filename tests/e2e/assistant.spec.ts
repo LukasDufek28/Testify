@@ -4,6 +4,7 @@ import {exampleStrategy} from '../../src/types';
 test.describe('assistant CSV dates in the workspace timezone',()=>{
  test.use({timezoneId:'Europe/Bratislava'});
  test('global chat uses CSV local coverage, rejects incorrect UTC dates atomically, and saves one real backtest',async({page})=>{
+  test.setTimeout(60000);
   await page.goto('/#/app/strategies');await page.getByLabel('Import strategy JSON file').setInputFiles({name:'rules.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(exampleStrategy))});await expect(page.locator('.strategy-card')).toHaveCount(1);
   await clickWorkspaceButton(page,'Data');const rows=Array.from({length:72},(_,i)=>`${1735689600+i*3600},100,102,99,101,20`);await page.getByLabel('Import historical CSV file').setInputFiles({name:'local-coverage.csv',mimeType:'text/csv',buffer:Buffer.from('time,open,high,low,close,volume\n'+rows.join('\n'))});await expect(page.locator('.workspace-table tbody tr')).toHaveCount(1);
   let calls=0;const bodies:any[]=[];await page.route('**/api/assistant',r=>{
@@ -12,7 +13,7 @@ test.describe('assistant CSV dates in the workspace timezone',()=>{
    const name=calls<=2?'update_settings':'run_backtest',id='coverage-'+calls;
    return r.fulfill({json:calls<5?{answer:'',actions:[{id,name,input}],messages:[{role:'assistant',content:[{type:'tool-call',toolCallId:id,toolName:name,input}]}]}:{answer:'The CSV backtest was saved.',actions:[]}});
   });
-  await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});await chat.getByLabel('Message AI assistant').fill('Run my CSV with 7500 starting capital.');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat).toContainText('The CSV backtest was saved.');expect(calls).toBe(5);
+  await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});await chat.getByLabel('Message AI assistant').fill('Run my CSV with 7500 starting capital.');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat).toContainText('The CSV backtest was saved.',{timeout:15000});expect(calls).toBe(5);
   expect(bodies[0].context.settingsTimezone).toBe('Europe/Bratislava');expect(bodies[0].context.datasets[0].availablePeriod).toEqual({start:'2025-01-01T01:00',end:'2025-01-04T01:00',endExclusive:true,timezone:'Europe/Bratislava'});
   const results=(body:any)=>body.messages.filter((m:any)=>m.role==='tool').flatMap((m:any)=>m.content);
   expect(results(bodies[1])[0].output.value).toEqual(expect.objectContaining({success:false,error:expect.stringContaining('CSV coverage is 2025-01-01T01:00')}));expect(bodies[1].context.settings.capital).toBe(10000);

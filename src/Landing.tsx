@@ -1,4 +1,7 @@
 import { useEffect, useRef } from "react";
+import {useAnimate} from 'motion/react';
+import useReducedMotionPreference from './useReducedMotionPreference';
+import {easeOut} from './motion-tokens';
 import PublicHeader from './PublicHeader';
 import "./landing.css";
 import { DesignEquity, DesignMonthly, StrategyExample } from "./PenpotPrimitives";
@@ -10,25 +13,32 @@ const steps = [
 ];
 
 export default function Landing() {
-  const root = useRef<HTMLDivElement>(null);
+  const [root,animate]=useAnimate<HTMLDivElement>();
+  const reduced=useReducedMotionPreference(),played=useRef(new Set<Element>());
   useEffect(() => {
-    const elements = root.current?.querySelectorAll<HTMLElement>("[data-reveal]");
+    const elements = root.current?.querySelectorAll<HTMLElement>("[data-reveal],.landing-showcase-row>.design-card,.landing-steps article");
     if (!elements) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !window.IntersectionObserver) {
-      elements.forEach((element) => element.classList.add("is-visible"));
+    const animations:ReturnType<typeof animate>[]=[];
+    const visibilityChanged=()=>{if(root.current)root.current.dataset.motionDocumentHidden=String(document.hidden);};
+    if (reduced || !window.IntersectionObserver) {
+      elements.forEach((element) => {element.classList.add("is-visible");played.current.add(element);});
       return;
     }
     const observer = new IntersectionObserver((entries) => {
+      let index=0;
       for (const entry of entries) {
         if (entry.isIntersecting) {
           entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
+          if(!entry.target.matches('[data-reveal]')&&!played.current.has(entry.target))animations.push(animate(entry.target as HTMLElement,{opacity:[0,1],translate:['0 14px','0 0']},{duration:.55,delay:Math.min(index++*.06,.12),ease:easeOut}));
+          played.current.add(entry.target);
         }
+        (entry.target as HTMLElement).dataset.motionInView=String(entry.isIntersecting);
       }
     }, { threshold: 0.08 });
     elements.forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
-  }, []);
+    visibilityChanged();document.addEventListener('visibilitychange',visibilityChanged);
+    return () => {observer.disconnect();document.removeEventListener('visibilitychange',visibilityChanged);animations.forEach(animation=>animation.stop());elements.forEach(element=>{element.style.opacity='';element.style.translate='';delete element.dataset.motionInView;});};
+  }, [reduced,animate,root]);
 
   return (
     <div className="landing" ref={root}>

@@ -1,0 +1,40 @@
+/* Shared rhythm; layout and typography stay in normal responsive flow. */
+:root {--motion-ease:cubic-bezier(.22,1,.36,1);--motion-fast:160ms;--motion-surface:280ms;}
+:root :is(.penpot-workspace,.landing,.auth-approved) :is(.design-button,.dashboard-button,.button,.landing-button) {transition:translate 220ms var(--motion-ease),scale 160ms var(--motion-ease),filter 220ms var(--motion-ease),opacity 160ms ease;transform-origin:center;}
+:root :is(.penpot-workspace,.landing,.auth-approved) :is(.design-button,.dashboard-button,.button,.landing-button):active:not(:disabled) {scale:.975;translate:0 0;}
+:root .design-sidebar nav > button {position:relative;isolation:isolate;transition:color 180ms ease;}
+:root .design-sidebar nav > button[aria-current=page] {background:none;}
+.design-nav-highlight {position:absolute;inset:0;z-index:-1;border-radius:22px;background:linear-gradient(90deg,#393842,transparent);pointer-events:none;}
+.design-sidebar nav > button .design-icon {transition:background-color 220ms ease,color 220ms ease,translate 220ms var(--motion-ease);}
+.design-subnav button {transition:color 180ms ease;}
+.design-nav-backdrop {display:none;}
+:root .penpot-workspace [data-motion-in-view=false]::before,
+:root .landing [data-motion-in-view=false]::before,
+:root .landing[data-motion-document-hidden=true] .design-card::before,
+:root .penpot-workspace [data-motion-document-hidden=true] :is(.design-card,.workspace-panel,.panel,.result-panel,.result-metric)::before {animation-play-state:paused;}
+.penpot-workspace details > summary {cursor:pointer;}
+.penpot-workspace details > summary::after {transition:rotate 220ms var(--motion-ease);}
+.penpot-workspace details[data-motion-disclosure] {box-sizing:border-box;}
+:root .control-popup,:root .control-popup.closing {animation:none;}
+.control-popup .control-options button {transition:background 150ms ease,color 150ms ease;}
+.account-menu-trigger > svg {transition:rotate 240ms var(--motion-ease);}
+.account-menu-trigger[aria-expanded=true] > svg {rotate:180deg;}
+.motion-auth-card {animation:none!important;}
+.assistant-dock-art {position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;z-index:3;border-radius:inherit;}
+.assistant-chat form button > span {display:grid;place-items:center;}
+.assistant-message {animation-timing-function:var(--motion-ease);}
+@media(hover:hover) and (pointer:fine) {
+ :root .penpot-workspace :is(.design-button,.dashboard-button,.button):hover:not(:disabled) {translate:0 -2px;}
+ :root .penpot-workspace :is(.design-button.secondary,.button.subtle,.button.ghost):hover:not(:disabled) {translate:none;}
+ .design-sidebar nav > button:hover .design-icon {translate:0 -1px;}
+}
+@media(max-width:800px) {
+ :root .design-sidebar {display:flex;position:fixed;width:230px;left:15px;top:15px;height:calc(100svh - 30px);z-index:90;background:#18171f;visibility:hidden;pointer-events:none;translate:calc(-100% - 24px) 0;transition:translate 300ms var(--motion-ease),visibility 0s 300ms;}
+ :root .design-sidebar.open {visibility:visible;pointer-events:auto;translate:0 0;transition-delay:0s;box-shadow:none;}
+ .design-nav-backdrop {display:block;position:fixed;inset:0;z-index:65;border:0;background:#0c0b1280;cursor:default;}
+}
+@media(prefers-reduced-motion:reduce) {
+ :root :is(.penpot-workspace,.landing,.auth-approved) :is(.design-button,.dashboard-button,.button,.landing-button) {transition:none;scale:1!important;translate:none!important;}
+ :root .design-sidebar,.design-sidebar nav > button .design-icon,.account-menu-trigger > svg {transition:none;}
+ .design-sidebar nav > button .design-icon {translate:none!important;}
+}

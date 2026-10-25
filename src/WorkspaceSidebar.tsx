@@ -1,9 +1,32 @@
 import {ChartNoAxesCombined,Database,House,Workflow,X,type LucideIcon} from 'lucide-react';
-import type {ReactNode} from 'react';
+import {useEffect,useId,useRef,useSyncExternalStore,type ReactNode} from 'react';
+import {AnimatePresence,LayoutGroup,motion,useReducedMotion} from 'motion/react';
+import {surfaceSpring} from './motion-tokens';
 import type {WorkspacePage} from './WorkspaceShell';
 import {AssistantLauncher} from './AssistantWorkspace';
+const mobileQuery='(max-width:800px)';
+const subscribeMobile=(notify:()=>void)=>{const query=matchMedia(mobileQuery);query.addEventListener('change',notify);return()=>query.removeEventListener('change',notify);};
+const isMobile=()=>matchMedia(mobileQuery).matches;
 export default function WorkspaceSidebar({active,nav,navOpen,setNavOpen,accountControls}:{active:string;nav:(page:WorkspacePage)=>void;navOpen:boolean;setNavOpen:(open:boolean)=>void;accountControls?:ReactNode}) {
-return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
+const group=useId(),reduced=useReducedMotion(),mobile=useSyncExternalStore(subscribeMobile,isMobile,()=>false);
+const sidebar=useRef<HTMLElement>(null);
+const close=()=>{setNavOpen(false);document.querySelector<HTMLButtonElement>('.design-mobile-menu')?.focus();};
+useEffect(()=>{
+ if(!mobile||!navOpen)return;
+ const root=sidebar.current,previousOverflow=document.body.style.overflow;
+ document.body.style.overflow='hidden';root?.querySelector<HTMLButtonElement>('.design-navigation-close')?.focus();
+ const keydown=(event:KeyboardEvent)=>{
+  if(event.key==='Escape'){event.preventDefault();setNavOpen(false);document.querySelector<HTMLButtonElement>('.design-mobile-menu')?.focus();return;}
+  if(event.key!=='Tab'||!root)return;
+  const items=[...root.querySelectorAll<HTMLElement>('a[href],button:not(:disabled),input:not(:disabled)')].filter(item=>item.getClientRects().length>0);
+  const first=items[0],last=items.at(-1);if(!first||!last)return;
+  if(event.shiftKey&&(document.activeElement===first||!root.contains(document.activeElement))){event.preventDefault();last.focus();}
+  else if(!event.shiftKey&&(document.activeElement===last||!root.contains(document.activeElement))){event.preventDefault();first.focus();}
+ };
+ document.addEventListener('keydown',keydown);
+ return()=>{document.removeEventListener('keydown',keydown);document.body.style.overflow=previousOverflow;};
+},[mobile,navOpen,setNavOpen]);
+return (<><AnimatePresence>{navOpen&&<motion.button type="button" tabIndex={-1} aria-label="Close navigation backdrop" className="design-nav-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:reduced?0:.2}} onClick={close}/>}</AnimatePresence><aside ref={sidebar} className={"design-sidebar " + (navOpen ? "open" : "")} inert={mobile&&!navOpen} aria-hidden={mobile&&!navOpen?true:undefined}>
         <div className="design-sidebar-top">
           <a
             className="design-brand"
@@ -15,11 +38,11 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
           <button
             className="design-icon-button design-navigation-close"
             aria-label="Close navigation"
-            onClick={() => setNavOpen(false)}
+            onClick={close}
           >
             <X size={16} />
           </button>
-          <nav aria-label="Workspace navigation">
+          <LayoutGroup id={group}><nav aria-label="Workspace navigation">
             {[
               ["overview", "Dashboard", House],
               ["backtests", "Backtests", ChartNoAxesCombined],
@@ -31,6 +54,7 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
                   aria-current={active === id ? "page" : undefined}
                   onClick={() => nav(id as WorkspacePage)}
                 >
+                  {active===id&&<motion.span aria-hidden="true" className="design-nav-highlight" layoutId="active-section" transition={reduced?{duration:0}:surfaceSpring}/>}
                   <span className="design-icon" aria-hidden="true">
                     <Icon size={16} strokeWidth={1.7}/>
                   </span>
@@ -64,6 +88,7 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
                   aria-current={active === id ? "page" : undefined}
                   onClick={() => nav(id as WorkspacePage)}
                 >
+                  {active===id&&<motion.span aria-hidden="true" className="design-nav-highlight" layoutId="active-section" transition={reduced?{duration:0}:surfaceSpring}/>}
                   <span className="design-icon" aria-hidden="true">
                     <Icon size={16} strokeWidth={1.7}/>
                   </span>
@@ -71,10 +96,10 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
                 </button>
               );
             })}
-          </nav>
+          </nav></LayoutGroup>
         </div>
         <div className="design-sidebar-bottom">
-          <AssistantLauncher/>
+          <AssistantLauncher onOpen={()=>setNavOpen(false)}/>
           {accountControls || <div className="design-user">
             <span>G</span>
             <div>
@@ -82,5 +107,5 @@ return (      <aside className={"design-sidebar " + (navOpen ? "open" : "")}>
             </div>
           </div>}
         </div>
-      </aside>);
+      </aside></>);
 }

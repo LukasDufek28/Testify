@@ -11,12 +11,12 @@ export default defineConfig({
   expect: {timeout:15000},
   outputDir: 'test-results-cross',
   reporter: [['list'], ['html', {outputFolder:'playwright-report-cross',open:'never'}]],
-  testMatch: /(?:auth-integration|assistant|run-modes|workspace|studio|results|responsive-shell|controls|strategy-library|ui-polish|fresh-workspace)\.spec\.ts/,
-  grep: new RegExp(`fresh accounts|sidebar highlights|data and overview|selected strategy checkmark|workspace read failures|preview guest identity|${core.source}`),
+  testMatch: /(?:auth-integration|assistant|run-modes|workspace|studio|results|responsive-shell|controls|strategy-library|ui-polish|fresh-workspace|motion-quality)\.spec\.ts/,
+  grep: new RegExp(`motion |fresh accounts|sidebar highlights|data and overview|selected strategy checkmark|workspace read failures|preview guest identity|${core.source}`),
   projects: [
     { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-    { name: 'mobile-chromium', grep: new RegExp(`fresh accounts|data and overview|selected strategy checkmark|workspace read failures|${touchCore.source}`), use: { ...devices['Pixel 7'] } },
-    { name: 'mobile-webkit', grep: new RegExp(`fresh accounts|data and overview|selected strategy checkmark|workspace read failures|${touchCore.source}`), use: { ...devices['iPhone 13'] } },
+    { name: 'mobile-chromium', grep: new RegExp(`motion |fresh accounts|data and overview|selected strategy checkmark|workspace read failures|${touchCore.source}`), use: { ...devices['Pixel 7'] } },
+    { name: 'mobile-webkit', grep: new RegExp(`motion |fresh accounts|data and overview|selected strategy checkmark|workspace read failures|${touchCore.source}`), use: { ...devices['iPhone 13'] } },
   ],
 });

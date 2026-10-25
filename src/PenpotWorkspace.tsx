@@ -6,7 +6,6 @@ import WorkspaceSidebar from "./WorkspaceSidebar";
 import type { ApiFetch } from "./api-client";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  Layers,
   History,
   Menu,
   Search,
@@ -28,6 +27,7 @@ import ConfirmStrategyDelete from "./ConfirmStrategyDelete";
 import type { WorkspacePage } from "./WorkspaceShell";
 import RunStatusBadge, { type RunState } from "./RunStatusBadge";
 import useWorkspaceMotion from './useWorkspaceMotion';
+import WorkspaceTopbar,{type WorkspaceSearchProps} from './WorkspaceTopbar';
 import {motion,useReducedMotion} from 'motion/react';
 import type { Bar, Dataset, Run, SavedStrategy, Trade } from "./types";
 import './run-flow.css';
@@ -48,6 +48,7 @@ export type RunOptions = {
   datasetId: string;
 };
 type Props = {
+  search:WorkspaceSearchProps;librarySearch:string;onLibrarySearch:(query:string)=>void;
   userName:string;
   apiFetch: ApiFetch; accountControls?: ReactNode; researchTools?: ReactNode; batchTools?:ReactNode; content?: ReactNode;
   studio?: ReactNode;
@@ -1070,9 +1071,7 @@ export default function PenpotWorkspace(p: Props) {
   const assistant = useAssistantContext();
   const [navOpen, setNavOpen] = useState(false),
     [settings, setSettings] = useState(false),
-    [symbolSearch, setSymbolSearch] = useState(""),
-    [workspaceSearch, setWorkspaceSearch] = useState(""),
-    [librarySearch, setLibrarySearch] = useState("");
+    [symbolSearch, setSymbolSearch] = useState("");
   const upload = useRef<HTMLInputElement>(null);
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -1195,23 +1194,7 @@ export default function PenpotWorkspace(p: Props) {
       </button>
       <WorkspaceSidebar active={active} nav={nav} navOpen={navOpen} setNavOpen={setNavOpen} accountControls={p.accountControls}/>
       <main ref={scope} className="design-main" data-motion-page={p.page} aria-busy={p.loading}>
-        <header className="design-topbar">
-          <DesignIcon icon={Layers} />
-          <input
-            type="search"
-            aria-label="Search your workspace"
-            placeholder="Search your workspace..."
-            value={workspaceSearch}
-            onChange={(e) => setWorkspaceSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                setLibrarySearch(workspaceSearch.trim());
-                nav("strategies");
-              }
-            }}
-          />
-        </header>
+        <WorkspaceTopbar {...p.search}/>
         <div className={"design-page-heading" + (p.page === "studio" ? " design-studio-heading" : "")}>
           <h1>{title}</h1>
           <p>{subtitle}</p>
@@ -1384,7 +1367,7 @@ export default function PenpotWorkspace(p: Props) {
                 </button>
               </DesignCard>
             ) : (
-              <Library p={p} search={librarySearch} setSearch={setLibrarySearch} />
+              <Library p={p} search={p.librarySearch} setSearch={p.onLibrarySearch} />
             )}
           </div>
         )}

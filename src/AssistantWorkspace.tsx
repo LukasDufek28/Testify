@@ -11,6 +11,7 @@ import {CardTitle,designIcons} from './PenpotPrimitives';
 import './assistant.css';
 import {requestMessages,withoutContextReads} from './assistant-conversation';
 import {readAssistantReply} from './assistant-transport';
+import {dockSpring,quickFade} from './motion-tokens';
 
 export type AssistantAction={id:string;name:string;input:Record<string,unknown>};
 type Message={role:'user'|'assistant';text:string};
@@ -31,7 +32,8 @@ export function useAssistantController(configuration:Configuration){
   const anchor=useRef<HTMLDivElement>(null);
   const [origin,setOrigin]=useState({left:12,top:Math.max(12,innerHeight-120),width:222,height:106});
   function setOpen(value:boolean){
-    if(value){const rect=anchor.current?.getBoundingClientRect();if(rect&&rect.width>0)setOrigin({left:rect.left,top:rect.top,width:rect.width,height:rect.height});setClosing(false);}else if(open)setClosing(true);
+    if(value||open){const element=anchor.current,rect=element?.getBoundingClientRect();if(rect&&rect.width>0&&!element?.closest('[inert]'))setOrigin({left:rect.left,top:rect.top,width:rect.width,height:rect.height});}
+    if(value)setClosing(false);else if(open)setClosing(true);
     setOpenState(value);
   }
   const [messages,setMessages]=useState<Message[]>(()=>{try{const list=JSON.parse(localStorage.getItem(`testify-assistant-v1:${configuration.userId}`)||'[]');return Array.isArray(list)?list.filter(m=>['user','assistant'].includes(m.role)&&typeof m.text==='string').slice(-30):[];}catch{return [];}});
@@ -108,7 +110,7 @@ export function useAssistantController(configuration:Configuration){
 }
 type Controller=ReturnType<typeof useAssistantController>;
 export function AssistantProvider({controller,children}:{controller:Controller;children:ReactNode}){return <AssistantContext.Provider value={controller}>{children}<AssistantOverlay/></AssistantContext.Provider>;}
-export function AssistantLauncher(){const a=useAssistantContext();const reduced=useReducedMotion();return <div ref={a.anchor} className="assistant-launcher-slot">{!a.open&&!a.closing&&<motion.button className="design-ai-launcher" style={{borderRadius:24}} initial={{opacity:0}} animate={{opacity:1}} transition={{duration:reduced?0:.12}} aria-label="Open AI assistant" onClick={()=>a.setOpen(true)}><img src="/design/ai-wall.svg" alt=""/><span className="assistant-launcher-label" aria-hidden="true">AI Assistant</span></motion.button>}</div>;}
+export function AssistantLauncher({onOpen}:{onOpen?:()=>void}){const a=useAssistantContext();return <div ref={a.anchor} className="assistant-launcher-slot">{!a.open&&!a.closing&&<motion.button className="design-ai-launcher" style={{borderRadius:24}} initial={false} aria-label="Open AI assistant" onClick={()=>{a.setOpen(true);onOpen?.();}}><img src="/design/ai-wall.svg" alt=""/><span className="assistant-launcher-label" aria-hidden="true">AI Assistant</span></motion.button>}</div>;}
 function AssistantOverlay(){
   const reduced=useReducedMotion();
   const a=useAssistantContext();const [prompt,setPrompt]=useState(''),[position,setPosition]=useState<{left:number;top:number}|null>(null);
@@ -120,19 +122,21 @@ function AssistantOverlay(){
   useEffect(()=>{if(!a.open)return;restore.current=document.activeElement as HTMLElement;const raf=requestAnimationFrame(()=>input.current?.focus());const escape=(e:KeyboardEvent)=>{if(e.key==='Escape')a.setOpen(false);};addEventListener('keydown',escape);return()=>{cancelAnimationFrame(raf);removeEventListener('keydown',escape);};},[a.open]);
   useEffect(()=>{if(!a.open)return;if(following.current){thread.current?.scrollTo({top:thread.current.scrollHeight});setUnread(false);}else setUnread(true);},[a.messages,a.open]);
   useEffect(()=>{const element=input.current;if(element){element.style.height='auto';element.style.height=Math.min(90,Math.max(38,element.scrollHeight))+'px';}},[prompt,a.open,a.expanded]);
-  useEffect(()=>{if(a.open||a.closing||!restore.current)return;const previous=restore.current;const launcher=document.querySelector<HTMLButtonElement>('.design-ai-launcher');if(previous!==document.body&&previous.isConnected)previous.focus();else if(launcher?.getClientRects().length)launcher.focus();else document.querySelector<HTMLButtonElement>('.design-mobile-menu')?.focus();},[a.open,a.closing]);
+  useEffect(()=>{if(a.open||a.closing||!restore.current)return;const previous=restore.current;const launcher=document.querySelector<HTMLButtonElement>('.design-ai-launcher');const available=(element:HTMLElement|null)=>!!element&&element!==document.body&&element.isConnected&&!element.closest('[inert]')&&element.getClientRects().length>0&&getComputedStyle(element).visibility==='visible';if(available(previous))previous.focus();else if(available(launcher))launcher!.focus();else document.querySelector<HTMLButtonElement>('.design-mobile-menu')?.focus();},[a.open,a.closing]);
   useEffect(()=>{const resize=()=>{setViewport({width:innerWidth,height:innerHeight});setPosition(p=>p?clamp(p.left,p.top):p);};addEventListener('resize',resize);return()=>removeEventListener('resize',resize);},[]);
   useEffect(()=>{if(position)requestAnimationFrame(()=>setPosition(p=>p?clamp(p.left,p.top):p));},[a.expanded]);
   const submit=()=>{if(prompt.trim()&&!a.status){following.current=true;void a.send(prompt);setPrompt('');}};
   const width=Math.min(a.expanded?480:290,viewport.width-24),height=Math.min(a.expanded?590:343,viewport.height-32);
   const dockLeft=viewport.width>700?a.origin.left+a.origin.width+18:12;
   const destination={width,height,opacity:1,left:Math.max(12,Math.min(position?.left??dockLeft,viewport.width-width-12)),top:Math.max(12,Math.min(position?.top??a.origin.top+a.origin.height-height,viewport.height-height-12))};
-  const closedBox={width,height:Math.min(106,height),top:destination.top+height-Math.min(106,height),opacity:0};
+  const closedBox={width:Math.min(a.origin.width,viewport.width-24),height:Math.min(a.origin.height,height),top:Math.max(12,Math.min(a.origin.top,viewport.height-Math.min(a.origin.height,height)-12)),x:a.origin.left-destination.left,opacity:1};
   const finishClose=()=>{setPosition(null);a.finishClose();};
-  const {left:targetLeft,...openBox}=destination;
+  const {left:targetLeft,...surface}=destination;
+  const openBox={...surface,x:0};
   // Grow the surface without scaling the text; CSS keeps it inside resized viewports.
-  return createPortal(<AnimatePresence initial={false} onExitComplete={finishClose}>{a.open&&<motion.div key="assistant" ref={root} className={`testify-assistant-layer${a.expanded?' is-expanded':''}`} style={{borderRadius:24,bottom:'auto',left:`clamp(12px, ${targetLeft}px, calc(100vw - ${width}px - 12px))`}} initial={reduced?false:closedBox} animate={openBox} exit={reduced?{opacity:0}:closedBox} transition={reduced?{duration:0}:{type:'spring',bounce:.025,visualDuration:.3,opacity:{duration:.14}}} role="dialog" aria-label="AI assistant">
-    <motion.section style={{width,height}} initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0,transition:{duration:reduced?0:.08}}} transition={{duration:reduced?0:.14,delay:reduced?0:.18}} className="design-card design-assistant floating assistant-chat">
+  return createPortal(<AnimatePresence initial={false} custom={closedBox} onExitComplete={finishClose}>{a.open&&<motion.div key="assistant" ref={root} className={`testify-assistant-layer${a.expanded?' is-expanded':''}`} style={{borderRadius:24,bottom:'auto',left:`clamp(12px, ${targetLeft}px, calc(100vw - ${width}px - 12px))`}} initial={reduced?false:closedBox} animate={openBox} exit={reduced?{opacity:0}:'closed'} variants={{closed:(box:typeof closedBox)=>box}} transition={reduced?{duration:0}:{...dockSpring,top:drag.current?{duration:0}:dockSpring}} role="dialog" aria-label="AI assistant">
+    {!reduced&&<motion.img src="/design/ai-wall.svg" alt="" aria-hidden="true" className="assistant-dock-art" initial={{opacity:1}} animate={{opacity:0}} exit={{opacity:1,transition:{delay:.15,duration:.14}}} transition={{duration:.12}}/>}
+    <motion.section style={{width:'100%',height:'100%'}} initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0,transition:{duration:reduced?0:.08}}} transition={{duration:reduced?0:.16,delay:reduced?0:.14}} className="design-card design-assistant floating assistant-chat">
       <header onPointerDown={e=>{if((e.target as Element).closest('button'))return;const r=root.current!.getBoundingClientRect();drag.current={x:e.clientX,y:e.clientY,left:r.left,top:r.top};e.currentTarget.setPointerCapture(e.pointerId);}} onPointerMove={e=>{const d=drag.current;if(d)setPosition(clamp(d.left+e.clientX-d.x,d.top+e.clientY-d.y));}} onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}}>
         <CardTitle icon={designIcons.assistant}>AI assistant</CardTitle><div className="assistant-header-actions"><button type="button" aria-label="New conversation" disabled={!!a.status} title="New conversation" onClick={()=>{following.current=true;setPrompt('');a.clear();input.current?.focus();}}><Plus size={14}/></button><button type="button" aria-label={a.expanded?'Minimize assistant':'Expand assistant'} onClick={()=>a.setExpanded(!a.expanded)}>{a.expanded?<Minimize2 size={13}/>:<Maximize2 size={13}/>}</button><button type="button" aria-label="Close assistant" title="Close assistant" onClick={()=>{a.setOpen(false);restore.current?.focus();}}><X size={14}/></button></div>
       </header>
@@ -145,7 +149,7 @@ function AssistantOverlay(){
         {a.notice&&<p className="assistant-notice" role="status">{a.notice}</p>}
         {a.error&&<div className="assistant-chat-error" role="alert"><span>{a.error}</span><button type="button" onClick={a.retry}>Try again</button></div>}
       </div>
-      <form onSubmit={e=>{e.preventDefault();submit();}}><textarea ref={input} rows={1} aria-label="Message AI assistant" placeholder={a.messages.length?'Ask a follow-up…':'Ask anything…'} value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();submit();}}}/>{a.status?<button type="button" aria-label="Stop assistant" disabled={a.stopping} onClick={a.stop}><Square size={14}/></button>:<button aria-label="Send assistant message" disabled={!prompt.trim()}><Send size={17}/></button>}</form>
+      <form onSubmit={e=>{e.preventDefault();submit();}}><textarea ref={input} rows={1} aria-label="Message AI assistant" placeholder={a.messages.length?'Ask a follow-up…':'Ask anything…'} value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();submit();}}}/><button type={a.status?'button':'submit'} aria-label={a.status?'Stop assistant':'Send assistant message'} disabled={a.status?a.stopping:!prompt.trim()} onClick={a.status?a.stop:undefined}><AnimatePresence initial={false} mode="popLayout"><motion.span key={a.status?'stop':'send'} initial={reduced?false:{opacity:0,y:5}} animate={{opacity:1,y:0}} exit={reduced?undefined:{opacity:0,y:-5}} transition={reduced?{duration:0}:quickFade}>{a.status?<Square size={14}/>:<Send size={17}/>}</motion.span></AnimatePresence></button></form>
     </motion.section>
   </motion.div>}</AnimatePresence>,document.body);
 }

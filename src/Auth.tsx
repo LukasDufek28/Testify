@@ -1,5 +1,8 @@
 import "./auth.css";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import {motion} from 'motion/react';
+import useReducedMotionPreference from './useReducedMotionPreference';
+import {easeOut} from './motion-tokens';
 import App from "./App";
 import PublicHeader from './PublicHeader';
 import AccountLoading from './AccountLoading';
@@ -12,6 +15,8 @@ export default function Auth({initialPage = "overview"}: {initialPage?: Workspac
   const [previewGuest, setPreviewGuest] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"login" | "register">("login");
+  const reduced=useReducedMotionPreference(),emailInput=useRef<HTMLInputElement>(null),previousMode=useRef(mode);
+  useLayoutEffect(()=>{if(previousMode.current!==mode)emailInput.current?.focus({preventScroll:true});previousMode.current=mode;},[mode]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -72,16 +77,16 @@ export default function Auth({initialPage = "overview"}: {initialPage?: Workspac
   if (previewGuest && !connecting) return <div className="auth-screen"><section className="panel auth-card"><h1>Preview workspace</h1><p role="alert">{error || "Your guest session expired. Reload to continue."}</p><button className="button primary" onClick={() => window.location.reload()}>Open guest workspace</button></section></div>;
   return <div className="landing auth-screen auth-approved">
     <div className="auth-public-header"><PublicHeader account/></div>
-    <main className="auth-main"><section className="auth-card" aria-labelledby="auth-title">
+    <main className="auth-main"><motion.section key={mode} className="auth-card motion-auth-card" aria-labelledby="auth-title" initial={reduced?false:{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:reduced?0:.32,ease:easeOut}}>
       <h1 id="auth-title" className="silver-text">{mode === "login" ? "Welcome back" : "Create your account"}</h1>
       <p className="auth-intro">{mode === "login" ? "Sign in to your strategy workspace." : "Your next strategy starts here."}</p>
       <form className="auth-form" onSubmit={e => void submit(e)}>
-        <label>Email<input type="email" required maxLength={254} autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} /></label>
+        <label>Email<input ref={emailInput} type="email" required maxLength={254} autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} /></label>
         <label>Password<input type="password" required minLength={12} maxLength={128} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder={mode === "login" ? "Enter your password" : "At least 12 characters"} value={password} onChange={e => setPassword(e.target.value)} /></label>
         {error && <p className="auth-error" role="alert">{error}</p>}
         <button className="design-button auth-submit" disabled={busy}>{busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}</button>
         <div className="auth-switch"><p>{mode === "login" ? "New to Testify?" : "Already have an account?"}</p><button type="button" className="design-button secondary" disabled={busy} onClick={() => {setMode(mode === "login" ? "register" : "login");setError("");setPassword("");}}>{mode === "login" ? "Register" : "Sign in"}</button></div>
       </form>
-    </section></main>
+    </motion.section></main>
   </div>;
 }

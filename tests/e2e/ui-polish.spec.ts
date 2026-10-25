@@ -120,10 +120,11 @@ for(const route of ['/', '/#/app/overview'])test(`equity cursor moves between ad
  const plot=page.locator('.responsive-equity-plot').first();await plot.scrollIntoViewIfNeeded();
  const box=(await plot.boundingBox())!;
  const marker=plot.locator('[data-chart="equity-marker"]');
+ await expect.poll(()=>plot.locator('svg').evaluate(svg=>Math.abs((svg as SVGSVGElement).viewBox.baseVal.width-svg.getBoundingClientRect().width))).toBeLessThan(1);
  const positions:number[]=[];
  for(let step=0;step<6;step++) {
   await page.mouse.move(box.x+box.width*.43+step*3,box.y+80);
-  await expect.poll(async()=>Number(await marker.getAttribute('cx'))).toBeGreaterThan(positions.at(-1)??0);
+  await expect.poll(async()=>Number(await marker.getAttribute('cx'))).toBeCloseTo(box.width*.43+step*3,0);
   positions.push(Number(await marker.getAttribute('cx')));
  }
  for(let i=1;i<positions.length;i++)expect(positions[i]-positions[i-1]).toBeCloseTo(3,0);

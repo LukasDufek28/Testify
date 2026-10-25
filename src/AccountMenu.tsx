@@ -3,6 +3,7 @@ import {createPortal} from 'react-dom';
 import {AnimatePresence,motion,useReducedMotion} from 'motion/react';
 import {ChevronUp,LogOut} from 'lucide-react';
 import './account-menu.css';
+import {surfaceSpring} from './motion-tokens';
 
 export default function AccountMenu({email,busy,onLogout,error}:{email:string;busy:boolean;onLogout:()=>void;error?:string}) {
  const [open,setOpen]=useState(false),[position,setPosition]=useState({left:0,top:0,width:260});
@@ -24,7 +25,7 @@ export default function AccountMenu({email,busy,onLogout,error}:{email:string;bu
   <button ref={trigger} type="button" className="account-menu-trigger" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={open} aria-controls={open?id:undefined} onClick={()=>setOpen(v=>!v)} onKeyDown={event=>{if(event.key==='ArrowDown'){event.preventDefault();setOpen(true);}}}>
    <span className="account-avatar" aria-hidden="true">{name[0]}</span><span className="account-identity"><strong>{name}</strong><small>{guest?'Temporary workspace':email}</small></span><ChevronUp size={14} aria-hidden="true"/>
   </button>
-  {createPortal(<AnimatePresence>{open&&<motion.div ref={popup} id={id} className="account-popup" role="menu" aria-label="Account menu" style={position} initial={reduced?false:{opacity:0,y:6,scale:.98}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:4}} transition={{duration:reduced?0:.16}}>
+  {createPortal(<AnimatePresence>{open&&<motion.div ref={popup} id={id} className="account-popup" role="menu" aria-label="Account menu" style={position} initial={reduced?false:{opacity:0,y:8,scale:.985}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:5,transition:{duration:reduced?0:.12}}} transition={reduced?{duration:0}:surfaceSpring}>
    <div className="account-popup-details"><strong>{name}</strong><small>{guest?'Temporary preview workspace':email}</small></div>
    <button ref={logout} type="button" role="menuitem" disabled={busy} onClick={onLogout}><LogOut size={16} aria-hidden="true"/>{busy?'Signing out…':'Sign out'}</button>
    {error&&<p role="alert">{error}</p>}

@@ -145,6 +145,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   const [savedTesterOptions] = useState(() => readTesterOptions(userId));
   const canonicalPage=(target:Page):Page=>target==="results"?"backtests":target==="manual"?"trades":target;
   const [page, setPageState] = useState<Page>(() => new URLSearchParams(location.search).has("mcpAuthorize") ? "connections" : canonicalPage(initialPage));
+  const [workspaceSearch,setWorkspaceSearch]=useState(''),[librarySearch,setLibrarySearch]=useState('');
   function setPage(requested: Page) { const target=canonicalPage(requested); history.replaceState(null, "", `#/app/${target}`); setPageState(target); window.scrollTo(0,0); }
   useEffect(() => { const sync = () => { const route = location.hash.replace("#/app/", "") as Page; if (["manual", "overview", "strategies", "studio", "data", "backtests", "history", "results", "compare", "validation", "portfolio", "runsettings", "trades", "connections"].includes(route)) setPage(route); }; sync(); addEventListener("hashchange", sync); addEventListener("popstate", sync); return () => { removeEventListener("hashchange", sync); removeEventListener("popstate", sync); }; }, []);
   const [cloudAvailable, setCloudAvailable] = useState(false);
@@ -698,7 +699,8 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     {renamingRunId && <><label>New backtest name<input value={renameValue} onChange={e => setRenameValue(e.target.value)} maxLength={100}/></label><button className="design-button" disabled={renameBusy} onClick={() => void renameRun()}>Rename backtest</button></>}
     </div></details>;
   if (!storageLoaded && page !== "strategies") return withAssistant(<AccountLoading/>);
-  if (["overview","strategies","studio","backtests","runsettings","trades","connections"].includes(page)) return withAssistant(<PenpotWorkspace userName={userName} portfolio={dashboardPortfolio} apiFetch={apiFetch} accountControls={accountControls} researchTools={researchTools} batchTools={<BatchBacktests apiFetch={apiFetch} strategy={selectedStrategy} options={{markets:selectedMarkets,start,end,capital,riskPct,spreadBps,feeBps:feeMode==="fixed"?0:feeBps,...(feeMode==="fixed"?{feePerTrade}:{}),slippageBps,splitPct,granularity,datasetId:testDatasetId,name:runName}} busy={!!busy} onRun={(plan,id)=>void runBatch(plan,id)}/>} content={<Connections apiFetch={apiFetch}/>}
+  const workspaceSearchProps={value:workspaceSearch,onChange:setWorkspaceSearch,onSearch:(query:string)=>{setLibrarySearch(query);navigateWorkspace('strategies');}};
+  if (["overview","strategies","studio","backtests","runsettings","trades","connections"].includes(page)) return withAssistant(<PenpotWorkspace search={workspaceSearchProps} librarySearch={librarySearch} onLibrarySearch={setLibrarySearch} userName={userName} portfolio={dashboardPortfolio} apiFetch={apiFetch} accountControls={accountControls} researchTools={researchTools} batchTools={<BatchBacktests apiFetch={apiFetch} strategy={selectedStrategy} options={{markets:selectedMarkets,start,end,capital,riskPct,spreadBps,feeBps:feeMode==="fixed"?0:feeBps,...(feeMode==="fixed"?{feePerTrade}:{}),slippageBps,splitPct,granularity,datasetId:testDatasetId,name:runName}} busy={!!busy} onRun={(plan,id)=>void runBatch(plan,id)}/>} content={<Connections apiFetch={apiFetch}/>}
     studio={<Suspense fallback={<p role="status">Opening strategy editor…</p>}><PenpotStrategyStudio source={source} onChange={setSource} strategies={strategies} selected={selectedStrategy} onOpen={setStrategyId}
       beforeSource={draftBefore} onAcceptPreview={()=>setDraftBefore(null)} onUndo={()=>{setSource(draftBefore??selectedStrategy?.source??JSON.stringify(exampleStrategy,null,2));setDraftBefore(null);}} onRun={()=>setPage('runsettings')} canRun={!!selectedStrategy&&source===selectedStrategy.source} onValidate={() => void validateDraft()} onSave={() => {setDraftBefore(null);void saveStrategy();}}
       mode={studioMode} onMode={setStudioMode} idea={idea} onIdea={setIdea} busy={busy.startsWith("gemini")} onGenerate={() => void askGemini()} onImprove={() => void askGeminiRevision()}
@@ -741,7 +743,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     onBackup={exportBackup} loadBars={loadTradeBars}
   />);
 
-  return withAssistant(<WorkspaceShell accountControls={accountControls} page={page} onNavigate={(target) => { navigateWorkspace(target); setError(""); }} onBackup={exportBackup}>
+  return withAssistant(<WorkspaceShell search={workspaceSearchProps} accountControls={accountControls} page={page} onNavigate={(target) => { navigateWorkspace(target); setError(""); }} onBackup={exportBackup}>
       {runState !== 'idle' && <RunStatusBadge state={runState} announce/>}
       {error && <div className="banner error" role="alert"><span>{error}</span><button onClick={() => setError("")}>Dismiss</button></div>}{notice && <div className="banner success" role="status"><span>{notice}</span><button onClick={() => setNotice("")}>Dismiss</button></div>}
       {strategyToDelete && <ConfirmStrategyDelete strategy={strategyToDelete} onDelete={deleteLibraryStrategy} onClose={() => setStrategyToDelete(null)} />}
