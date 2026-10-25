@@ -3,7 +3,8 @@ import {AssistantContext,useAssistantContext} from './assistant-context';
 export {useAssistantContext} from './assistant-context';
 import {createPortal} from 'react-dom';
 import {Maximize2,Minimize2,Send,Square,X,Plus} from 'lucide-react';
-import {AnimatePresence,motion,useReducedMotion} from 'motion/react';
+import {AnimatePresence,motion} from 'motion/react';
+import useReducedMotionPreference from './useReducedMotionPreference';
 import type {ModelMessage} from 'ai';
 import type {ApiFetch} from './api-client';
 import Markdown from 'react-markdown';
@@ -118,7 +119,7 @@ export function useAssistantController(configuration:Configuration){
 type Controller=ReturnType<typeof useAssistantController>;
 export function AssistantProvider({controller,children}:{controller:Controller;children:ReactNode}){return <AssistantContext.Provider value={controller}>{children}<AssistantOverlay/></AssistantContext.Provider>;}
 function AssistantOverlay(){
-  const reduced=useReducedMotion();
+  const reduced=useReducedMotionPreference();
   const a=useAssistantContext();const [prompt,setPrompt]=useState(''),[position,setPosition]=useState<{left:number;top:number}|null>(null);
   const [viewport,setViewport]=useState({width:innerWidth,height:innerHeight});
   const root=useRef<HTMLDivElement>(null),thread=useRef<HTMLDivElement>(null),input=useRef<HTMLTextAreaElement>(null),restore=useRef<HTMLElement|null>(null);
