@@ -24,7 +24,7 @@ export default function useWorkspaceMotion(page:string) {
    const surfaces=fresh.filter(node=>!node.matches(rows));
    const interactive=(node:HTMLElement)=>node.matches('details')||!!node.querySelector('button,a,input,select,textarea,summary,[role="combobox"]');
    const cards=surfaces.filter(node=>!interactive(node)),controls=surfaces.filter(interactive);
-   if(cards.length)animations.push(animate(cards,{opacity:[0,1],translate:['0 12px','0 0']},{duration:.46,delay:i=>Math.min(i*.045,.18),ease:easeOut}));
+   if(cards.length)animations.push(animate(cards,{opacity:[0,1],translate:['0 22px','0 0']},{duration:.58,delay:i=>Math.min(i*.065,.26),ease:easeOut}));
    // Scrolling to a form must never move its click target between pointer down
    // and pointer up. Interactive surfaces fade in at their final coordinates.
    controls.forEach(node=>{node.style.translate='0 0';});

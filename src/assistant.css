@@ -2,10 +2,7 @@
 .assistant-launcher-slot {height:106px;flex:none;width:100%;}
 .assistant-launcher-slot .design-ai-launcher {width:100%;height:100%;}
 .assistant-launcher-slot .design-ai-launcher {position:relative;overflow:hidden;}
-.assistant-launcher-slot .design-ai-launcher img {transition:transform .25s ease;}
-.assistant-launcher-label {position:absolute;bottom:9px;left:0;right:0;text-align:center;font-size:12px;letter-spacing:.02em;color:#d7d0ed;opacity:0;transform:translateY(4px);transition:opacity .22s ease,transform .22s ease;pointer-events:none;}
-.design-ai-launcher:is(:hover,:focus-visible) .assistant-launcher-label {opacity:.85;transform:translateY(0);}
-.assistant-launcher-slot .design-ai-launcher:is(:hover,:focus-visible) img {transform:translateY(-5px);}
+.assistant-launcher-label {position:absolute;bottom:9px;left:0;right:0;text-align:center;font-size:12px;letter-spacing:.02em;color:#d7d0ed;opacity:0;pointer-events:none;}
 .testify-assistant-layer {overflow:hidden;max-width:calc(100vw - 24px);max-height:calc(100svh - 32px);background:#18171f;}
 .testify-assistant-layer .assistant-chat {box-sizing:border-box;height:343px;padding:20px;display:flex;flex-direction:column;gap:12px;border:1px solid #44404f;border-radius:24px;background:radial-gradient(ellipse 110% 65% at 30% 105%,#34258966,transparent 85%),#18171f;}
 .assistant-chat > header {display:flex;align-items:center;justify-content:space-between;gap:4px;flex:none;cursor:grab;touch-action:none;}
@@ -56,5 +53,4 @@
 .testify-assistant-layer.is-expanded .assistant-chat {height:min(590px,calc(100svh - 32px));}
 .testify-assistant-layer.is-expanded .assistant-message {font-size:14px;}
 @media(max-width:700px){.testify-assistant-layer {left:12px;bottom:20px;width:min(290px,calc(100vw - 24px));}.testify-assistant-layer .assistant-chat {max-height:calc(100svh - 32px);}}
-@media(hover:none){.assistant-launcher-label {opacity:.7;transform:none;}.assistant-launcher-slot .design-ai-launcher img {transform:translateY(-5px);}}
-@media(prefers-reduced-motion:reduce){.assistant-activity>span,.assistant-message {animation:none;}.assistant-launcher-label,.assistant-launcher-slot .design-ai-launcher img {transition:none;}}
+@media(prefers-reduced-motion:reduce){.assistant-activity>span,.assistant-message {animation:none;}}

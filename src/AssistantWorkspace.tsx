@@ -7,14 +7,17 @@ import {AnimatePresence,motion,useReducedMotion} from 'motion/react';
 import type {ModelMessage} from 'ai';
 import type {ApiFetch} from './api-client';
 import Markdown from 'react-markdown';
-import {CardTitle,designIcons} from './PenpotPrimitives';
+import AssistantEmblem from './AssistantEmblem';
+export {default as AssistantLauncher} from './AssistantLauncher';
 import './assistant.css';
+import './assistant-motion.css';
 import {requestMessages,withoutContextReads} from './assistant-conversation';
 import {readAssistantReply} from './assistant-transport';
 import {dockSpring,quickFade} from './motion-tokens';
 
 export type AssistantAction={id:string;name:string;input:Record<string,unknown>};
-type Message={role:'user'|'assistant';text:string};
+type Message={id:string;role:'user'|'assistant';text:string};
+type LauncherOrigin={left:number;top:number;width:number;height:number;emblem?:{left:number;top:number;size:number;rotate:number;emphasized:boolean}};
 type Configuration={userId:string;apiFetch:ApiFetch;context:unknown;execute:(action:AssistantAction)=>Promise<unknown>};
 const activity:Record<string,string>={update_settings:'Updating run settings…',run_backtest:'Running your backtest…',create_strategy:'Creating your strategy…',revise_strategy:'Preparing a strategy revision…',open_page:'Opening the page…'};
 async function waitForReply<T>(request:()=>Promise<T>,signal:AbortSignal):Promise<T>{
@@ -30,13 +33,17 @@ export function useAssistantController(configuration:Configuration){
   const current=useRef(configuration);current.current=configuration;
   const [open,setOpenState]=useState(false),[closing,setClosing]=useState(false),[expanded,setExpanded]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[stopping,setStopping]=useState(false);
   const anchor=useRef<HTMLDivElement>(null);
-  const [origin,setOrigin]=useState({left:12,top:Math.max(12,innerHeight-120),width:222,height:106});
+  const [origin,setOrigin]=useState<LauncherOrigin>({left:12,top:Math.max(12,innerHeight-120),width:222,height:106});
   function setOpen(value:boolean){
-    if(value||open){const element=anchor.current,rect=element?.getBoundingClientRect();if(rect&&rect.width>0&&!element?.closest('[inert]'))setOrigin({left:rect.left,top:rect.top,width:rect.width,height:rect.height});}
+    if(value||open){const element=anchor.current,rect=element?.getBoundingClientRect();if(rect&&rect.width>0&&!element?.closest('[inert]')){
+      const star=element?.querySelector<HTMLElement>('.assistant-launcher-emblem-core'),box=star?.getBoundingClientRect(),matrix=star?new DOMMatrix(getComputedStyle(star).transform):null;
+      const size=matrix?44*Math.hypot(matrix.a,matrix.b):44;
+      setOrigin({left:rect.left,top:rect.top,width:rect.width,height:rect.height,...(value&&box&&matrix?{emblem:{left:box.left+box.width/2-rect.left-size/2,top:box.top+box.height/2-rect.top-size/2,size,rotate:Math.atan2(matrix.b,matrix.a)*180/Math.PI,emphasized:element?.querySelector('button')?.dataset.awake==='true'}}:{})});
+    }}
     if(value)setClosing(false);else if(open)setClosing(true);
     setOpenState(value);
   }
-  const [messages,setMessages]=useState<Message[]>(()=>{try{const list=JSON.parse(localStorage.getItem(`testify-assistant-v1:${configuration.userId}`)||'[]');return Array.isArray(list)?list.filter(m=>['user','assistant'].includes(m.role)&&typeof m.text==='string').slice(-30):[];}catch{return [];}});
+  const [messages,setMessages]=useState<Message[]>(()=>{try{const list=JSON.parse(localStorage.getItem(`testify-assistant-v1:${configuration.userId}`)||'[]');return Array.isArray(list)?list.filter(m=>['user','assistant'].includes(m.role)&&typeof m.text==='string').slice(-30).map(m=>({...m,id:typeof m.id==='string'?m.id:crypto.randomUUID()})):[];}catch{return [];}});
   const locked=useRef(false),alive=useRef(true);
   const history=useRef<ModelMessage[][]>([messages.map(m=>({role:m.role,content:m.text}))]);
   const pending=useRef<{prompt:string;messages:ModelMessage[];outputs:Map<string,{input:string;output:unknown}>;failedRuns:Map<string,string>;completedRuns:Map<string,unknown>}|null>(null);
@@ -50,7 +57,7 @@ export function useAssistantController(configuration:Configuration){
       // Preserve any completed actions from an interrupted turn in follow-ups.
       if(pending.current)history.current.push(pending.current.messages);
       pending.current={prompt:prompt.trim(),messages:[{role:'user',content:prompt.trim()}],outputs:new Map(),failedRuns:new Map(),completedRuns:new Map()};
-      setMessages(previous=>[...previous,{role:'user' as const,text:prompt.trim()}].slice(-30));
+      setMessages(previous=>[...previous,{id:crypto.randomUUID(),role:'user' as const,text:prompt.trim()}].slice(-30));
     }
     const turn=pending.current!;
     const controller=new AbortController();operation.current=controller;
@@ -74,7 +81,7 @@ export function useAssistantController(configuration:Configuration){
         if(actions.length&&!Array.isArray(body.messages))throw new Error('The assistant could not prepare that action. Please try again.');
         const responseMessages=Array.isArray(body.messages)?withoutContextReads(body.messages):[];
         turn.messages.push(...(responseMessages.length?responseMessages:answer?[{role:'assistant' as const,content:answer}]:[]));
-        if(answer)setMessages(previous=>[...previous,{role:'assistant' as const,text:answer}].slice(-30));
+        if(answer)setMessages(previous=>[...previous,{id:crypto.randomUUID(),role:'assistant' as const,text:answer}].slice(-30));
         if(!actions.length){complete();return;}
         for(const action of actions){
           let output:unknown;
@@ -110,14 +117,16 @@ export function useAssistantController(configuration:Configuration){
 }
 type Controller=ReturnType<typeof useAssistantController>;
 export function AssistantProvider({controller,children}:{controller:Controller;children:ReactNode}){return <AssistantContext.Provider value={controller}>{children}<AssistantOverlay/></AssistantContext.Provider>;}
-export function AssistantLauncher({onOpen}:{onOpen?:()=>void}){const a=useAssistantContext();return <div ref={a.anchor} className="assistant-launcher-slot">{!a.open&&!a.closing&&<motion.button className="design-ai-launcher" style={{borderRadius:24}} initial={false} aria-label="Open AI assistant" onClick={()=>{a.setOpen(true);onOpen?.();}}><img src="/design/ai-wall.svg" alt=""/><span className="assistant-launcher-label" aria-hidden="true">AI Assistant</span></motion.button>}</div>;}
 function AssistantOverlay(){
   const reduced=useReducedMotion();
   const a=useAssistantContext();const [prompt,setPrompt]=useState(''),[position,setPosition]=useState<{left:number;top:number}|null>(null);
   const [viewport,setViewport]=useState({width:innerWidth,height:innerHeight});
   const root=useRef<HTMLDivElement>(null),thread=useRef<HTMLDivElement>(null),input=useRef<HTMLTextAreaElement>(null),restore=useRef<HTMLElement|null>(null);
   const following=useRef(true);const [unread,setUnread]=useState(false);
+  const [seenMessages]=useState(()=>new WeakSet(a.messages));
+  useEffect(()=>{a.messages.forEach(message=>seenMessages.add(message));},[a.messages,seenMessages]);
   const drag=useRef<{x:number;y:number;left:number;top:number}|null>(null);
+  useEffect(()=>{root.current?.toggleAttribute('inert',!a.open);},[a.open]);
   const clamp=(left:number,top:number)=>{const r=root.current?.getBoundingClientRect();return {left:Math.max(12,Math.min(left,innerWidth-(r?.width??290)-12)),top:Math.max(12,Math.min(top,innerHeight-(r?.height??343)-12))};};
   useEffect(()=>{if(!a.open)return;restore.current=document.activeElement as HTMLElement;const raf=requestAnimationFrame(()=>input.current?.focus());const escape=(e:KeyboardEvent)=>{if(e.key==='Escape')a.setOpen(false);};addEventListener('keydown',escape);return()=>{cancelAnimationFrame(raf);removeEventListener('keydown',escape);};},[a.open]);
   useEffect(()=>{if(!a.open)return;if(following.current){thread.current?.scrollTo({top:thread.current.scrollHeight});setUnread(false);}else setUnread(true);},[a.messages,a.open]);
@@ -129,23 +138,26 @@ function AssistantOverlay(){
   const width=Math.min(a.expanded?480:290,viewport.width-24),height=Math.min(a.expanded?590:343,viewport.height-32);
   const dockLeft=viewport.width>700?a.origin.left+a.origin.width+18:12;
   const destination={width,height,opacity:1,left:Math.max(12,Math.min(position?.left??dockLeft,viewport.width-width-12)),top:Math.max(12,Math.min(position?.top??a.origin.top+a.origin.height-height,viewport.height-height-12))};
-  const closedBox={width:Math.min(a.origin.width,viewport.width-24),height:Math.min(a.origin.height,height),top:Math.max(12,Math.min(a.origin.top,viewport.height-Math.min(a.origin.height,height)-12)),x:a.origin.left-destination.left,opacity:1};
+  const closedBox={width:Math.min(a.origin.width,viewport.width-24),height:Math.min(a.origin.height,height),top:Math.max(12,Math.min(a.origin.top,viewport.height-Math.min(a.origin.height,height)-12)),x:a.origin.left-destination.left,borderRadius:26,opacity:viewport.width>800?1:0};
   const finishClose=()=>{setPosition(null);a.finishClose();};
   const {left:targetLeft,...surface}=destination;
-  const openBox={...surface,x:0};
+  const openBox={...surface,x:0,borderRadius:24};
+  const centeredStar={left:(Math.min(a.origin.width,viewport.width-24)-44)/2,top:(Math.min(a.origin.height,height)-44)/2,width:44,height:44,rotate:0};
+  const sourceStar=a.origin.emblem?{left:a.origin.emblem.left,top:a.origin.emblem.top,width:a.origin.emblem.size,height:a.origin.emblem.size,rotate:a.origin.emblem.rotate}:centeredStar;
   // Grow the surface without scaling the text; CSS keeps it inside resized viewports.
-  return createPortal(<AnimatePresence initial={false} custom={closedBox} onExitComplete={finishClose}>{a.open&&<motion.div key="assistant" ref={root} className={`testify-assistant-layer${a.expanded?' is-expanded':''}`} style={{borderRadius:24,bottom:'auto',left:`clamp(12px, ${targetLeft}px, calc(100vw - ${width}px - 12px))`}} initial={reduced?false:closedBox} animate={openBox} exit={reduced?{opacity:0}:'closed'} variants={{closed:(box:typeof closedBox)=>box}} transition={reduced?{duration:0}:{...dockSpring,top:drag.current?{duration:0}:dockSpring}} role="dialog" aria-label="AI assistant">
-    {!reduced&&<motion.img src="/design/ai-wall.svg" alt="" aria-hidden="true" className="assistant-dock-art" initial={{opacity:1}} animate={{opacity:0}} exit={{opacity:1,transition:{delay:.15,duration:.14}}} transition={{duration:.12}}/>}
-    <motion.section style={{width:'100%',height:'100%'}} initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0,transition:{duration:reduced?0:.08}}} transition={{duration:reduced?0:.16,delay:reduced?0:.14}} className="design-card design-assistant floating assistant-chat">
+  return createPortal(<AnimatePresence initial={false} custom={closedBox} onExitComplete={finishClose}>{a.open&&<motion.div key="assistant" ref={root} className={`testify-assistant-layer${a.expanded?' is-expanded':''}`} style={{borderRadius:24,bottom:'auto',left:`clamp(12px, ${targetLeft}px, calc(100vw - ${width}px - 12px))`}} initial={reduced?false:{...closedBox,opacity:1}} animate={openBox} exit={reduced?{opacity:0}:'closed'} variants={{closed:(box:typeof closedBox)=>box}} transition={reduced?{duration:0}:{...dockSpring,top:drag.current?{duration:0}:dockSpring}} role="dialog" aria-label="AI assistant">
+    <motion.div aria-hidden="true" className="assistant-surface-origin" initial={reduced?false:{opacity:1}} animate={{opacity:0}} exit={{opacity:1,transition:{duration:reduced?0:.32}}} transition={{duration:reduced?0:.36}}/>
+    <motion.span aria-hidden="true" className="assistant-transition-emblem" initial={reduced?false:sourceStar} animate={{left:26,top:26,width:18,height:18,rotate:0}} exit={centeredStar} transition={reduced?{duration:0}:dockSpring}><AssistantEmblem active={a.open&&!!a.status} emphasized={!!a.status} initialEmphasized={a.origin.emblem?.emphasized}/></motion.span>
+    <motion.section style={{width:'100%',height:'100%'}} initial={reduced?false:{opacity:0}} animate={{opacity:1}} exit={{opacity:0,transition:{duration:reduced?0:.1}}} transition={{duration:reduced?0:.24,delay:reduced?0:.18}} className="design-card design-assistant floating assistant-chat">
       <header onPointerDown={e=>{if((e.target as Element).closest('button'))return;const r=root.current!.getBoundingClientRect();drag.current={x:e.clientX,y:e.clientY,left:r.left,top:r.top};e.currentTarget.setPointerCapture(e.pointerId);}} onPointerMove={e=>{const d=drag.current;if(d)setPosition(clamp(d.left+e.clientX-d.x,d.top+e.clientY-d.y));}} onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}}>
-        <CardTitle icon={designIcons.assistant}>AI assistant</CardTitle><div className="assistant-header-actions"><button type="button" aria-label="New conversation" disabled={!!a.status} title="New conversation" onClick={()=>{following.current=true;setPrompt('');a.clear();input.current?.focus();}}><Plus size={14}/></button><button type="button" aria-label={a.expanded?'Minimize assistant':'Expand assistant'} onClick={()=>a.setExpanded(!a.expanded)}>{a.expanded?<Minimize2 size={13}/>:<Maximize2 size={13}/>}</button><button type="button" aria-label="Close assistant" title="Close assistant" onClick={()=>{a.setOpen(false);restore.current?.focus();}}><X size={14}/></button></div>
+        <div className="design-card-title"><span className="design-icon assistant-header-emblem-placeholder" aria-hidden="true"/><span>AI assistant</span></div><div className="assistant-header-actions"><button type="button" aria-label="New conversation" disabled={!!a.status} title="New conversation" onClick={()=>{following.current=true;setPrompt('');a.clear();input.current?.focus();}}><Plus size={14}/></button><button type="button" aria-label={a.expanded?'Minimize assistant':'Expand assistant'} onClick={()=>a.setExpanded(!a.expanded)}>{a.expanded?<Minimize2 size={13}/>:<Maximize2 size={13}/>}</button><button type="button" aria-label="Close assistant" title="Close assistant" onClick={()=>{a.setOpen(false);restore.current?.focus();}}><X size={14}/></button></div>
       </header>
       <div ref={thread} className="assistant-thread" role="log" aria-label="Conversation history" aria-live="polite" onScroll={()=>{const el=thread.current;if(el){following.current=el.scrollHeight-el.scrollTop-el.clientHeight<36;if(following.current)setUnread(false);}}}>
-        {!a.messages.length?<div className="assistant-welcome"><h2>What can I<br/>help you with?</h2><div className="assistant-suggestions">{['Review my strategy','Explain drawdown'].map(text=><button key={text} onClick={()=>void a.send(text)}>{text}</button>)}</div></div>:a.messages.map((m,i)=><div key={i} className={`assistant-message ${m.role}`} role="article" aria-label={m.role==='user'?'Your message':'Assistant response'}>{m.role==='user'?m.text:<Markdown skipHtml allowedElements={['p','strong','em','ul','ol','li','h1','h2','h3','h4','h5','h6','code','pre','blockquote','br','hr','a']} components={{a:({node:_,...props})=><a {...props} target="_blank" rel="noopener noreferrer"/>}}>{m.text}</Markdown>}</div>)}
+        {!a.messages.length?<div className="assistant-welcome"><motion.h2 initial={reduced?false:{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:reduced?0:.4,delay:reduced?0:.2}}>What can I<br/>help you with?</motion.h2><div className="assistant-suggestions">{['Review my strategy','Explain drawdown'].map((text,index)=><motion.button key={text} initial={reduced?false:{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={reduced?{duration:0}:{type:'spring',stiffness:350,damping:27,delay:.25+index*.06}} whileHover={reduced?undefined:{x:3}} onClick={()=>void a.send(text)}>{text}</motion.button>)}</div></div>:a.messages.map((m,index)=><motion.div key={m.id||`${index}-${m.role}-${m.text}`} initial={reduced||seenMessages.has(m)?false:{opacity:0,y:m.role==='user'?12:10,scale:m.role==='user' ? .96 : 1}} animate={{opacity:1,y:0,scale:1}} transition={reduced?{duration:0}:{type:'spring',stiffness:350,damping:28,opacity:{duration:.24}}} className={`assistant-message ${m.role}`} role="article" aria-label={m.role==='user'?'Your message':'Assistant response'}>{m.role==='user'?m.text:<Markdown skipHtml allowedElements={['p','strong','em','ul','ol','li','h1','h2','h3','h4','h5','h6','code','pre','blockquote','br','hr','a']} components={{a:({node:_,...props})=><a {...props} target="_blank" rel="noopener noreferrer"/>}}>{m.text}</Markdown>}</motion.div>)}
       </div>
       {unread&&<button type="button" className="assistant-latest" onClick={()=>{following.current=true;thread.current?.scrollTo({top:thread.current.scrollHeight,behavior:reduced?'instant':'smooth'});setUnread(false);}}>Latest reply ↓</button>}
       <div className="assistant-feedback">
-        {a.status&&<p className="assistant-activity" role="status"><span aria-hidden="true"/>{a.status}</p>}
+        {a.status&&<p className="assistant-activity" role="status"><span aria-hidden="true"/><span className="assistant-activity-text">{a.status}</span></p>}
         {a.notice&&<p className="assistant-notice" role="status">{a.notice}</p>}
         {a.error&&<div className="assistant-chat-error" role="alert"><span>{a.error}</span><button type="button" onClick={a.retry}>Try again</button></div>}
       </div>

@@ -24,7 +24,6 @@
 .account-menu-trigger > svg {transition:rotate 240ms var(--motion-ease);}
 .account-menu-trigger[aria-expanded=true] > svg {rotate:180deg;}
 .motion-auth-card {animation:none!important;}
-.assistant-dock-art {position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;z-index:3;border-radius:inherit;}
 .assistant-chat form button > span {display:grid;place-items:center;}
 .assistant-message {animation-timing-function:var(--motion-ease);}
 @media(hover:hover) and (pointer:fine) {
