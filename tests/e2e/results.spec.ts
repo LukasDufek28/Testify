@@ -1,4 +1,4 @@
-import {selectWorkspaceOption} from './fixtures';
+import {selectWorkspaceOption,reduceTestMotion} from './fixtures';
 import {test,expect,clickWorkspaceButton} from './fixtures';
 import {runBacktest} from '../../src/engine';
 import {runStrategyBacktest} from '../../src/programmable-engine';
@@ -138,7 +138,7 @@ test('only the headline balance counts up while secondary saved metrics stay sti
  await page.clock.install();await openRun(page);await expect(page.locator('.design-metric [data-countup="true"]')).toHaveCount(1);await expect(page.locator('.design-run-statistics [data-countup="true"]')).toHaveCount(0);const secondary=await page.locator('.design-run-statistics').innerText();await page.clock.runFor(1800);await expect(page.locator('.design-run-statistics')).toHaveText(secondary,{useInnerText:true});
 });
 test('hovering equity retains both visible equity and drawdown colors and formats tooltip values',async({page})=>{
- await page.emulateMedia({reducedMotion:'reduce'});await openRun(page,'Run A',false);const plot=page.locator('.responsive-equity-plot');await plot.scrollIntoViewIfNeeded();const box=(await plot.boundingBox())!;await page.mouse.move(box.x+box.width*.6,box.y+70);await expect(plot.locator('[data-chart="strategy"]')).toHaveAttribute('stroke',/url/);await expect(plot.locator('[data-chart="benchmark"]')).toHaveAttribute('stroke','#e69a9a');await expect(plot.locator('.responsive-equity-tooltip')).toContainText('$');await expect(plot.locator('.responsive-equity-tooltip')).toContainText('%');
+ await reduceTestMotion(page);await openRun(page,'Run A',false);const plot=page.locator('.responsive-equity-plot');await plot.scrollIntoViewIfNeeded();const box=(await plot.boundingBox())!;await page.mouse.move(box.x+box.width*.6,box.y+70);await expect(plot.locator('[data-chart="strategy"]')).toHaveAttribute('stroke',/url/);await expect(plot.locator('[data-chart="benchmark"]')).toHaveAttribute('stroke','#e69a9a');await expect(plot.locator('.responsive-equity-tooltip')).toContainText('$');await expect(plot.locator('.responsive-equity-tooltip')).toContainText('%');
 });
 test.describe('decimal formatting with a Slovak browser locale',()=>{
  test.use({locale:'sk-SK'});
@@ -167,7 +167,7 @@ test('long monthly histories fill each row and keep positive and zero returns wh
 
 
 test('short monthly histories use centered columns instead of stretching across the dashboard card',async({page})=>{
- await page.emulateMedia({reducedMotion:'reduce'});
+ await reduceTestMotion(page);
  for(const count of [1,2,3,7]){
   const curve=Array.from({length:count},(_,i)=>({time:Date.UTC(2025,i,15)/1000,equity:10000+(i+1)*100}));
   await page.evaluate(async run=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-user-e2e-user',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction('runs','readwrite');tx.objectStore('runs').put(run);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});},{...b,curve});

@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import {test, expect,reduceTestMotion} from "./fixtures";
 import { exampleStrategy } from "../../src/types";
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/markets", (r) =>
@@ -137,7 +137,7 @@ test("saved results replace preview metrics and monthly values", async ({
 test("assistant launcher respects reduced motion and Escape closes its popup", async ({
   page,
 }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
+  await reduceTestMotion(page);
   await page.goto("/#/app/overview");
   const launcher = page.getByRole("button", {
     name: "Open AI assistant",

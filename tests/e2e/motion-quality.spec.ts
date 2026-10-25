@@ -1,4 +1,4 @@
-import {test,expect,clickWorkspaceButton} from './fixtures';
+import {test,expect,clickWorkspaceButton,reduceTestMotion} from './fixtures';
 
 test('motion navigation keeps one highlight aligned after rapid section changes',async({page})=>{
  await page.setViewportSize({width:1440,height:1000});await page.goto('/#/app/overview');
@@ -30,7 +30,7 @@ test('motion accordions survive interrupted toggles and reduced motion without c
  await summary.click();await summary.click();await expect(details).not.toHaveAttribute('data-motion-disclosure',/./);await expect(details).toHaveAttribute('open','');
  await expect(details.getByRole('combobox',{name:'Display timezone',exact:true})).toBeVisible();expect(await details.evaluate(el=>el.style.height)).toBe('');expect(await details.evaluate(el=>el.scrollHeight<=el.clientHeight+1)).toBe(true);
  await summary.click();await expect(details).not.toHaveAttribute('open','');
- await page.emulateMedia({reducedMotion:'reduce'});await summary.click();await expect(details).toHaveAttribute('open','');await expect(details).not.toHaveAttribute('data-motion-disclosure',/./);await summary.click();await expect(details).not.toHaveAttribute('open','');
+ await reduceTestMotion(page);await summary.click();await expect(details).toHaveAttribute('open','');await expect(details).not.toHaveAttribute('data-motion-disclosure',/./);await summary.click();await expect(details).not.toHaveAttribute('open','');
 });
 
 test('motion strategy menus remain overlays without clipping their actions',async({page})=>{
@@ -71,7 +71,7 @@ test('motion AI star follows the pointer while its button stays steady and becom
 });
 
 test('motion AI star and dock stay still with reduced motion including pointer interaction',async({page})=>{
- await page.setViewportSize({width:1440,height:1000});await page.goto('/#/app/overview');const launcher=page.getByRole('button',{name:'Open AI assistant',exact:true});await launcher.hover({position:{x:30,y:30}});await page.emulateMedia({reducedMotion:'reduce'});
+ await page.setViewportSize({width:1440,height:1000});await page.goto('/#/app/overview');const launcher=page.getByRole('button',{name:'Open AI assistant',exact:true});await launcher.hover({position:{x:30,y:30}});await reduceTestMotion(page);
  await launcher.click();const live=page.getByRole('dialog',{name:'AI assistant'});expect(Math.round((await live.boundingBox())!.height)).toBe(343);await live.getByRole('button',{name:'Close assistant'}).click();await expect(launcher).toBeVisible();
  for(const reload of [false,true]){if(reload)await page.reload();await launcher.hover({position:{x:30,y:30}});await expect(launcher.locator('.assistant-launcher-emblem-core')).toHaveCSS('transform','none');await expect(launcher.locator('.assistant-launcher-emblem')).toHaveCSS('transform','none');await expect(launcher.locator('.assistant-launcher-face')).toHaveCSS('transform','none');await expect(launcher.locator('.assistant-emblem-glint')).toHaveCSS('opacity','0');}
  let release=()=>{};const waiting=new Promise<void>(resolve=>{release=resolve;});await page.route('**/api/assistant',async route=>{await waiting;await route.fulfill({json:{answer:'Hello.',actions:[]}}).catch(()=>{});});
@@ -88,13 +88,11 @@ test('motion chat preserves old message nodes and gives legacy and new messages 
 
 test.describe('motion device preference',()=>{
  test.use({reducedMotion:'reduce'});
- test('motion can be explicitly enabled on devices with animations disabled and persists after reload',async({page})=>{
+ test('motion plays by default despite device reduced motion and remembers an explicit opt-out',async({page})=>{
   await page.setViewportSize({width:1440,height:1000});await page.goto('/#/app/overview');
   const html=page.locator('html'),launcher=page.getByRole('button',{name:'Open AI assistant',exact:true});
-  await expect(html).toHaveAttribute('data-motion','reduced');await expect(html).toHaveAttribute('data-motion-preference','system');
-  await expect(launcher.locator('.assistant-emblem-glint')).toHaveCSS('opacity','0');
-  await page.getByRole('button',{name:'Enable animations',exact:true}).click();
-  await expect(html).toHaveAttribute('data-motion','full');await expect(launcher).toBeFocused();
+  await expect(html).toHaveAttribute('data-motion','full');await expect(html).toHaveAttribute('data-motion-preference','full');
+  await expect(page.getByRole('button',{name:'Enable animations',exact:true})).toHaveCount(0);
   await expect(launcher).toHaveAttribute('data-motion-active','true');await expect.poll(()=>launcher.locator('.assistant-emblem-glint').evaluate(el=>Number(getComputedStyle(el).opacity))).toBeGreaterThan(.1);
   // Observe actual frames: the reported failure was an instant jump, even
   // though a deployment and the final dialog both appeared correct.
@@ -109,6 +107,7 @@ test.describe('motion device preference',()=>{
   await page.reload();await expect(html).toHaveAttribute('data-motion','full');await expect(html).toHaveAttribute('data-motion-preference','full');await expect(page.getByRole('button',{name:'Enable animations',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Open account menu',exact:true}).click();const animations=page.getByRole('menuitemcheckbox',{name:/Animations/});await expect(animations).toBeChecked();
   await animations.press('Space');await expect(animations).not.toBeChecked();await expect(html).toHaveAttribute('data-motion','reduced');
+  await page.keyboard.press('Escape');await page.reload();await expect(html).toHaveAttribute('data-motion','reduced');await page.getByRole('button',{name:'Open account menu',exact:true}).click();await expect(animations).not.toBeChecked();
   await page.getByRole('menuitem',{name:'Use device setting',exact:true}).click();await expect(html).toHaveAttribute('data-motion-preference','system');await expect(animations).toBeFocused();
   await page.keyboard.press('Escape');await page.emulateMedia({reducedMotion:'no-preference'});await expect(html).toHaveAttribute('data-motion','full');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -116,13 +115,14 @@ test.describe('motion device preference',()=>{
 
  test('motion preference syncs between tabs without resetting an open conversation draft',async({page,context})=>{
   await page.setViewportSize({width:390,height:844});await page.goto('/#/app/overview');
-  await page.getByRole('button',{name:'Open navigation',exact:true}).click();await page.getByRole('button',{name:'Enable animations',exact:true}).click();
+  await page.getByRole('button',{name:'Open navigation',exact:true}).click();await expect(page.getByRole('button',{name:'Enable animations',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Open AI assistant',exact:true}).click();const chat=page.getByRole('dialog',{name:'AI assistant'});const input=chat.getByLabel('Message AI assistant');await expect(input).toBeFocused();await input.fill('Keep this unsent idea');
   const other=await context.newPage();
   try{
    await other.goto('/');await expect(other.locator('html')).toHaveAttribute('data-motion','full');
    await other.evaluate(()=>localStorage.setItem('testify-motion-v1','reduced'));await expect(page.locator('html')).toHaveAttribute('data-motion','reduced');await expect(input).toHaveValue('Keep this unsent idea');await expect(chat).toBeVisible();
-   await other.evaluate(()=>localStorage.removeItem('testify-motion-v1'));await expect(page.locator('html')).toHaveAttribute('data-motion-preference','system');await page.emulateMedia({reducedMotion:'no-preference'});await expect(page.locator('html')).toHaveAttribute('data-motion','full');
+   await other.evaluate(()=>localStorage.setItem('testify-motion-v1','system'));await expect(page.locator('html')).toHaveAttribute('data-motion-preference','system');await expect(page.locator('html')).toHaveAttribute('data-motion','reduced');
+   await other.evaluate(()=>localStorage.removeItem('testify-motion-v1'));await expect(page.locator('html')).toHaveAttribute('data-motion-preference','full');await expect(page.locator('html')).toHaveAttribute('data-motion','full');
    await chat.getByRole('button',{name:'Close assistant'}).click();await expect(chat).toHaveCount(0);await expect(page.getByRole('button',{name:'Open navigation',exact:true})).toBeFocused();
    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   }finally{await other.close();}
@@ -136,6 +136,6 @@ test.describe('motion account transitions',()=>{
   await page.evaluate(()=>document.fonts.ready);const logo=page.getByRole('link',{name:'Testify home',exact:true});const geometry=()=>logo.evaluate(el=>{const rect=el.getBoundingClientRect();return {x:rect.x+scrollX,y:rect.y+scrollY,width:rect.width,height:rect.height};});const before=await geometry();
   await page.getByRole('button',{name:'Register',exact:true}).click();await expect(page.getByRole('heading',{name:'Create your account',exact:true})).toBeVisible();await expect(email).toHaveValue('motion@example.test');await expect(password).toHaveValue('');await expect(email).toBeFocused();
   const after=await geometry();for(const key of ['x','y','width','height'] as const)expect(after[key]).toBeCloseTo(before[key],1);
-  await page.emulateMedia({reducedMotion:'reduce'});await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(email).toBeFocused();await expect(page.locator('.auth-card')).toHaveCSS('transform','none');
+  await reduceTestMotion(page);await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(email).toBeFocused();await expect(page.locator('.auth-card')).toHaveCSS('transform','none');
  });
 });

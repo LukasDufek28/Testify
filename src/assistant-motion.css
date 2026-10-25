@@ -1,9 +1,4 @@
 :root .assistant-launcher-slot .design-ai-launcher {position:relative;isolation:isolate;overflow:hidden;border:1px solid #a396d512;border-radius:26px;padding:0;background:#18171f;transform:none;filter:none;}
-.assistant-launcher-wrap {flex:none;width:100%;}
-.assistant-enable-motion {display:block;margin:8px auto 0;padding:4px 8px;border:0;border-radius:8px;background:none;color:#b5abc9;font:400 11px/16px Urbanist,sans-serif;cursor:pointer;}
-.assistant-enable-motion span {padding-left:3px;color:#d7caed;}
-.assistant-enable-motion:hover {color:#eee7fc;background:#ffffff06;}
-.assistant-enable-motion:focus-visible {outline:1px solid #a394e5;outline-offset:2px;}
 .assistant-launcher-face,.assistant-surface-origin {position:absolute;inset:0;border-radius:inherit;background:radial-gradient(ellipse 160% 120% at 50% 0%,#18171f 0%,#18171f 15%,#342589 100%);pointer-events:none;}
 .assistant-launcher-face {display:block;}
 .assistant-launcher-light {position:absolute;display:block;left:calc(50% - 92px);top:calc(50% - 30px);width:184px;height:120px;background:radial-gradient(ellipse,#a38aec55,transparent 68%);pointer-events:none;}

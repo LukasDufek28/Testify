@@ -1,4 +1,4 @@
-import {test,expect} from './fixtures';
+import {test,expect,reduceTestMotion} from './fixtures';
 import {savePerformanceFixture} from './performance-fixture';
 
 test('single run setup is linked from Overview and replaces its duplicate form',async({page})=>{
@@ -32,7 +32,7 @@ test('equity reveals once in view and keeps its drawn state during hover and res
  await plot.hover({position:{x:300,y:80}});
  await expect(reveal).toHaveAttribute('width',/^740(?:px)?$/);
  for(const width of [1920,390]){await page.setViewportSize({width,height:844});await expect(reveal).toHaveAttribute('width',/^740(?:px)?$/);await expect(line).toHaveCSS('stroke-dasharray','none');}
- await page.emulateMedia({reducedMotion:'reduce'});await page.reload();
+ await reduceTestMotion(page);await page.reload();
  // Reduced motion draws the final curve even before scrolling to the showcase.
  await expect(reveal).toHaveAttribute('width',/^740(?:px)?$/);
 });
@@ -45,7 +45,7 @@ test('late loaded strategy cards animate once and remain visible after filtering
  await expect(card).toHaveCSS('opacity','1');await expect(card).toHaveCSS('translate','0px');
  await page.getByRole('searchbox',{name:'Search strategies',exact:true}).fill('missing');await expect(card).toHaveCount(0);
  await page.getByRole('searchbox',{name:'Search strategies',exact:true}).fill('');await expect(card).toHaveCSS('opacity','1');
- await page.emulateMedia({reducedMotion:'reduce'});await page.reload();await expect(card).toHaveCSS('opacity','1');
+ await reduceTestMotion(page);await page.reload();await expect(card).toHaveCSS('opacity','1');
 });
 
 test('static cards tilt slightly with a mouse, settle on leave, and stay flat for touch and reduced motion',async({page})=>{
@@ -59,7 +59,7 @@ test('static cards tilt slightly with a mouse, settle on leave, and stay flat fo
  await card.dispatchEvent('pointermove',{pointerType:'touch',clientX:200,clientY:20});await expect.poll(rotation).toBeLessThan(.0001);
  await page.getByRole('button',{name:'Open AI assistant',exact:true}).click();const assistant=page.locator('.assistant-chat');await assistant.hover({position:{x:20,y:20}});
  expect(await assistant.evaluate(el=>{const m=new DOMMatrix(getComputedStyle(el).transform);return Math.abs(m.m13)+Math.abs(m.m23);})).toBeLessThan(.0001);
- await page.emulateMedia({reducedMotion:'reduce'});await card.hover({position:{x:200,y:20}});await expect(card).toHaveCSS('transform','none');
+ await reduceTestMotion(page);await card.hover({position:{x:200,y:20}});await expect(card).toHaveCSS('transform','none');
 });
 
 test('account popup opens above the profile, closes with Escape or outside click, and offers animation and sign-out controls',async({page})=>{
@@ -68,7 +68,7 @@ test('account popup opens above the profile, closes with Escape or outside click
  await expect(page.getByRole('menuitem',{name:'Sign out'})).toHaveCount(0);
  await trigger.click();const menu=page.getByRole('menu',{name:'Account menu',exact:true});
  await expect(menu).toBeVisible();await expect(menu.getByText('adam@example.test',{exact:true})).toBeVisible();
- await expect(menu.getByRole('menuitem')).toHaveCount(1);
+ await expect(menu.getByRole('menuitem',{name:'Use device setting',exact:true})).toBeVisible();
  await expect(menu.getByRole('menuitemcheckbox',{name:/Animations/})).toHaveCount(1);
  await expect(menu.getByRole('menuitem',{name:'Sign out'})).toBeFocused();
  const box=(await menu.boundingBox())!,button=(await trigger.boundingBox())!;
@@ -82,7 +82,7 @@ test('account popup opens above the profile, closes with Escape or outside click
 });
 
 test('workspace content keeps approved width and centers beside the sidebar on wide screens',async({page})=>{
- await page.emulateMedia({reducedMotion:'reduce'});
+ await reduceTestMotion(page);
  for(const route of ['overview','backtests','strategies','runsettings','trades']) {
   await page.goto('/#/app/'+route);
   for(const width of [1920,2560,3440]) {
@@ -116,7 +116,7 @@ test('showcase bars and labels fit their cards from phone to ultrawide',async({p
 });
 
 for(const route of ['/', '/#/app/overview'])test(`equity cursor moves between adjacent pixels and remains after leaving ${route}`,async({page})=>{
- await page.emulateMedia({reducedMotion:'reduce'});await page.goto(route);
+ await reduceTestMotion(page);await page.goto(route);
  if(route.includes('/app/')){await savePerformanceFixture(page);await page.reload();}
  const plot=page.locator('.responsive-equity-plot').first();await plot.scrollIntoViewIfNeeded();
  const box=(await plot.boundingBox())!;

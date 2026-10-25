@@ -1,4 +1,4 @@
-import { test, expect, clickWorkspaceButton, type Page } from "./fixtures";
+import {test, expect, clickWorkspaceButton, type Page,reduceTestMotion} from "./fixtures";
 import { exampleStrategy } from "../../src/types";
 import {
   duplicateStrategyName,
@@ -390,7 +390,7 @@ test("loading and failed library reads show separate states and retry recovers",
 test("selection uses foundation checkboxes and never shifts strategy cards", async ({
   page,
 }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
+  await reduceTestMotion(page);
   await page.goto("/#/app/strategies");
   await importJson(page, [
     exampleStrategy,

@@ -1,4 +1,4 @@
-import {test,expect,type Page} from './fixtures';
+import {test,expect,type Page,reduceTestMotion} from './fixtures';
 
 async function verifyShell(page:Page,surface:string,content:string){
   for(const {width,height} of [{width:3440,height:1440},{width:1264,height:843},{width:801,height:600},{width:560,height:900},{width:320,height:700},{width:390,height:844},{width:1101,height:700},{width:1920,height:1080}]){
@@ -19,7 +19,7 @@ async function verifyShell(page:Page,surface:string,content:string){
 
 for(const route of ['overview','backtests','strategies','studio','data','runsettings','history','compare','validation','portfolio']){
   test(`workspace background and content track viewport changes on ${route}`,async({page})=>{
-    await page.emulateMedia({reducedMotion:'reduce'});
+    await reduceTestMotion(page);
     await page.goto('/#/app/'+route);
     await expect(page.locator('.design-main')).toBeVisible();
     await verifyShell(page,'.penpot-workspace','.design-main');
@@ -29,7 +29,7 @@ for(const route of ['overview','backtests','strategies','studio','data','runsett
 test.describe('public responsive canvas',()=>{
   test.use({signedIn:false});
   for(const route of ['/','/#/app/overview'])test(`public background fills the viewport while content reflows on ${route}`,async({page})=>{
-    await page.emulateMedia({reducedMotion:'reduce'});
+    await reduceTestMotion(page);
     await page.goto(route);
     await expect(page.getByRole('heading',{level:1})).toBeVisible();
     await verifyShell(page,'.landing',route==='/'?'.landing-main':'.auth-card');

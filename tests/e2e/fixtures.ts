@@ -15,6 +15,15 @@ export async function clickWorkspaceButton(page:Page,name:string){
  if(name==='Open AI assistant'&&await page.getByRole('button',{name:'Close navigation',exact:true}).isVisible())await page.getByRole('button',{name:'Close navigation',exact:true}).click();
 }
 export * from '@playwright/test';
+// Static-layout checks opt out explicitly; the product now defaults to full
+// motion even when the operating system requests reduced motion.
+export async function reduceTestMotion(page:Page){
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.addInitScript(()=>localStorage.setItem('testify-motion-v1','reduced'));
+ if(page.url().startsWith('http'))await page.evaluate(()=>{
+  localStorage.setItem('testify-motion-v1','reduced');window.dispatchEvent(new StorageEvent('storage',{key:'testify-motion-v1',newValue:'reduced'}));
+ });
+}
 export const test=base.extend<{signedIn:boolean}>({
  signedIn:[true,{option:true}],
  page:async({page,signedIn},use)=>{

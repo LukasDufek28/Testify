@@ -1,4 +1,4 @@
-import {test,expect,clickWorkspaceButton} from './fixtures';
+import {test,expect,clickWorkspaceButton,reduceTestMotion} from './fixtures';
 import {exampleStrategy} from '../../src/types';
 
 test('fresh accounts show no sample strategies, returns, trades or portfolio curves',async({page})=>{
@@ -35,7 +35,7 @@ test('sidebar highlights only the current section and uses a workflow strategy i
 });
 
 test('data and overview actions share the same controls and card glares',async({page})=>{
-  await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/#/app/backtests');
+  await reduceTestMotion(page);await page.goto('/#/app/backtests');
   const appearance=async(selector:string)=>page.locator(selector).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundImage,radius:s.borderRadius,height:s.minHeight,font:s.font,padding:s.padding,border:s.borderWidth};});
   const expected=await appearance('.design-overview-action [aria-label="Configure backtest"]');
   const heading=await page.getByRole('heading',{level:1}).evaluate(el=>{const s=getComputedStyle(el);return {font:s.fontSize,lineHeight:s.lineHeight,color:s.color};});

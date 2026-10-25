@@ -1,9 +1,9 @@
-import { test, expect } from './fixtures';
+import {test, expect,reduceTestMotion} from './fixtures';
 
 const widths = [320,390,560,768,960,1024,1280,1440,1920,2560,3440];
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/markets', r => r.fulfill({ json: { markets: [{ id: 'BTC-USD' }] } }));
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await reduceTestMotion(page);
 });
 
 for (const route of ['overview','strategies','backtests','runsettings','trades']) {

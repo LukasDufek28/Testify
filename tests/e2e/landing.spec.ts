@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import {test, expect,reduceTestMotion} from "./fixtures";
 
 test('existing card radial gradient drifts locally without an extra orbiting reflection',async({page})=>{
  await page.goto('/');
@@ -11,7 +11,7 @@ test('existing card radial gradient drifts locally without an extra orbiting ref
  });
  expect(state.background).toContain('radial-gradient');expect(state.background).not.toContain('conic-gradient');
  expect(state.x).toBeGreaterThan(0);expect(state.x).toBeLessThanOrEqual(8);expect(state.y).toBeGreaterThanOrEqual(45);expect(state.y).toBeLessThanOrEqual(53);expect(state.extra).toBe('none');
- await page.emulateMedia({reducedMotion:'reduce'});await expect.poll(()=>card.evaluate(el=>getComputedStyle(el,'::before').animationName)).toBe('none');
+ await reduceTestMotion(page);await expect.poll(()=>card.evaluate(el=>getComputedStyle(el,'::before').animationName)).toBe('none');
 });
 
 test.beforeEach(async ({ page }) => {
@@ -41,7 +41,7 @@ test("approved silver landing, local font, and shared chart load without browser
 });
 
 test("responsive layouts reflow with readable chart labels without horizontal overflow", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
+  await reduceTestMotion(page);
   await page.goto("/");
   for (const width of [320, 390, 560, 640, 800, 960, 1280, 1440, 1920, 3440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -60,7 +60,7 @@ test("responsive layouts reflow with readable chart labels without horizontal ov
 });
 
 test("explore, section links, workspace entry, and return home work", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
+  await reduceTestMotion(page);
   await page.goto("/");
   await page.getByRole("link", { name: "Explore", exact: true }).click();
   await expect(page).toHaveURL(/#product-preview$/);
@@ -98,7 +98,7 @@ test("subtle motion reveals content once and hover does not move the glossy butt
 });
 
 test("reduced motion keeps all content visible and removes entrance animation", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
+  await reduceTestMotion(page);
   await page.goto("/");
   await expect(page.locator("#landing-heading")).toHaveCSS("animation-name", "none");
   for (const section of [".landing-preview", ".landing-process", ".landing-final"]) {
@@ -111,7 +111,7 @@ test("reduced motion keeps all content visible and removes entrance animation", 
 test("approved equity demo responds to hover, touch and keyboard without changing curves", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.emulateMedia({ reducedMotion: "reduce" });
+  await reduceTestMotion(page);
   await page.goto("/");
   const demo = page.locator(".landing-chart-demo");
   await demo.scrollIntoViewIfNeeded();
