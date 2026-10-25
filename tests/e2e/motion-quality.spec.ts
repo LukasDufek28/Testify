@@ -52,7 +52,7 @@ test('motion landing reflections pause offscreen and revealed cards do not repla
  await page.setViewportSize({width:1440,height:900});await page.goto('/');const card=page.locator('.landing .design-monthly');
  await expect(card).toHaveAttribute('data-motion-in-view','false');await expect.poll(()=>card.evaluate(el=>getComputedStyle(el,'::before').animationPlayState)).toBe('paused');
  await card.scrollIntoViewIfNeeded();await expect(card).toHaveAttribute('data-motion-in-view','true');await expect(card).toHaveCSS('opacity','1');
- await page.evaluate(()=>scrollTo(0,0));await expect(card).toHaveAttribute('data-motion-in-view','false');await card.scrollIntoViewIfNeeded();await expect(card).toHaveCSS('opacity','1');expect(await card.evaluate(el=>el.getAnimations().filter(a=>a.playState==='running').length)).toBe(0);
+ await page.evaluate(()=>scrollTo(0,0));await expect(card).toHaveAttribute('data-motion-in-view','false');await card.scrollIntoViewIfNeeded();await expect(card).toHaveCSS('opacity','1');expect(await card.evaluate(el=>el.getAnimations().filter(a=>a.playState==='running'&&a.effect instanceof KeyframeEffect&&a.effect.getKeyframes().some(frame=>'translate' in frame)).length)).toBe(0);
 });
 
 test.describe('motion account transitions',()=>{

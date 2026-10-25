@@ -25,9 +25,10 @@ for(const entry of ['Dashboard','Data'])test(`workspace search from ${entry} ope
  await page.goto('/#/app/strategies');
  await importJson(page,[{...exampleStrategy,name:'BTC momentum'},{...exampleStrategy,name:'ETH breakout'}]);
  await expect(page.locator('.strategy-card')).toHaveCount(2);
+ const headerHeight=(await page.locator('.design-topbar').boundingBox())!.height;
  await clickWorkspaceButton(page,entry);
  const search=page.getByRole('searchbox',{name:'Search your workspace'});
- await search.fill('ETH breakout');await search.press('Enter');
+ await search.fill('ETH breakout');await expect(search).toHaveCSS('border-top-width','0px');await expect(search).toHaveCSS('padding-top','0px');expect((await page.locator('.design-topbar').boundingBox())!.height).toBe(headerHeight);await search.press('Enter');
  await expect(page).toHaveURL(/#\/app\/strategies$/);
  await expect(page.getByRole('searchbox',{name:'Search strategies',exact:true})).toHaveValue('ETH breakout');
  await expect(page.locator('.strategy-card')).toHaveCount(1);

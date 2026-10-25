@@ -1,5 +1,9 @@
 /* Shared rhythm; layout and typography stay in normal responsive flow. */
 :root {--motion-ease:cubic-bezier(.22,1,.36,1);--motion-fast:160ms;--motion-surface:280ms;}
+/* The shared topbar must also override legacy form-field defaults on Data. */
+.penpot-workspace .design-topbar input {background:none;border:0;border-radius:0;padding:0;min-height:0;height:auto;margin-top:8px;line-height:normal;color:#f9f9fa;font-family:inherit;font-size:14px;font-weight:400;}
+.penpot-workspace .design-topbar input::placeholder {color:#9e9da7;opacity:.7;}
+.penpot-workspace .design-topbar input:focus-visible {outline:1px solid #a394e5;outline-offset:4px;}
 :root :is(.penpot-workspace,.landing,.auth-approved) :is(.design-button,.dashboard-button,.button,.landing-button) {transition:translate 220ms var(--motion-ease),scale 160ms var(--motion-ease),filter 220ms var(--motion-ease),opacity 160ms ease;transform-origin:center;}
 :root :is(.penpot-workspace,.landing,.auth-approved) :is(.design-button,.dashboard-button,.button,.landing-button):active:not(:disabled) {scale:.975;translate:0 0;}
 :root .design-sidebar nav > button {position:relative;isolation:isolate;transition:color 180ms ease;}
