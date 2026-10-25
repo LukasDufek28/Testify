@@ -1,4 +1,9 @@
 :root .assistant-launcher-slot .design-ai-launcher {position:relative;isolation:isolate;overflow:hidden;border:1px solid #a396d512;border-radius:26px;padding:0;background:#18171f;transform:none;filter:none;}
+.assistant-launcher-wrap {flex:none;width:100%;}
+.assistant-enable-motion {display:block;margin:8px auto 0;padding:4px 8px;border:0;border-radius:8px;background:none;color:#b5abc9;font:400 11px/16px Urbanist,sans-serif;cursor:pointer;}
+.assistant-enable-motion span {padding-left:3px;color:#d7caed;}
+.assistant-enable-motion:hover {color:#eee7fc;background:#ffffff06;}
+.assistant-enable-motion:focus-visible {outline:1px solid #a394e5;outline-offset:2px;}
 .assistant-launcher-face,.assistant-surface-origin {position:absolute;inset:0;border-radius:inherit;background:radial-gradient(ellipse 160% 120% at 50% 0%,#18171f 0%,#18171f 15%,#342589 100%);pointer-events:none;}
 .assistant-launcher-face {display:block;}
 .assistant-launcher-light {position:absolute;display:block;left:calc(50% - 92px);top:calc(50% - 30px);width:184px;height:120px;background:radial-gradient(ellipse,#a38aec55,transparent 68%);pointer-events:none;}
@@ -23,8 +28,7 @@
 .assistant-activity .assistant-activity-text {height:auto;width:auto;flex:1;border-radius:0;background:linear-gradient(100deg,#a6a0b7 20%,#eee8ff 45%,#a6a0b7 70%);background-size:240% 100%;background-clip:text;color:transparent;animation:assistant-activity-sheen 2.2s linear infinite;}
 @keyframes assistant-activity-sheen {from{background-position:130% 0;}to{background-position:-130% 0;}}
 @media(hover:none) {:root .assistant-launcher-label {opacity:.7;transform:none;}}
-@media(prefers-reduced-motion:reduce) {
- :root .assistant-launcher-label {transition:none;transform:none;}
- .assistant-emblem {filter:none!important;}.assistant-launcher-working i {animation:none;opacity:.7;}
- .assistant-activity .assistant-activity-text {animation:none;background:none;color:#aaa5bd;}
-}
+html[data-motion=reduced] .assistant-launcher-label {transition:none;transform:none;}
+html[data-motion=reduced] .assistant-emblem {filter:none!important;}
+html[data-motion=reduced] .assistant-launcher-working i {animation:none;opacity:.7;}
+html[data-motion=reduced] .assistant-activity .assistant-activity-text {animation:none;background:none;color:#aaa5bd;}

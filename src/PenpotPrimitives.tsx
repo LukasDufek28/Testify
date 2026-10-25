@@ -18,7 +18,8 @@ import type { EquitySeries } from "./types";
 import ResponsiveEquity from "./ResponsiveEquity";
 import AnimatedValue from './AnimatedValue';
 import useCardTilt from './useCardTilt';
-import { motion, useReducedMotion, type HTMLMotionProps } from "motion/react";
+import { motion, type HTMLMotionProps } from "motion/react";
+import useReducedMotion from './useReducedMotionPreference';
 import "./penpot.css";
 
 export const designIcons = {

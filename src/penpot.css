@@ -322,10 +322,7 @@
 @keyframes landing-card-reflection-drift {
   to { --card-reflection-x: 8%; --card-reflection-y: 53%; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .design-card::before, .landing .design-card::before,
-  .testify-legacy :is(.workspace-panel,.panel,.result-panel,.result-metric)::before { animation: none; }
-}
+html[data-motion=reduced] .design-card::before, html[data-motion=reduced] .landing .design-card::before, html[data-motion=reduced] .testify-legacy :is(.workspace-panel,.panel,.result-panel,.result-metric)::before { animation: none; }
 .profit-glow {
   background-color: #18171f;
   background-image: linear-gradient(180deg, rgba(24, 23, 31, 0), rgba(145, 245, 171, 0.05));
@@ -1492,15 +1489,13 @@
     font-size: 19px;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .design-ai-launcher,
-  .design-button {
+html[data-motion=reduced] .design-ai-launcher,
+  html[data-motion=reduced] .design-button {
     transition: none;
   }
-  .design-ai-launcher:hover {
+html[data-motion=reduced] .design-ai-launcher:hover {
     transform: none;
   }
-}
 
 .design-icon img {
   object-fit: contain;

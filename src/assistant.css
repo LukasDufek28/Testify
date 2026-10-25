@@ -53,4 +53,4 @@
 .testify-assistant-layer.is-expanded .assistant-chat {height:min(590px,calc(100svh - 32px));}
 .testify-assistant-layer.is-expanded .assistant-message {font-size:14px;}
 @media(max-width:700px){.testify-assistant-layer {left:12px;bottom:20px;width:min(290px,calc(100vw - 24px));}.testify-assistant-layer .assistant-chat {max-height:calc(100svh - 32px);}}
-@media(prefers-reduced-motion:reduce){.assistant-activity>span,.assistant-message {animation:none;}}
+html[data-motion=reduced] .assistant-activity>span,html[data-motion=reduced] .assistant-message {animation:none;}

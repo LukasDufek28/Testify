@@ -62,7 +62,7 @@
 .dashboard-shell .strategy-delete-button { background: #ffffff; color: #18171f; }
 .strategy-operation-error { padding: 12px; border: 1px solid #ffffff; border-radius: 6px; }
 @media(max-width:560px) { .strategy-skeleton-grid { grid-template-columns: 1fr; } .strategy-dialog-actions > button { flex: 1; } }
-@media(prefers-reduced-motion:reduce) { .strategy-skeleton-grid > div { animation: none; } }
+html[data-motion=reduced] .strategy-skeleton-grid > div { animation: none; }
 .workspace-empty { padding: 48px; text-align: center; }
 .workspace-empty .dashboard-button { margin-top: 20px; }
 .workspace-empty-copy { padding: 24px 0; }
@@ -226,7 +226,7 @@
 .strategy-library-count { min-height:36px; gap:16px; }
 .dashboard-shell .strategy-clear-selection { min-height:32px; padding:6px 12px; font-size:12px; font-weight:500; border:1px solid #36353f; background:transparent; }
 .dashboard-shell .strategy-clear-selection:hover { background:#36353f; }
-@media(prefers-reduced-motion:reduce) { .workspace-shell input[type=checkbox],.workspace-shell input[type=checkbox]::after { transition:none; } }
+html[data-motion=reduced] .workspace-shell input[type=checkbox],html[data-motion=reduced] .workspace-shell input[type=checkbox]::after { transition:none; }
 @media(forced-colors:active) { .workspace-shell input[type=checkbox] { appearance:auto; } .workspace-shell input[type=checkbox]::after { content:none; } }
 .dashboard-shell .strategy-clear-selection { width:160px; flex:none; white-space:nowrap; }
 /* Preserve the approved content width while the navigation stays at the edge. */

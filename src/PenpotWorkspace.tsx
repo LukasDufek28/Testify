@@ -28,7 +28,8 @@ import type { WorkspacePage } from "./WorkspaceShell";
 import RunStatusBadge, { type RunState } from "./RunStatusBadge";
 import useWorkspaceMotion from './useWorkspaceMotion';
 import WorkspaceTopbar,{type WorkspaceSearchProps} from './WorkspaceTopbar';
-import {motion,useReducedMotion} from 'motion/react';
+import {motion} from 'motion/react';
+import useReducedMotion from './useReducedMotionPreference';
 import type { Bar, Dataset, Run, SavedStrategy, Trade } from "./types";
 import './run-flow.css';
 

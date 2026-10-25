@@ -86,6 +86,49 @@ test('motion chat preserves old message nodes and gives legacy and new messages 
  await expect.poll(()=>page.evaluate(()=>{const messages=JSON.parse(localStorage.getItem('testify-assistant-v1:e2e-user')!);return messages.length===4&&messages.every((message:any)=>typeof message.id==='string')&&new Set(messages.map((message:any)=>message.id)).size===4;})).toBe(true);
 });
 
+test.describe('motion device preference',()=>{
+ test.use({reducedMotion:'reduce'});
+ test('motion can be explicitly enabled on devices with animations disabled and persists after reload',async({page})=>{
+  await page.setViewportSize({width:1440,height:1000});await page.goto('/#/app/overview');
+  const html=page.locator('html'),launcher=page.getByRole('button',{name:'Open AI assistant',exact:true});
+  await expect(html).toHaveAttribute('data-motion','reduced');await expect(html).toHaveAttribute('data-motion-preference','system');
+  await expect(launcher.locator('.assistant-emblem-glint')).toHaveCSS('opacity','0');
+  await page.getByRole('button',{name:'Enable animations',exact:true}).click();
+  await expect(html).toHaveAttribute('data-motion','full');await expect(launcher).toBeFocused();
+  await expect(launcher).toHaveAttribute('data-motion-active','true');await expect.poll(()=>launcher.locator('.assistant-emblem-glint').evaluate(el=>Number(getComputedStyle(el).opacity))).toBeGreaterThan(.1);
+  // Observe actual frames: the reported failure was an instant jump, even
+  // though a deployment and the final dialog both appeared correct.
+  await page.evaluate(()=>document.addEventListener('click',()=>{
+   const frames:number[]=[];(window as any).openingWidths=frames;
+   const sample=()=>{const dialog=document.querySelector('[role=dialog][aria-label="AI assistant"]');if(dialog)frames.push(dialog.getBoundingClientRect().width);if(frames.length<16)requestAnimationFrame(sample);};requestAnimationFrame(sample);
+  },{once:true}));
+  await launcher.click();const chat=page.getByRole('dialog',{name:'AI assistant'});
+  await expect.poll(()=>page.evaluate(()=>(window as any).openingWidths?.length??0)).toBeGreaterThanOrEqual(16);
+  const frames=await page.evaluate(()=>(window as any).openingWidths as number[]);expect(Math.max(...frames)-Math.min(...frames)).toBeGreaterThan(6);
+  await expect(chat.locator('.assistant-chat')).toHaveCSS('transform','none');await chat.getByRole('button',{name:'Close assistant'}).click();await expect(chat).toHaveCount(0);
+  await page.reload();await expect(html).toHaveAttribute('data-motion','full');await expect(html).toHaveAttribute('data-motion-preference','full');await expect(page.getByRole('button',{name:'Enable animations',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Open account menu',exact:true}).click();const animations=page.getByRole('menuitemcheckbox',{name:/Animations/});await expect(animations).toBeChecked();
+  await animations.press('Space');await expect(animations).not.toBeChecked();await expect(html).toHaveAttribute('data-motion','reduced');
+  await page.getByRole('menuitem',{name:'Use device setting',exact:true}).click();await expect(html).toHaveAttribute('data-motion-preference','system');await expect(animations).toBeFocused();
+  await page.keyboard.press('Escape');await page.emulateMedia({reducedMotion:'no-preference'});await expect(html).toHaveAttribute('data-motion','full');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ });
+
+ test('motion preference syncs between tabs without resetting an open conversation draft',async({page,context})=>{
+  await page.setViewportSize({width:390,height:844});await page.goto('/#/app/overview');
+  await page.getByRole('button',{name:'Open navigation',exact:true}).click();await page.getByRole('button',{name:'Enable animations',exact:true}).click();
+  await page.getByRole('button',{name:'Open AI assistant',exact:true}).click();const chat=page.getByRole('dialog',{name:'AI assistant'});const input=chat.getByLabel('Message AI assistant');await expect(input).toBeFocused();await input.fill('Keep this unsent idea');
+  const other=await context.newPage();
+  try{
+   await other.goto('/');await expect(other.locator('html')).toHaveAttribute('data-motion','full');
+   await other.evaluate(()=>localStorage.setItem('testify-motion-v1','reduced'));await expect(page.locator('html')).toHaveAttribute('data-motion','reduced');await expect(input).toHaveValue('Keep this unsent idea');await expect(chat).toBeVisible();
+   await other.evaluate(()=>localStorage.removeItem('testify-motion-v1'));await expect(page.locator('html')).toHaveAttribute('data-motion-preference','system');await page.emulateMedia({reducedMotion:'no-preference'});await expect(page.locator('html')).toHaveAttribute('data-motion','full');
+   await chat.getByRole('button',{name:'Close assistant'}).click();await expect(chat).toHaveCount(0);await expect(page.getByRole('button',{name:'Open navigation',exact:true})).toBeFocused();
+   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }finally{await other.close();}
+ });
+});
+
 test.describe('motion account transitions',()=>{
  test.use({signedIn:false});
  test('motion auth switch preserves email and header geometry and focuses the new form',async({page})=>{

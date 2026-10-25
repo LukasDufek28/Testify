@@ -128,11 +128,9 @@
   .landing-footer { flex-wrap: wrap; justify-content: center; gap: 24px; text-align: center; }
   .landing-footer p { flex-basis: 100%; font-size: 12px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .landing-copy > * { animation: none; }
-  .landing [data-reveal] { opacity: 1; transform: none; transition: none; }
-  .landing .landing-button, .landing .landing-nav-link { transition: none; }
-}
+html[data-motion=reduced] .landing-copy > * { animation: none; }
+html[data-motion=reduced] .landing [data-reveal] { opacity: 1; transform: none; transition: none; }
+html[data-motion=reduced] .landing .landing-button, html[data-motion=reduced] .landing .landing-nav-link { transition: none; }
 
 .landing-chart-demo { width: 100%; touch-action: pan-y; border-radius: 26px; }
 .landing-chart-demo:focus-visible { outline: 1px solid #A394E5; outline-offset: 4px; }

@@ -36,8 +36,6 @@
  :root .design-sidebar.open {visibility:visible;pointer-events:auto;translate:0 0;transition-delay:0s;box-shadow:none;}
  .design-nav-backdrop {display:block;position:fixed;inset:0;z-index:65;border:0;background:#0c0b1280;cursor:default;}
 }
-@media(prefers-reduced-motion:reduce) {
- :root :is(.penpot-workspace,.landing,.auth-approved) :is(.design-button,.dashboard-button,.button,.landing-button) {transition:none;scale:1!important;translate:none!important;}
- :root .design-sidebar,.design-sidebar nav > button .design-icon,.account-menu-trigger > svg {transition:none;}
- .design-sidebar nav > button .design-icon {translate:none!important;}
-}
+html[data-motion=reduced] :is(.penpot-workspace,.landing,.auth-approved) :is(.design-button,.dashboard-button,.button,.landing-button) {transition:none;scale:1!important;translate:none!important;}
+html[data-motion=reduced] .design-sidebar,html[data-motion=reduced] .design-sidebar nav > button .design-icon,html[data-motion=reduced] .account-menu-trigger > svg {transition:none;}
+html[data-motion=reduced] .design-sidebar nav > button .design-icon {translate:none!important;}

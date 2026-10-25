@@ -1,4 +1,5 @@
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion} from 'motion/react';
+import useReducedMotion from './useReducedMotionPreference';
 import { Check, Circle, LoaderCircle, Play, X } from 'lucide-react';
 import './run-status.css';
 import {surfaceSpring,quickFade} from './motion-tokens';

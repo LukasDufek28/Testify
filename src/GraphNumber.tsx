@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useMotionValueEvent, useReducedMotion, useSpring } from 'motion/react';
+import { useMotionValueEvent, useSpring } from 'motion/react';
+import useReducedMotion from './useReducedMotionPreference';
 
 export default function GraphNumber({value,percent=false}:{value:number;percent?:boolean}) {
   const reduced=useReducedMotion();

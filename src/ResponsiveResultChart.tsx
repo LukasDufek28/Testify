@@ -1,6 +1,7 @@
 import {getDisplayTimezone} from './RunDefaults';
 import { useEffect, useMemo, useRef } from "react";
-import { animate, useReducedMotion, type AnimationPlaybackControls } from "motion/react";
+import { animate, type AnimationPlaybackControls } from "motion/react";
+import useReducedMotion from './useReducedMotionPreference';
 import ReactECharts, { type EChartsOption } from "echarts-for-react";
 
 export default function ResponsiveResultChart({option,height}:{option:EChartsOption;height:number|string}) {

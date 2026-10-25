@@ -1,6 +1,7 @@
 import {ChartNoAxesCombined,Database,House,Workflow,X,type LucideIcon} from 'lucide-react';
 import {useEffect,useId,useRef,useSyncExternalStore,type ReactNode} from 'react';
-import {AnimatePresence,LayoutGroup,motion,useReducedMotion} from 'motion/react';
+import {AnimatePresence,LayoutGroup,motion} from 'motion/react';
+import useReducedMotion from './useReducedMotionPreference';
 import {surfaceSpring} from './motion-tokens';
 import type {WorkspacePage} from './WorkspaceShell';
 import {AssistantLauncher} from './AssistantWorkspace';

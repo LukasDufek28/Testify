@@ -49,7 +49,5 @@
   :root .penpot-workspace :is(.design-button.secondary,.button.subtle,.button.ghost):hover:not(:disabled) {translate:none;filter:brightness(1.12);}
   .design-sidebar nav > button:not([aria-current=page]):hover .design-icon {background:#35343f;color:#e7e6ee;}
 }
-@media(prefers-reduced-motion:reduce) {
-  :root .penpot-workspace :is(.design-button,.dashboard-button,.button),.design-sidebar nav > button .design-icon {transition:none;translate:none!important;}
-}
+html[data-motion=reduced] .penpot-workspace :is(.design-button,.dashboard-button,.button),html[data-motion=reduced] .design-sidebar nav > button .design-icon {transition:none;translate:none!important;}
 @media(max-width:800px){:root .testify-legacy :is(.workspace-page-heading,.page-header){padding-inline:0;}:root .testify-legacy :is(.workspace-page-heading,.page-header) h1{font-size:30px;}}

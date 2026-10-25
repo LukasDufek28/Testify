@@ -34,4 +34,5 @@
 .range-control:focus-within .range-track {outline:1px solid #a394e5;outline-offset:5px;}
 .control-popup.closing {pointer-events:none;animation:control-close 120ms ease-in both;}
 @keyframes control-close {from{opacity:1;transform:none;}to{opacity:0;transform:translateY(-4px) scale(.98);}}
-@media(prefers-reduced-motion:reduce){.control-popup,.control-popup.closing{animation:none;}.control-chevron,.range-track>span,.range-thumb{transition:none;}}
+html[data-motion=reduced] .control-popup,html[data-motion=reduced] .control-popup.closing{animation:none;}
+html[data-motion=reduced] .control-chevron,html[data-motion=reduced] .range-track>span,html[data-motion=reduced] .range-thumb{transition:none;}

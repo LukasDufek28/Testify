@@ -62,13 +62,14 @@ test('static cards tilt slightly with a mouse, settle on leave, and stay flat fo
  await page.emulateMedia({reducedMotion:'reduce'});await card.hover({position:{x:200,y:20}});await expect(card).toHaveCSS('transform','none');
 });
 
-test('account popup opens above the profile, closes with Escape or outside click, and offers sign-out only',async({page})=>{
+test('account popup opens above the profile, closes with Escape or outside click, and offers motion and sign-out controls',async({page})=>{
  await page.goto('/#/app/overview');
  const trigger=page.getByRole('button',{name:'Open account menu',exact:true});
  await expect(page.getByRole('menuitem',{name:'Sign out'})).toHaveCount(0);
  await trigger.click();const menu=page.getByRole('menu',{name:'Account menu',exact:true});
  await expect(menu).toBeVisible();await expect(menu.getByText('adam@example.test',{exact:true})).toBeVisible();
  await expect(menu.getByRole('menuitem')).toHaveCount(1);
+ await expect(menu.getByRole('menuitemcheckbox',{name:/Animations/})).toHaveCount(1);
  await expect(menu.getByRole('menuitem',{name:'Sign out'})).toBeFocused();
  const box=(await menu.boundingBox())!,button=(await trigger.boundingBox())!;
  expect(box.y+box.height).toBeLessThan(button.y);

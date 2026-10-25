@@ -1,5 +1,6 @@
 import {getDisplayTimezone} from './RunDefaults';
-import { motion, useInView, useMotionTemplate, useReducedMotion, useSpring } from "motion/react";
+import { motion, useInView, useMotionTemplate, useSpring } from "motion/react";
+import useReducedMotion from './useReducedMotionPreference';
 import GraphNumber from "./GraphNumber";
 import useCardTilt from './useCardTilt';
 import { useEffect, useId, useMemo, useRef, useState } from "react";
