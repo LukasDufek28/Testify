@@ -1333,7 +1333,7 @@ html[data-motion=reduced] .design-card::before, html[data-motion=reduced] .landi
     box-shadow: 0 0 0 100vmax #18171f99;
   }
   .design-topbar {
-    padding-left: 28px;
+    padding-left: 42px;
   }
   .design-topbar small {
     margin-right: 0;

@@ -49,7 +49,11 @@ test('assistant keeps a failed first reply visible beside the composer and retri
 });
 
 test('assistant keeps an interrupted conversation readable after reload without silently replaying actions',async({page})=>{
- await page.goto('/#/app/overview');await page.evaluate(()=>localStorage.setItem('testify-assistant-v1:e2e-user',JSON.stringify([{role:'user',text:'hello'}])));await page.reload();
+ await page.goto('/#/app/overview');
+ // Finish the controller's initial persistence before installing prior-session
+ // data. Otherwise its pending empty-history effect can overwrite this seed.
+ await expect.poll(()=>page.evaluate(()=>localStorage.getItem('testify-assistant-v1:e2e-user'))).toBe('[]');
+ await page.evaluate(()=>localStorage.setItem('testify-assistant-v1:e2e-user',JSON.stringify([{role:'user',text:'hello'}])));await page.reload();
  let calls=0;await page.route('**/api/assistant',r=>{calls++;return r.fulfill({json:{answer:'I’m here. What would you like to do?',actions:[]}});});
  await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});await expect(chat.getByRole('status')).toContainText('previous reply was interrupted');expect(calls).toBe(0);
  await chat.getByLabel('Message AI assistant').fill('Are you there?');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat.getByRole('article',{name:'Assistant response'})).toContainText('I’m here.');await expect(chat.locator('.assistant-notice')).toHaveCount(0);

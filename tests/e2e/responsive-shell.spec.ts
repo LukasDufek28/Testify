@@ -10,6 +10,10 @@ async function verifyShell(page:Page,surface:string,content:string){
     })).toBe(true);
     await expect(page.locator('html')).toHaveCSS('background-color','rgb(24, 23, 31)');
     if(surface==='.penpot-workspace'&&width>800)await expect(page.getByRole('button',{name:'Close navigation',exact:true})).toBeHidden();
+    if(surface==='.penpot-workspace'&&width<=800){
+      const menu=(await page.getByRole('button',{name:'Open navigation',exact:true}).boundingBox())!,search=(await page.getByRole('searchbox',{name:'Search your workspace',exact:true}).boundingBox())!;
+      expect(search.x-menu.x-menu.width).toBeGreaterThanOrEqual(8);
+    }
     const box=(await page.locator(content).boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x+box.width).toBeLessThanOrEqual(width);
