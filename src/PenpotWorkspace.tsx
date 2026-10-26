@@ -26,6 +26,7 @@ import { savedRules, tradeR, tradeLevels, tradesCsv, formatTradePrice } from "./
 import ConfirmStrategyDelete from "./ConfirmStrategyDelete";
 import type { WorkspacePage } from "./WorkspaceShell";
 import RunStatusBadge, { type RunState } from "./RunStatusBadge";
+import {BacktestRunButton,BacktestRunProgress} from './BacktestRunControl';
 import useWorkspaceMotion from './useWorkspaceMotion';
 import WorkspaceTopbar,{type WorkspaceSearchProps} from './WorkspaceTopbar';
 import {motion} from 'motion/react';
@@ -1199,8 +1200,8 @@ export default function PenpotWorkspace(p: Props) {
         <div className={"design-page-heading" + (p.page === "studio" ? " design-studio-heading" : "")}>
           <h1>{title}</h1>
           <p>{subtitle}</p>
-          {p.page==='backtests'&&run&&<div className="design-result-context"><span>{run.id===latestRun?.id?'Latest run':'Saved run'} · {run.name}</span>{run.id!==latestRun?.id&&latestRun&&<button className="design-button secondary" onClick={()=>nav('backtests')}>Latest: {latestRun.name}</button>}</div>}
-          {p.page === "runsettings" && <button className="design-button" aria-label="Start backtest" disabled={p.running || !p.options.strategyId || !p.options.markets.length} onClick={p.onRun}>{p.running ? <RunStatusBadge state="processing"/> : "Run backtest"}</button>}
+          {p.page==='backtests'&&run&&<div className="design-result-context"><span>{run.id===latestRun?.id?'Latest run':'Saved run'} · {run.name}</span>{p.runState==='success'&&run.id===latestRun?.id&&<RunStatusBadge state="success"/>}{run.id!==latestRun?.id&&latestRun&&<button className="design-button secondary" onClick={()=>nav('backtests')}>Latest: {latestRun.name}</button>}</div>}
+          {p.page === "runsettings" && <BacktestRunButton state={p.running?'processing':p.runState} progress={p.progress} disabled={p.running || !p.options.strategyId || !p.options.markets.length} onRun={p.onRun}/>}
           {p.page === "studio" && <button className="design-button" onClick={p.onCreate}>New strategy</button>}
         </div>
         {['runsettings','trades'].includes(p.page)&&<div className="design-history-link"><button className="design-button secondary" onClick={()=>nav('history')}><History size={16}/>Saved backtests</button></div>}
@@ -1218,34 +1219,7 @@ export default function PenpotWorkspace(p: Props) {
         {p.page !== 'strategies' && p.loadError && <DesignCard role="alert" className="design-library-empty"><h2>Could not load your workspace</h2><p>{p.loadError}</p><button className="design-button" onClick={()=>void p.onRetry()}>Try again</button></DesignCard>}
         {["connections","manual"].includes(p.page) && p.content}
         {p.page === "studio" && p.studio}
-        {p.running && (
-          <DesignCard className="design-progress">
-            <h2>Running backtest</h2>
-            <div
-              role="progressbar"
-              aria-label="Backtest processing"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={p.progress}
-            >
-              <span style={{ width: p.progress + "%" }} />
-            </div>
-            <p>{p.progressText}</p>
-            {p.progress > 0 && elapsed > 0 && (
-              <p role="status">
-                ~
-                {Math.max(
-                  1,
-                  Math.round((elapsed * (100 - p.progress)) / p.progress),
-                )}
-                s remaining · estimate
-              </p>
-            )}
-            <button className="design-button secondary" onClick={p.onCancel}>
-              Cancel backtest
-            </button>
-          </DesignCard>
-        )}
+        <BacktestRunProgress running={p.running&&p.page==='runsettings'} progress={p.progress} text={p.progressText} strategy={p.strategies.find(strategy=>strategy.id===p.options.strategyId)?.name||'Your strategy'} remaining={p.progress>0&&elapsed>0?Math.max(1,Math.round(elapsed*(100-p.progress)/p.progress)):undefined} onCancel={p.onCancel}/>
         {p.page === "overview" && !p.loading && !p.loadError && (
           <div className="design-dashboard-grid dashboard-unified">
             {metrics()}

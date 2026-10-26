@@ -3,7 +3,7 @@ import {useAnimate} from 'motion/react';
 import useReducedMotionPreference from './useReducedMotionPreference';
 import {easeOut} from './motion-tokens';
 
-const panels='.design-page-heading,.design-card:not(.floating),.workspace-page-heading,.page-header,.workspace-panel,.panel,.result-metric,.result-panel';
+const panels='.design-page-heading,.design-card:not(.floating):not([data-motion-owned]),.workspace-page-heading,.page-header,.workspace-panel,.panel,.result-metric,.result-panel';
 const rows='.history-table tbody tr,.workspace-table tbody tr,.design-trade-history tbody tr';
 export default function useWorkspaceMotion(page:string) {
  const [scope,animate]=useAnimate<HTMLDivElement>();

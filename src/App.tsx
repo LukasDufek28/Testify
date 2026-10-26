@@ -422,6 +422,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
 
           run.strategySource = JSON.stringify(strategy);
           run.research = { ...window, phase: "development" };
+          setRunProgress(`${index + 1} of ${chosen.length}: ${symbol} · saving results`);
           if(!storedDataset){const snapshot={...onlineDataset(symbol),id:crypto.randomUUID(),bars};await localStore.putDataset(snapshot);run.priceDatasetId=snapshot.id;}
           await localStore.putRun(run);
           setRunPercent((index + 1) / chosen.length * 100); completed.push(run);
@@ -429,17 +430,18 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
           await refresh();
         } catch (error) { if (controller.signal.aborted) break; failures.push(`${symbol}: ${error instanceof Error ? error.message : String(error)}`); }
       }
-      await saveJob(controller.signal.aborted?'cancelled':failures.length?'failed':'completed',completed.length/chosen.length*100);
+      const cancelled=controller.signal.aborted&&completed.length+failures.length<chosen.length;
+      await saveJob(cancelled?'cancelled':failures.length?'failed':'completed',completed.length/chosen.length*100);
       if (completed.length) {
         setRunId(completed[completed.length - 1].id);
         setPage(chosen.length > 1 ? "history" : "results");
-        setNotice(`${completed.length} backtest${completed.length === 1 ? "" : "s"} saved to History.${controller.signal.aborted ? " Remaining markets cancelled." : failures.length ? ` ${failures.length} failed.` : ""}`);
+        setNotice(`${completed.length} backtest${completed.length === 1 ? "" : "s"} saved to History.${cancelled ? " Remaining markets cancelled." : failures.length ? ` ${failures.length} failed.` : ""}`);
       }
       if (controller.signal.aborted && !completed.length) setNotice("Backtest cancelled.");
       if (failures.length) {runError=failures.slice(0,5).join(' · ');setError(runError);}
-      setRunState(controller.signal.aborted ? 'cancelled' : failures.length ? 'error' : completed.length ? 'success' : 'error');
+      setRunState(cancelled ? 'cancelled' : failures.length ? 'error' : completed.length ? 'success' : 'error');
     } catch (e) { if(snapshot)await saveJob(controller.signal.aborted?'cancelled':'failed',completed.length/snapshot.children.length*100).catch(()=>{}); setRunState(controller.signal.aborted ? 'cancelled' : 'error'); if (controller.signal.aborted) setNotice(completed.length ? `${completed.length} completed backtest${completed.length === 1 ? "" : "s"} saved. Remaining markets cancelled.` : "Backtest cancelled."); else {runError=e instanceof Error?e.message:String(e);message(e);} } finally { if(snapshot&&failures.length&&!completed.length)await saveJob('failed',0).catch(()=>{}); if (backtestAbort.current === controller) backtestAbort.current = null; setBusy(""); setRunProgress(""); }
-    return {completed,error:runError,cancelled:controller.signal.aborted};
+    return {completed,error:runError,cancelled:controller.signal.aborted&&(!snapshot||completed.length+failures.length<snapshot.children.length)};
   }
   async function runBatch(plan:BatchPlan,resumeId?:string) {
     if(busy)return;const controller=new AbortController();backtestAbort.current=controller;
@@ -462,15 +464,19 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
           if(plan.datasetId!=='online'&&!stored)throw new Error('Dataset unavailable.');
           const bars=stored?stored.bars.filter(b=>b.time>=settings.start&&b.time<settings.end):await loadOnlineBars(apiFetch,child.symbol,plan.granularity,settings.start,settings.end,controller.signal,(loaded,total)=>setRunPercent((index+Math.min(.7,loaded/Math.max(1,total)*.7))/plan.children.length*100));
           if(bars.length<20)throw new Error('At least 20 development candles are required.');
-          const dataset:Dataset={...(stored||onlineDataset(child.symbol)),bars};const run=await execute(dataset,strategy,settings,plan.strategyId,`${plan.name} · ${child.label}`,controller.signal);
+          setRunPercent((index+.7)/plan.children.length*100);setRunProgress(`${index+1} of ${plan.children.length}: ${child.label} · calculating`);
+          const dataset:Dataset={...(stored||onlineDataset(child.symbol)),bars};const run=await execute(dataset,strategy,settings,plan.strategyId,`${plan.name} · ${child.label}`,controller.signal,fraction=>setRunPercent((index+.7+fraction*.25)/plan.children.length*100));
+          if(controller.signal.aborted)break;
           run.id=runId;run.mode='automatic';run.strategySource=JSON.stringify(strategy);run.granularity=plan.granularity;run.research={...window,phase:'development'};
+          setRunProgress(`${index+1} of ${plan.children.length}: ${child.label} · saving results`);
           if(stored)run.datasetId=stored.id;else{const snapshot={...dataset,id:crypto.randomUUID()};await localStore.putDataset(snapshot);run.priceDatasetId=snapshot.id;}
           await localStore.putRun(run);completed.push(run.id);setRunId(run.id);setRunPercent((index+1)/plan.children.length*100);
         }catch(e){if(controller.signal.aborted)break;failures.push(`${child.label}: ${e instanceof Error?e.message:String(e)}`);}
       }
-      await writeJob(controller.signal.aborted?'cancelled':failures.length?'failed':'completed',completed.length/plan.children.length*100);
+      const cancelled=controller.signal.aborted&&completed.length+failures.length<plan.children.length;
+      await writeJob(cancelled?'cancelled':failures.length?'failed':'completed',completed.length/plan.children.length*100);
       await refresh();setNotice(`${completed.length} batch results saved.${failures.length?` ${failures.length} failed; completed results are preserved.`:''}`);if(failures.length)setError(failures.slice(0,4).join(' · '));
-      setRunState(controller.signal.aborted?'cancelled':failures.length?'error':'success');if(completed.length)setPage('history');
+      setRunState(cancelled?'cancelled':failures.length?'error':'success');if(completed.length)setPage('history');
     }catch(e){await writeJob(controller.signal.aborted?'cancelled':'failed',completed.length/Math.max(1,plan.children.length)*100).catch(()=>{});message(e);setRunState('error');}finally{backtestAbort.current=null;setBusy('');setRunProgress('');}
   }
   async function executeAssistant(action:AssistantAction):Promise<unknown> {

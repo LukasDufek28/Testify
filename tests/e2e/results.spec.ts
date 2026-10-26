@@ -132,6 +132,35 @@ test('failed run returns to configuration and preserves its settings',async({pag
   await page.goto('/#/app/runsettings');await page.getByLabel('Run name',{exact:true}).fill('Preserve my test');await page.route('**/api/candles?**',route=>route.fulfill({status:503,json:{error:'Historical data temporarily unavailable'}}));await page.getByRole('button',{name:'Start backtest',exact:true}).click();await expect(page.locator('.design-error')).toContainText('Historical data temporarily unavailable');await expect(page.getByRole('heading',{name:'Run backtest',exact:true})).toBeVisible();await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Preserve my test');
 });
 
+test('motion run controls keep real progress inline, recover from cancellation and failure, and mark only the new result done',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await openRun(page);await page.getByRole('button',{name:'Use these settings',exact:true}).click();await selectWorkspaceOption(page,'Market / dataset','online');await page.getByLabel('Run name',{exact:true}).fill('Motion progress verification');
+ let mode='waiting',release=()=>{};const waiting=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/api/candles?**',async route=>{
+  if(mode==='waiting')await waiting;
+  try{if(mode==='failure')await route.fulfill({status:503,json:{error:'Temporary verification failure'}});else{const query=new URL(route.request().url()).searchParams;await route.fulfill({json:{bars:bars.filter(bar=>bar.time>=Number(query.get('start'))&&bar.time<=Number(query.get('end')))}});}}catch{/* A cancelled download cannot update the next run. */}
+ });
+ const start=page.getByRole('button',{name:'Start backtest',exact:true});await expect(start).toBeVisible();expect((await start.boundingBox())!.height).toBeLessThanOrEqual(44);
+ await start.click();await expect(start).toBeDisabled();await expect(start).toHaveAttribute('aria-busy','true');
+ const progress=page.getByRole('progressbar',{name:'Backtest processing',exact:true}),panel=page.locator('.design-progress');await expect(progress).toBeVisible();await expect(progress).toHaveAttribute('aria-valuenow','0');await expect(panel).toHaveCSS('position','relative');
+ const box=(await panel.boundingBox())!;expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(390);await expect(panel).toContainText(strategy.name);
+ await page.getByRole('button',{name:'Cancel backtest',exact:true}).click();release();await expect(start).toBeEnabled();await expect(start).toContainText('Cancelled');await expect(progress).toHaveCount(0);await expect(page.getByLabel('Run name',{exact:true})).toHaveValue('Motion progress verification');
+ mode='failure';await start.click();await expect(page.locator('.design-error')).toContainText('Temporary verification failure');await expect(start).toContainText('Failed');await expect(start).toBeEnabled();
+ mode='success';await start.click();await expect(page).toHaveURL(/#\/app\/backtests$/);const result=page.locator('.design-result-context');await expect(result).toContainText('Motion progress verification');await expect(result.locator('[data-run-state=success]')).toContainText('Done');await expect(page.getByRole('heading',{name:'Running backtest',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(3);await openRun(page,'Run A',false);await expect(page.locator('.design-result-context')).toContainText('Saved run');await expect(page.locator('.design-result-context [data-run-state=success]')).toHaveCount(0);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('motion a completed final save remains successful when cancellation arrives during persistence',async({page})=>{
+ await openRun(page);await page.getByRole('button',{name:'Use these settings',exact:true}).click();await page.getByLabel('Run name',{exact:true}).fill('Completed before cancellation');
+ let release=()=>{},started=()=>{};const saving=new Promise<void>(resolve=>{started=resolve;}),gate=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/api/workspace',async route=>{const body=route.request().method()==='POST'?route.request().postDataJSON():null;if(body?.kind==='runs'){started();await gate;}await route.fallback();});
+ try{
+  await page.getByRole('button',{name:'Start backtest',exact:true}).click();await saving;await expect(page.locator('.design-progress')).toContainText('saving results');await page.getByRole('button',{name:'Cancel backtest',exact:true}).click();release();
+  await expect(page).toHaveURL(/#\/app\/backtests$/);await expect(page.locator('.design-result-context [data-run-state=success]')).toContainText('Done');await expect(page.locator('.design-notice')).toContainText('1 backtest saved to History.');await expect(page.locator('.design-notice')).not.toContainText('cancelled');
+  await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(3);
+ }finally{release();}
+});
+
 
 
 test('only the headline balance counts up while secondary saved metrics stay still',async({page})=>{
