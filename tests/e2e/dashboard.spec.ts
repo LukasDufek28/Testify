@@ -132,7 +132,8 @@ test("saved results replace preview metrics and monthly values", async ({
   await expect(page.locator(".design-final-balance")).toContainText("$11,200");
   await expect(page.locator(".design-metric").first()).toContainText("$1,200");
   await expect(page.locator(".design-live-chart")).toBeVisible();
-  await expect(page.locator(".design-monthly")).toContainText("$1,200");
+  const monthly=page.locator('.design-monthly');await expect(monthly.locator('.monthly-summary strong')).toHaveText('$600.00');await expect(monthly.locator('.monthly-summary small')).toHaveText('+6.00%');
+  await monthly.getByRole('button',{name:/^Feb monthly return/}).click();await expect(monthly.getByRole('tooltip')).toContainText('$1,200.00');await expect(monthly.locator('.monthly-summary strong')).toHaveText('$600.00');
 });
 test("assistant launcher respects reduced motion and Escape closes its popup", async ({
   page,

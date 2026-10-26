@@ -107,7 +107,8 @@ test("phone navigation, native chart labels and monthly cards remain usable", as
   const monthly = page.locator('.design-monthly');
   const value = await monthly.locator('.design-monthly-heading strong').textContent();
   await monthly.getByRole('button', { name: 'Jan monthly return' }).click();
-  await expect(monthly.locator('.design-monthly-heading strong')).not.toHaveText(value!);
+  await expect(monthly.locator('.design-monthly-heading strong')).toHaveText(value!);
+  await expect(monthly.getByRole('tooltip')).toContainText('$143.00');
   await expect(monthly.getByRole('button', { name: 'Jan monthly return' })).toHaveAttribute('aria-pressed', 'true');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
@@ -116,17 +117,18 @@ test('compact sidebar omits Settings and Help while run configuration stays reac
   await expect(nav.getByRole('button',{name:'Settings',exact:true})).toHaveCount(0);await expect(nav.getByRole('button',{name:'Help center',exact:true})).toHaveCount(0);
   await nav.getByRole('button',{name:'Run backtest',exact:true}).click();await expect(page.getByRole('heading',{name:'Run backtest',exact:true})).toBeVisible();
 });
-test("monthly mint gradients and separate trade navigation retain the approved design", async ({
+test("monthly signed gradients and separate trade navigation retain the approved design", async ({
   page,
 }) => {
   await page.goto("/");
   const selected = page.getByRole("button", { name: "Apr monthly return" });
-  await expect(selected).toHaveAttribute("aria-pressed", "true");
+  await selected.hover();await expect(selected).toHaveAttribute("aria-pressed", "true");
   const g = await selected
-    .locator("span")
+    .locator(".monthly-bar-fill")
     .evaluate((e) => getComputedStyle(e).backgroundImage);
   expect(g).toContain("145, 245, 171");
   expect(g).toContain("91, 175, 119");
+  const loss=page.getByRole('button',{name:/^Aug monthly return/});expect(await loss.locator('.monthly-bar-fill').evaluate(el=>getComputedStyle(el).backgroundImage)).toContain('230, 154, 154');
   await page.goto("/#/app/trades");
   await expect(page.getByRole('heading',{name:'No trades to review yet',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Next trade',exact:true})).toHaveCount(0);

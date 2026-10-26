@@ -12,4 +12,6 @@
 .design-studio-actions button[aria-busy=true] {cursor:progress;}
 :root .design-studio .design-studio-actions button[aria-busy=true]:disabled {opacity:1;}
 .studio-action-complete .studio-action-symbol {color:#a4dcb4;}
+.studio-editor-loading {display:grid;place-items:center;height:100%;color:#9e9da7;font-size:13px;}
+@media(max-width:560px){.studio-editor-loading{display:none;}}
 @media(max-width:600px){.design-studio .design-studio-actions {width:100%;grid-template-columns:repeat(2,minmax(0,1fr));}:root .design-studio .design-studio-actions .design-button {font-size:13px;}}

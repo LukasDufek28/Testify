@@ -6,6 +6,15 @@ async function editMobileDraft(page:Page,name:string){
  await page.setViewportSize({width:390,height:844});await page.goto('/#/app/studio');const editor=page.locator('.design-mobile-code');await expect(editor).toBeVisible();await expect(page.getByRole('button',{name:'Run',exact:true})).toBeEnabled();await editor.fill(JSON.stringify({...exampleStrategy,name},null,2));return editor;
 }
 
+test('motion mobile strategy editing loads the desktop editor only when needed and preserves the draft across resizing',async({page})=>{
+ const desktopRequests:string[]=[];page.on('request',request=>{if(/DesktopStrategyEditor|\/src\/studioMonaco/.test(request.url()))desktopRequests.push(request.url());});
+ const source=JSON.stringify({...exampleStrategy,name:'Mobile first rules'},null,2),editor=await editMobileDraft(page,'Mobile first rules');
+ await expect(page.locator('.monaco-editor')).toHaveCount(0);expect(desktopRequests).toEqual([]);
+ await page.setViewportSize({width:1280,height:900});await expect(page.locator('.monaco-editor')).toBeVisible({timeout:20000});await expect(page.locator('.view-lines')).toContainText('Mobile first rules');expect(desktopRequests.length).toBeGreaterThan(0);
+ await page.setViewportSize({width:390,height:844});await expect(editor).toBeVisible();await expect(editor).toHaveValue(source);await expect(page.locator('.monaco-editor')).not.toBeVisible();
+ await page.getByRole('button',{name:'Save',exact:true}).click();await expect(page.locator('.studio-save-status')).toContainText('Saved');desktopRequests.length=0;await page.reload();await expect(editor).toHaveValue(source);await expect(page.locator('.monaco-editor')).toHaveCount(0);expect(desktopRequests).toEqual([]);
+});
+
 for(const leave of [false,true])test(`motion save and run ${leave?'respects navigation while saving':'opens setup with the acknowledged strategy and never starts a test automatically'}`,async({page})=>{
  const name='Acknowledged draft',editor=await editMobileDraft(page,name);let release=()=>{},writes=0;const gate=new Promise<void>(resolve=>{release=resolve;});
  await page.route('**/api/strategies',async route=>{if(route.request().method()==='PUT'){writes++;await gate;}await route.fallback();});
