@@ -1,4 +1,20 @@
-import type { EquityPoint, Run } from "./types";
+import type { EquityPoint, EquitySeries, Run } from "./types";
+
+export type CalendarReturn={key:string;year:number;month:number;profit:number;returnPct:number|null};
+// Carry equity through quiet months, but do not treat months outside the saved
+// curve's period as tested zero returns when calculating the monthly average.
+export function calendarMonthlyReturns(series?:Pick<EquitySeries,'curve'|'settings'>):CalendarReturn[]{
+  if(!series||!Number.isFinite(series.settings.capital)||series.settings.capital<=0)return [];
+  const points=series.curve.filter(p=>Number.isFinite(p.time)&&Number.isFinite(p.equity)).sort((a,b)=>a.time-b.time);
+  if(!points.length)return [];
+  const endings=new Map<number,number>();
+  for(const point of points){const date=new Date(point.time*1000);if(!Number.isFinite(date.getTime()))continue;endings.set(date.getUTCFullYear()*12+date.getUTCMonth(),point.equity);}
+  if(!endings.size)return [];
+  const keys=[...endings.keys()],first=keys[0],last=keys.at(-1)!;let previous=series.settings.capital;
+  return Array.from({length:last-first+1},(_,i)=>{const index=first+i,year=Math.floor(index/12),month=index%12,end=endings.get(index)??previous,profit=end-previous;
+    const result={key:`${year}-${String(month+1).padStart(2,'0')}`,year,month,profit:Math.abs(profit)<1e-8?0:profit,returnPct:previous>0?(end/previous-1)*100:null};previous=end;return result;
+  });
+}
 
 export type CombinedPortfolio = { curve: EquityPoint[]; returnPct: number; maxDrawdownPct: number; capital: number };
 

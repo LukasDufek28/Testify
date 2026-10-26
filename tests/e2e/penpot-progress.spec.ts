@@ -82,7 +82,8 @@ test("backtest progress advances with loaded candles, estimates remaining time a
   await expect(
     page.locator(".design-backtest-overview"),
   ).toBeVisible({ timeout: 20000 });
-  await expect(page.getByRole('status').filter({hasText:'1 backtest saved'})).toBeVisible();
+  await expect(page.locator('.design-result-context [data-run-state=success]')).toContainText('Done');
+  await expect(page.getByRole('status').filter({hasText:'backtest saved'})).toHaveCount(0);
   await page.reload();
   await expect(
     page.locator(".design-backtest-overview"),

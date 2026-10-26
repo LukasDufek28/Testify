@@ -124,7 +124,7 @@ test('cancelled online backtest preserves settings and saves no partial run',asy
 
 
 test('online run stores original candles for offline trade inspection after reload',async({page})=>{
- await openRun(page);await page.getByRole('button',{name:'Use these settings',exact:true}).click();await selectWorkspaceOption(page,"Market / dataset",'online');await page.route('**/api/candles?**',route=>{const q=new URL(route.request().url()).searchParams;return route.fulfill({json:{bars:bars.filter(bar=>bar.time>=Number(q.get('start'))&&bar.time<=Number(q.get('end')))}});});await page.getByRole('button',{name:'Start backtest',exact:true}).click();await expect(page.locator('.design-notice')).toContainText('1 backtest saved');await expect(page).toHaveURL(/#\/app\/backtests$/);await page.route('**/api/candles?**',r=>r.abort());await page.reload();await clickWorkspaceButton(page,'Trades & chart');await expect(page.locator('[data-marker="entry"]')).toBeVisible();await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(3);
+ await openRun(page);await page.getByRole('button',{name:'Use these settings',exact:true}).click();await selectWorkspaceOption(page,"Market / dataset",'online');await page.route('**/api/candles?**',route=>{const q=new URL(route.request().url()).searchParams;return route.fulfill({json:{bars:bars.filter(bar=>bar.time>=Number(q.get('start'))&&bar.time<=Number(q.get('end')))}});});await page.getByRole('button',{name:'Start backtest',exact:true}).click();await expect(page).toHaveURL(/#\/app\/backtests$/);await expect(page.locator('.design-result-context [data-run-state=success]')).toContainText('Done');await expect(page.locator('.design-notice')).toHaveCount(0);await page.route('**/api/candles?**',r=>r.abort());await page.reload();await clickWorkspaceButton(page,'Trades & chart');await expect(page.locator('[data-marker="entry"]')).toBeVisible();await expect(page.locator('.design-notice')).toHaveCount(0);await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(3);
 });
 
 
@@ -156,7 +156,7 @@ test('motion a completed final save remains successful when cancellation arrives
  await page.route('**/api/workspace',async route=>{const body=route.request().method()==='POST'?route.request().postDataJSON():null;if(body?.kind==='runs'){started();await gate;}await route.fallback();});
  try{
   await page.getByRole('button',{name:'Start backtest',exact:true}).click();await saving;await expect(page.locator('.design-progress')).toContainText('saving results');await page.getByRole('button',{name:'Cancel backtest',exact:true}).click();release();
-  await expect(page).toHaveURL(/#\/app\/backtests$/);await expect(page.locator('.design-result-context [data-run-state=success]')).toContainText('Done');await expect(page.locator('.design-notice')).toContainText('1 backtest saved to History.');await expect(page.locator('.design-notice')).not.toContainText('cancelled');
+  await expect(page).toHaveURL(/#\/app\/backtests$/);await expect(page.locator('.design-result-context [data-run-state=success]')).toContainText('Done');await expect(page.locator('.design-notice')).toHaveCount(0);
   await page.getByRole('button',{name:'Saved backtests',exact:true}).click();await expect(page.locator('.history-table tbody tr')).toHaveCount(3);
  }finally{release();}
 });
@@ -195,20 +195,44 @@ test('long monthly histories fill each row and keep positive and zero returns wh
 });
 
 
-test('short monthly histories use centered columns instead of stretching across the dashboard card',async({page})=>{
+async function dashboardMonthlyCurve(page:any,curve:{time:number;equity:number}[]){
+ await page.evaluate(async({a,b,curve}:any)=>new Promise<void>((resolve,reject)=>{const request=indexedDB.open('testify-user-e2e-user',1);request.onsuccess=()=>{const db=request.result,tx=db.transaction('runs','readwrite');tx.objectStore('runs').put({...a,curve});tx.objectStore('runs').put({...b,curve:curve.map((point:any)=>({...point,equity:b.settings.capital}))});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};request.onerror=()=>reject(request.error);}),{a,b,curve});await page.goto('/#/app/overview');await page.reload();
+}
+
+test('motion monthly calendar keeps signed bars and exact hover results separate from the average',async({page})=>{
+ await dashboardMonthlyCurve(page,[{time:Date.UTC(2026,7,15)/1000,equity:9900},{time:Date.UTC(2026,8,15)/1000,equity:10200},{time:Date.UTC(2026,9,15)/1000,equity:9919}]);
+ const card=page.locator('.design-monthly'),row=card.locator('.design-monthly-bars');await expect(row.getByRole('button')).toHaveCount(12);await card.scrollIntoViewIfNeeded();await expect(card).toHaveCSS('opacity','1');await expect(card).toHaveClass(/loss-glow/);await expect(card).not.toHaveClass(/profit-glow/);await expect(card.locator('.monthly-summary strong')).toHaveText('−$27.00');await expect(card.locator('.monthly-summary small')).toHaveText('−0.09%');
+ const gain=row.getByRole('button',{name:/^Sep monthly return/}),loss=row.getByRole('button',{name:/^Oct monthly return/}),zero=row.getByRole('button',{name:/^Dec monthly return/});
+ expect(await gain.locator('.monthly-bar-fill').evaluate(el=>getComputedStyle(el).backgroundImage)).toContain('145, 245, 171');expect(await loss.locator('.monthly-bar-fill').evaluate(el=>getComputedStyle(el).backgroundImage)).toContain('230, 154, 154');await expect(zero).toHaveAttribute('data-return','zero');
+ await gain.hover();await expect(card.getByRole('tooltip')).toContainText('$300.00');await expect.poll(()=>gain.locator('.monthly-bar-fill').evaluate(el=>new DOMMatrix(getComputedStyle(el).transform).a)).toBeGreaterThan(1.02);await expect(card.locator('.monthly-summary strong')).toHaveText('−$27.00');
+ await loss.focus();await expect(card.getByRole('tooltip')).toContainText('−$281.00');await expect(card.getByRole('tooltip')).toContainText('−0.93%');
+ const touch=await page.evaluate(()=>navigator.maxTouchPoints>0);
+ for(const width of [320,390,1440,2560]){await page.setViewportSize({width,height:1000});if(touch)await zero.tap();else await zero.click();await expect(card.getByRole('tooltip')).toContainText('$0.00');const box=(await card.getByRole('tooltip').boundingBox())!;expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width);expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);}
+});
+
+test('motion monthly calendar separates years and keeps the portfolio average unchanged when browsing',async({page})=>{
+ await reduceTestMotion(page);await dashboardMonthlyCurve(page,[{time:Date.UTC(2025,11,31,23)/1000,equity:9900},{time:Date.UTC(2026,2,1)/1000,equity:10100}]);const card=page.locator('.design-monthly');
+ await expect(card.locator('.monthly-year')).toContainText('2026');await expect(card.locator('.monthly-summary strong')).toHaveText('$25.00');await expect(card).toHaveClass(/profit-glow/);await expect(card.getByRole('button',{name:/^Mar monthly return/})).toHaveAttribute('data-return','gain');
+ await card.getByRole('button',{name:'Previous monthly returns year',exact:true}).click();await expect(card.locator('.monthly-year')).toContainText('2025');await expect(card.getByRole('button',{name:/^Dec monthly return/})).toHaveAttribute('data-return','loss');await expect(card.getByRole('button',{name:/^Mar monthly return/})).toHaveAttribute('data-return','zero');await expect(card.locator('.monthly-summary strong')).toHaveText('$25.00');await expect(card.getByRole('button',{name:'Previous monthly returns year',exact:true})).toBeDisabled();
+ await card.getByRole('button',{name:'Next monthly returns year',exact:true}).click();await expect(card.locator('.monthly-year')).toContainText('2026');await expect(card.getByRole('button',{name:'Next monthly returns year',exact:true})).toBeDisabled();
+});
+
+test('short monthly histories show all twelve months with tiny neutral zero columns',async({page})=>{
  await reduceTestMotion(page);
  for(const count of [1,2,3,7]){
   const curve=Array.from({length:count},(_,i)=>({time:Date.UTC(2025,i,15)/1000,equity:10000+(i+1)*100}));
   await page.evaluate(async run=>{await new Promise<void>((resolve,reject)=>{const req=indexedDB.open('testify-user-e2e-user',1);req.onsuccess=()=>{const db=req.result,tx=db.transaction('runs','readwrite');tx.objectStore('runs').put(run);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});},{...b,curve});
   await page.goto('/#/app/overview');await page.reload();
   const row=page.locator('.design-monthly-bars');
-  await expect(row.getByRole('button')).toHaveCount(count);
-  for(const width of [390,1440,2560]){
+  await expect(row.getByRole('button')).toHaveCount(12);
+  await expect(row.locator('button[data-return=zero]')).toHaveCount(12-count);
+  for(const width of [320,390,1440,2560]){
    await page.setViewportSize({width,height:1000});
    const geometry=await row.evaluate(el=>{const parent=el.getBoundingClientRect(),bars=[...el.children].map(child=>child.getBoundingClientRect());return {parentWidth:parent.width,parentCenter:parent.x+parent.width/2,left:bars[0].left,right:bars.at(-1)!.right,widths:bars.map(box=>box.width)};});
    expect(Math.abs((geometry.left+geometry.right)/2-geometry.parentCenter)).toBeLessThan(1);
    expect(Math.max(...geometry.widths)).toBeLessThan(100);
-   if(count===1)expect(geometry.right-geometry.left).toBeLessThan(geometry.parentWidth/2);
+   expect(geometry.right-geometry.left).toBeCloseTo(geometry.parentWidth,0);
+   expect(await row.locator('button[data-return=zero] .monthly-bar-enter').first().evaluate(el=>el.getBoundingClientRect().height)).toBeLessThanOrEqual(4);
   }
  }
 });

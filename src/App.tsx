@@ -462,12 +462,12 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
       if (completed.length) {
         setRunId(completed[completed.length - 1].id);
         setPage(chosen.length > 1 ? "history" : "results");
-        setNotice(`${completed.length} backtest${completed.length === 1 ? "" : "s"} saved to History.${cancelled ? " Remaining markets cancelled." : failures.length ? ` ${failures.length} failed.` : ""}`);
+        setNotice(cancelled?"Remaining markets cancelled.":"");
       }
       if (controller.signal.aborted && !completed.length) setNotice("Backtest cancelled.");
       if (failures.length) {runError=failures.slice(0,5).join(' · ');setError(runError);}
       setRunState(cancelled ? 'cancelled' : failures.length ? 'error' : completed.length ? 'success' : 'error');
-    } catch (e) { if(snapshot)await saveJob(controller.signal.aborted?'cancelled':'failed',completed.length/snapshot.children.length*100).catch(()=>{}); setRunState(controller.signal.aborted ? 'cancelled' : 'error'); if (controller.signal.aborted) setNotice(completed.length ? `${completed.length} completed backtest${completed.length === 1 ? "" : "s"} saved. Remaining markets cancelled.` : "Backtest cancelled."); else {runError=e instanceof Error?e.message:String(e);message(e);} } finally { if(snapshot&&failures.length&&!completed.length)await saveJob('failed',0).catch(()=>{}); if (backtestAbort.current === controller) backtestAbort.current = null; setBusy(""); setRunProgress(""); }
+    } catch (e) { if(snapshot)await saveJob(controller.signal.aborted?'cancelled':'failed',completed.length/snapshot.children.length*100).catch(()=>{}); setRunState(controller.signal.aborted ? 'cancelled' : 'error'); if (controller.signal.aborted) setNotice(completed.length ? "Remaining markets cancelled." : "Backtest cancelled."); else {runError=e instanceof Error?e.message:String(e);message(e);} } finally { if(snapshot&&failures.length&&!completed.length)await saveJob('failed',0).catch(()=>{}); if (backtestAbort.current === controller) backtestAbort.current = null; setBusy(""); setRunProgress(""); }
     return {completed,error:runError,cancelled:controller.signal.aborted&&(!snapshot||completed.length+failures.length<snapshot.children.length)};
   }
   async function runBatch(plan:BatchPlan,resumeId?:string) {

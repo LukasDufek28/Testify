@@ -1,9 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowDownRight,
   ArrowLeftRight,
   ArrowUpRight,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   ChartNoAxesCombined,
   FileChartColumn,
   Layers,
@@ -19,8 +21,11 @@ import ResponsiveEquity from "./ResponsiveEquity";
 import AnimatedValue from './AnimatedValue';
 import useCardTilt from './useCardTilt';
 import { motion, type HTMLMotionProps } from "motion/react";
+import {calendarMonthlyReturns} from './portfolio';
+import {quickFade,surfaceSpring} from './motion-tokens';
 import useReducedMotion from './useReducedMotionPreference';
 import "./penpot.css";
+import './monthly-returns.css';
 
 export const designIcons = {
   profit: Wallet,
@@ -141,7 +146,7 @@ const months = [
   "Nov",
   "Dec",
 ];
-const sampleHeights = [0.253, 0.458, 0.687, 1, 0.675, 0.482, 0.723];
+const sampleProfits = [143,258,387,564,381,272,408,-120,180,320,-95,260];
 export function DesignMonthly({
   run,
   example = false,
@@ -151,81 +156,43 @@ export function DesignMonthly({
   example?: boolean;
   className?: string;
 }) {
-  const [selected, setSelected] = useState(3);
-  const reducedMotion = useReducedMotion();
-  const history = new Map<
-    string,
-    { label: string; start: number; end: number }
-  >();
-  let previous = run?.settings.capital || 0;
-  for (const point of run?.curve || []) {
-    const date = new Date(point.time * 1000);
-    const key = date.toISOString().slice(0, 7);
-    const item = history.get(key);
-    if (item) item.end = point.equity;
-    else
-      history.set(key, {
-        label: months[date.getUTCMonth()],
-        start: previous,
-        end: point.equity,
-      });
-    previous = point.equity;
-  }
-  const returns = [...history.values()].slice(-7);
-  const active = returns[Math.min(selected, returns.length - 1)];
-  const max = Math.max(1, ...returns.map((r) => Math.abs(r.end - r.start)));
-  const bars = run
-    ? returns.map((r) => ({
-        label: r.label,
-        height: Math.abs(r.end - r.start) / max,
-        negative: r.end < r.start,
-      }))
-    : example ? sampleHeights.map((height, index) => ({
-        label: months[index],
-        height,
-        negative: false,
-      })) : [];
+  const [chosenYear,setYear]=useState<number|null>(null),[active,setActive]=useState<number|null>(null);
+  const tooltipId=useId(),reducedMotion=useReducedMotion();
+  const returns=useMemo(()=>run?calendarMonthlyReturns(run):example?sampleProfits.map((profit,month)=>({key:`example-${month}`,year:2026,month,profit,returnPct:profit/100})):[],[run?.curve,run?.settings.capital,example]);
+  const years=[...new Set(returns.map(item=>item.year))],year=chosenYear!==null&&years.includes(chosenYear)?chosenYear:years.at(-1),yearIndex=years.indexOf(year!);
+  const average=returns.length?returns.reduce((sum,item)=>sum+item.profit,0)/returns.length:null;
+  const percentages=returns.filter(item=>item.returnPct!==null),averagePct=percentages.length?percentages.reduce((sum,item)=>sum+item.returnPct!,0)/percentages.length:null;
+  const bars=returns.length?months.map((label,month)=>({label,...(returns.find(item=>item.year===year&&item.month===month)??{key:`${year}-${month}`,year:year!,profit:0,returnPct:0})})):[];
+  const max=Math.max(Number.EPSILON,...bars.map(item=>Math.abs(item.profit)));
+  const money=(value:number,digits=2)=>(value<0?'−':'')+'$'+Math.abs(value).toLocaleString('en-US',{minimumFractionDigits:digits,maximumFractionDigits:digits});
+  const percent=(value:number|null)=>value===null?'—':(value>0?'+':value<0?'−':'')+Math.abs(value).toFixed(2)+'%';
+  const changeYear=(index:number)=>{setYear(years[index]);setActive(null);};
   return (
-    <DesignCard className={"design-monthly profit-glow " + className}>
+    <DesignCard className={`design-monthly design-monthly-calendar ${average===null||Math.abs(average)<1e-8?'':average<0?'loss-glow':'profit-glow'} ${className}`}>
       <div className="design-monthly-heading">
-        <CardTitle icon={designIcons.monthly}>Monthly returns</CardTitle>
-        <div>
-          <strong>
-            {run
-              ? active
-                ? (active.end - active.start < 0 ? "−" : "") +
-                  "$" +
-                  Math.abs(active.end - active.start).toLocaleString("en-US", {
-                    maximumFractionDigits: 0,
-                  })
-                : "—"
-              : example ? "$" + Math.round(564 * sampleHeights[selected]) : "—"}
-          </strong>
-          <small>
-            {run
-              ? active
-                ? (active.end - active.start >= 0 ? "+" : "") +
-                  ((active.end / active.start - 1) * 100).toFixed(1) +
-                  "%"
-                : "No curve data"
-              : example ? "+" + (8.4 * sampleHeights[selected]).toFixed(1) + "%" : "No saved returns"}
-          </small>
+        <div className="monthly-title"><CardTitle icon={designIcons.monthly}>Monthly returns</CardTitle>
+         {year!==undefined&&<div className="monthly-year">{years.length>1&&<button type="button" aria-label="Previous monthly returns year" disabled={yearIndex===0} onClick={()=>changeYear(yearIndex-1)}><ChevronLeft size={13}/></button>}<span>{example&&!run?'Illustrative year':year}</span>{years.length>1&&<button type="button" aria-label="Next monthly returns year" disabled={yearIndex===years.length-1} onClick={()=>changeYear(yearIndex+1)}><ChevronRight size={13}/></button>}</div>}
+        </div>
+        <div className="monthly-summary" title={returns.length?`Average across ${returns.length} month${returns.length===1?'':'s'} in the recorded portfolio period. Months outside this period are excluded.`:undefined}>
+          <span className="monthly-average-label">Average / month</span>
+          <strong>{average===null?'—':money(average)}</strong>
+          <small>{average===null?'No saved returns':percent(averagePct)}</small>
         </div>
       </div>
       {!bars.length && <div className="design-empty-chart"><CalendarDays size={26} strokeWidth={1.3}/><p>Your monthly returns will appear after your first backtest.</p></div>}
-      {!!bars.length && <div className="design-monthly-bars">
-        {bars.map(({ height, label, negative }, index) => (
+      {!!bars.length && <div className="design-monthly-bars is-calendar" onPointerLeave={()=>setActive(null)}>
+        {bars.map(({key,label,profit,returnPct}, index) => (
           <button
-            key={(run?.id || 'preview') + label + index}
-            aria-label={label + " monthly return"}
-            aria-pressed={Math.min(selected, bars.length - 1) === index}
-            onClick={() => setSelected(index)}
-            onPointerEnter={() => setSelected(index)}
-            onFocus={() => setSelected(index)}
-            className={negative ? "negative" : ""}
+            type="button" key={(run?.id || 'preview')+key}
+            aria-label={`${label} monthly return: ${money(profit)}, ${percent(returnPct)}`}
+            aria-describedby={active===index?tooltipId:undefined}
+            aria-pressed={active===index}
+            onClick={event=>{event.currentTarget.focus();setActive(index);}} onPointerEnter={()=>setActive(index)} onFocus={()=>setActive(index)} onBlur={()=>setActive(null)}
+            data-return={profit<0?'loss':profit>0?'gain':'zero'}
           >
-            <motion.span style={{height:Math.max(3,height*100)+'%',transformOrigin:'50% 100%'}} initial={reducedMotion?false:{scaleY:0}} animate={{height:Math.max(3,height*100)+'%',...(reducedMotion?{scaleY:1}:{})}} whileInView={{scaleY:1}} viewport={{once:true}} transition={{duration:reducedMotion?0:.4,delay:reducedMotion?0:index*.035,ease:[.22,1,.36,1]}} />
+            <motion.span className="monthly-bar-enter" style={{height:Math.max(3,Math.abs(profit)/max*100)+'%',transformOrigin:'50% 100%'}} initial={reducedMotion?false:{scaleY:0}} whileInView={{scaleY:1}} viewport={{once:true}} transition={{duration:reducedMotion?0:.4,delay:reducedMotion?0:index*.025,ease:[.22,1,.36,1]}}><motion.span className="monthly-bar-fill" animate={{scale:!reducedMotion&&active===index?1.07:1}} transition={reducedMotion?{duration:0}:surfaceSpring}/></motion.span>
             <small>{label}</small>
+            {active===index&&<motion.span id={tooltipId} role="tooltip" className={`monthly-tooltip ${index<3?'at-start':index>8?'at-end':''}`} style={{bottom:`calc(${Math.max(3,Math.abs(profit)/max*100)}% + 8px)`}} initial={reducedMotion?false:{opacity:0,y:4}} animate={{opacity:1,y:0}} transition={reducedMotion?{duration:0}:quickFade}><span>{label} {example&&!run?'':year}</span><strong>{money(profit)}</strong><span>{percent(returnPct)}{profit===0?' · No recorded change':''}</span></motion.span>}
           </button>
         ))}
       </div>}
