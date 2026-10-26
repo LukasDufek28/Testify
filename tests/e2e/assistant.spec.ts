@@ -1,4 +1,4 @@
-import {test,expect,clickWorkspaceButton,selectWorkspaceOption} from './fixtures';
+import {test,expect,clickWorkspaceButton,selectWorkspaceOption,reduceTestMotion} from './fixtures';
 import {exampleStrategy} from '../../src/types';
 
 test.describe('assistant CSV dates in the workspace timezone',()=>{
@@ -149,6 +149,9 @@ test('retry resumes completed actions and follow-ups retain their results withou
 });
 
 test('Stop ends a waiting reply and leaves the assistant usable for the next message',async({page})=>{
+ // Test transport cancellation without racing the dock's opening transition.
+ // Full-motion pointer interaction is covered by motion-quality and action-stop tests.
+ await reduceTestMotion(page);
  let requests=0;let release:()=>void=()=>{};const waiting=new Promise<void>(resolve=>{release=resolve;});
  await page.route('**/api/assistant',async r=>{requests++;if(requests===1){await waiting;await r.fulfill({json:{answer:'This cancelled answer must stay hidden.',actions:[],messages:[]}}).catch(()=>{});}else await r.fulfill({json:{answer:'Ready for the next question.',actions:[],messages:[]}});});
  await page.goto('/#/app/overview');await clickWorkspaceButton(page,'Open AI assistant');const chat=page.getByRole('dialog',{name:'AI assistant'});
