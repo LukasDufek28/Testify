@@ -1,0 +1,15 @@
+.studio-file-meta {display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;}
+.design-studio-toolbar .studio-file-meta small {display:inline;margin:0;font-size:12px;}
+.studio-save-status {display:inline-flex;align-items:center;gap:5px;min-height:22px;padding:2px 8px;border:1px solid #ffffff0b;border-radius:999px;font-size:11px;line-height:16px;color:#b4aec3;overflow:hidden;}
+.studio-save-status[data-state=saved] {color:#a4dcb4;}
+.studio-save-status[data-state=valid] {color:#cbc0ee;}
+.studio-status-mark {display:grid;place-items:center;width:12px;height:12px;flex:none;}
+.studio-status-mark i {width:4px;height:4px;border-radius:50%;background:currentColor;}
+.design-studio .design-studio-actions {display:grid;grid-template-columns:repeat(4,minmax(0,126px));gap:10px;max-width:100%;}
+:root .design-studio .design-studio-actions .design-button {width:100%;min-width:0;padding:9px 12px;gap:6px;white-space:nowrap;translate:none;}
+:root .design-studio .design-studio-actions .studio-action-complete:disabled {opacity:.85;cursor:default;}
+.studio-action-symbol,.studio-action-symbol>span {display:grid;place-items:center;width:16px;height:16px;flex:none;position:relative;}
+.design-studio-actions button[aria-busy=true] {cursor:progress;}
+:root .design-studio .design-studio-actions button[aria-busy=true]:disabled {opacity:1;}
+.studio-action-complete .studio-action-symbol {color:#a4dcb4;}
+@media(max-width:600px){.design-studio .design-studio-actions {width:100%;grid-template-columns:repeat(2,minmax(0,1fr));}:root .design-studio .design-studio-actions .design-button {font-size:13px;}}

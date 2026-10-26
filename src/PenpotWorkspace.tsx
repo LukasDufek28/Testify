@@ -75,6 +75,7 @@ type Props = {
   onRun: () => void;
   onCancel: () => void;
   running: boolean;
+  working: boolean;
   runState: RunState;
   progress: number;
   progressText: string;
@@ -455,7 +456,7 @@ function Library({ p,search,setSearch }: { p: Props;search:string;setSearch:(val
                       </details>
                       <button
                         className="design-button secondary"
-                        onClick={() => p.onOpen(s.id)}
+                        disabled={p.working} onClick={() => p.onOpen(s.id)}
                       >
                         Open
                       </button>
@@ -495,10 +496,10 @@ function Library({ p,search,setSearch }: { p: Props;search:string;setSearch:(val
           )}
           <button
             className="design-button"
-            disabled={!p.strategies.length}
-            onClick={() => p.navigate("runsettings")}
+            disabled={p.working||!p.strategies.length}
+            onClick={() => {if(selected.length===1)p.update('strategyId',selected[0]);p.navigate("runsettings");}}
           >
-            Run backtest
+            {selected.length===1?'Backtest selected':'Run backtest'}
           </button>
           <button
             className="design-button secondary"
@@ -1202,7 +1203,7 @@ export default function PenpotWorkspace(p: Props) {
           <p>{subtitle}</p>
           {p.page==='backtests'&&run&&<div className="design-result-context"><span>{run.id===latestRun?.id?'Latest run':'Saved run'} · {run.name}</span>{p.runState==='success'&&run.id===latestRun?.id&&<RunStatusBadge state="success"/>}{run.id!==latestRun?.id&&latestRun&&<button className="design-button secondary" onClick={()=>nav('backtests')}>Latest: {latestRun.name}</button>}</div>}
           {p.page === "runsettings" && <BacktestRunButton state={p.running?'processing':p.runState} progress={p.progress} disabled={p.running || !p.options.strategyId || !p.options.markets.length} onRun={p.onRun}/>}
-          {p.page === "studio" && <button className="design-button" onClick={p.onCreate}>New strategy</button>}
+          {p.page === "studio" && <button className="design-button" disabled={p.working} onClick={p.onCreate}>New strategy</button>}
         </div>
         {['runsettings','trades'].includes(p.page)&&<div className="design-history-link"><button className="design-button secondary" onClick={()=>nav('history')}><History size={16}/>Saved backtests</button></div>}
         {p.error && (

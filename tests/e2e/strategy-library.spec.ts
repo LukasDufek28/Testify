@@ -7,6 +7,11 @@ import {
 } from "../../src/strategyLibrary";
 import type { Run } from "../../src/types";
 
+test('motion backtesting one selected library strategy opens that strategy without creating a run',async({page})=>{
+ await page.goto('/#/app/strategies');await page.getByLabel('Import strategy JSON file').setInputFiles({name:'selected-rules.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify([{...exampleStrategy,name:'First rules'},{...exampleStrategy,name:'Selected rules'}]))});await expect(page.locator('.strategy-card')).toHaveCount(2);
+ await page.getByRole('checkbox',{name:'Select Selected rules',exact:true}).check();await page.getByRole('button',{name:'Backtest selected',exact:true}).click();await expect(page).toHaveURL(/#\/app\/runsettings$/);await expect(page.getByRole('combobox',{name:'Strategy',exact:true})).toContainText('Selected rules');await clickWorkspaceButton(page,'Strategies');await expect(page.locator('.strategy-card').filter({hasText:'Selected rules'})).toContainText('Not tested');
+});
+
 async function importJson(page: Page, value: unknown) {
   await page
     .getByLabel("Import strategy JSON file")

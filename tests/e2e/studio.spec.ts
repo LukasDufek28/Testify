@@ -1,6 +1,41 @@
-import {test,expect} from './fixtures';
+import {test,expect,clickWorkspaceButton,type Page} from './fixtures';
 import {exampleStrategy} from '../../src/types';
 test.beforeEach(async({page})=>{await page.route('**/api/markets',r=>r.fulfill({json:{markets:[]}}));});
+
+async function editMobileDraft(page:Page,name:string){
+ await page.setViewportSize({width:390,height:844});await page.goto('/#/app/studio');const editor=page.locator('.design-mobile-code');await expect(editor).toBeVisible();await expect(page.getByRole('button',{name:'Run',exact:true})).toBeEnabled();await editor.fill(JSON.stringify({...exampleStrategy,name},null,2));return editor;
+}
+
+for(const leave of [false,true])test(`motion save and run ${leave?'respects navigation while saving':'opens setup with the acknowledged strategy and never starts a test automatically'}`,async({page})=>{
+ const name='Acknowledged draft',editor=await editMobileDraft(page,name);let release=()=>{},writes=0;const gate=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/api/strategies',async route=>{if(route.request().method()==='PUT'){writes++;await gate;}await route.fallback();});
+ try{
+  const run=page.getByRole('button',{name:'Run',exact:true});await expect(run).toHaveText('Save & run');await run.click();await expect(run).toHaveAttribute('aria-busy','true');await expect(editor).toHaveJSProperty('readOnly',true);await expect(page.getByRole('button',{name:'New strategy',exact:true})).toBeDisabled();await expect(page.locator('.studio-save-status')).toContainText('Saving');await expect.poll(()=>writes).toBe(1);
+  if(leave)await clickWorkspaceButton(page,'Data');release();
+  if(leave){await expect(page.getByRole('status').filter({hasText:'Saved '+name})).toBeVisible();await expect(page).toHaveURL(/#\/app\/data$/);}else{await expect(page).toHaveURL(/#\/app\/runsettings$/);await expect(page.getByRole('combobox',{name:'Strategy',exact:true})).toContainText(name);}
+  await clickWorkspaceButton(page,'Strategies');const card=page.locator('.strategy-card').filter({hasText:name});await expect(card).toContainText('Not tested');await expect.poll(()=>writes).toBe(1);await page.reload();await expect(page.locator('.strategy-card')).toHaveCount(1);await expect(card).toContainText('Not tested');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ }finally{release();}
+});
+
+test('motion editor keyboard save uses the latest rules once and keeps one saved strategy across revisions',async({page})=>{
+ const editor=await editMobileDraft(page,'Keyboard first');let release=()=>{};const gate=new Promise<void>(resolve=>{release=resolve;}),writes:any[]=[];
+ await page.route('**/api/strategies',async route=>{if(route.request().method()==='PUT'){writes.push(route.request().postDataJSON());if(writes.length===1)await gate;}await route.fallback();});
+ try{
+  await editor.press('Control+s');await expect(page.getByRole('button',{name:'Save',exact:true})).toHaveAttribute('aria-busy','true');await editor.press('Control+s');await expect.poll(()=>writes.length).toBe(1);release();await expect(page.locator('.studio-save-status')).toContainText('Saved');await expect(page.getByRole('button',{name:'Save',exact:true})).toBeDisabled();
+  await editor.fill(JSON.stringify({...exampleStrategy,name:'Keyboard latest'},null,2));await expect(page.locator('.studio-save-status')).toContainText('Unsaved changes');await editor.press('Control+s');await expect(page.locator('.studio-save-status')).toContainText('Saved · v2');expect(writes).toHaveLength(2);expect(JSON.parse(writes[1].source).name).toBe('Keyboard latest');expect(writes[0].id).toBe(writes[1].id);
+  await page.reload();await expect(editor).toHaveValue(/Keyboard latest/);await expect(page.locator('.studio-save-status')).toContainText('Saved · v2');
+ }finally{release();}
+});
+
+test('motion a failed save keeps the AI proposal available for review and retry',async({page})=>{
+ await editMobileDraft(page,'Before proposal');let calls=0,fail=true;
+ await page.route('**/api/assistant',route=>{calls++;const input={instructions:'Create a draft',save:false};return route.fulfill({json:calls===1?{answer:'',actions:[{id:'proposed',name:'create_strategy',input}],messages:[{role:'assistant',content:[{type:'tool-call',toolCallId:'proposed',toolName:'create_strategy',input}]}]}:{answer:'The draft is ready.',actions:[]}});});
+ await page.route('**/api/generate-strategy',route=>route.fulfill({json:{strategy:{...exampleStrategy,name:'Recoverable proposal'},model:'test'}}));
+ await page.route('**/api/strategies',route=>route.request().method()==='PUT'&&fail?route.fulfill({status:503,json:{error:'Save temporarily unavailable'}}):route.fallback());
+ await page.getByRole('button',{name:'Ask assistant',exact:true}).click();const chat=page.getByRole('dialog',{name:'AI assistant'});await chat.getByLabel('Message AI assistant').fill('Draft my next strategy');await chat.getByRole('button',{name:'Send assistant message'}).click();await expect(chat.getByRole('article',{name:'Assistant response'})).toContainText('The draft is ready.');await chat.getByRole('button',{name:'Close assistant'}).click();await expect(chat).toHaveCount(0);
+ const proposal=page.locator('.strategy-diff');await expect(proposal).toContainText('Recoverable proposal');await page.getByRole('button',{name:'Save',exact:true}).click();await expect(page.locator('.design-error')).toContainText('Save temporarily unavailable');await expect(proposal).toBeVisible();await expect(page.locator('.design-mobile-code')).toHaveValue(/Recoverable proposal/);
+ fail=false;await page.getByRole('button',{name:'Save',exact:true}).click();await expect(page.locator('.studio-save-status')).toContainText('Saved');await expect(proposal).toHaveCount(0);await page.reload();await expect(page.locator('.design-mobile-code')).toHaveValue(/Recoverable proposal/);await expect(page.locator('.design-studio-toolbar h2')).toHaveText('Recoverable proposal');
+});
 test('approved studio stays fluid, uses matching tabs and scrolls without crashes',async({page},testInfo)=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/#/app/studio');
  await expect(page.getByRole('heading',{name:'Strategy creation',exact:true})).toBeVisible();

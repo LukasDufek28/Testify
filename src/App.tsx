@@ -206,6 +206,10 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   const [runState, setRunState] = useState<RunState>('idle');
   const backtestAbort = useRef<AbortController | null>(null);
   const [busy, setBusy] = useState("");
+  const savingStrategy=useRef(false),draftSession=useRef(0);
+  const [validatedSource,setValidatedSource]=useState<string|null>(null);
+  const studioState=useRef({source,strategyId,editingRevision,page,busy});
+  studioState.current={source,strategyId,editingRevision,page,busy};
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const selectedDataset = datasets.find((d) => d.id === datasetId);
@@ -328,23 +332,46 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     } catch (e) { message(e); } finally { setBusy(""); }
   }
   async function validateDraft() {
-    if (busy) return;
-    setBusy("strategy-validate"); setError("");
+    if (studioState.current.busy||savingStrategy.current) return false;
+    const input=studioState.current.source,session=draftSession.current;
+    setBusy("strategy-validate"); setError("");setNotice("");
     try {
-      const strategy = parseStrategy(source);
+      const strategy = parseStrategy(input);
       if (strategy.version === 3) await new Promise<void>((resolve, reject) => {
         const worker = new Worker(new URL("./engine.worker.ts", import.meta.url), { type: "module" });
         worker.onmessage = (event) => { worker.terminate(); event.data.ok ? resolve() : reject(new Error(event.data.error)); };
         worker.onerror = (event) => { worker.terminate(); reject(new Error(event.message)); };
         worker.postMessage({ action: "validate", strategy });
       });
+      if(studioState.current.source!==input||draftSession.current!==session)return false;
+      setValidatedSource(input);
       setNotice(strategy.version === 3 ? "Custom strategy passed syntax and synthetic execution checks. Run a historical backtest to evaluate it." : "Strategy format is valid.");
-    } catch (error) { message(error); } finally { setBusy(""); }
+      return true;
+    } catch (error) { message(error); return false; } finally { setBusy(""); }
   }
   async function saveStrategy() {
-    if (busy) return; setBusy("strategy-save");
-    setError("");
-    try { const parsed = parseStrategy(source); const id = strategyId || crypto.randomUUID(); const saved = await strategyStore.putStrategy({ id, name: parsed.name, source: JSON.stringify(parsed, null, 2), updatedAt: Date.now(), revision: selectedStrategy ? editingRevision : 0 }); setEditingRevision(saved.revision ?? 0); await refresh(); setStrategyId(id); setSource(JSON.stringify(parsed, null, 2)); setNotice(`Saved ${parsed.name} to your account.`); } catch (e) { message(e); } finally { setBusy(""); }
+    if (studioState.current.busy||savingStrategy.current) return null;
+    const input=studioState.current,session=draftSession.current;
+    savingStrategy.current=true;setBusy("strategy-save");
+    setError("");setNotice("");
+    try {
+      const parsed=parseStrategy(input.source),id=input.strategyId||crypto.randomUUID();
+      const saved=await strategyStore.putStrategy({id,name:parsed.name,source:JSON.stringify(parsed,null,2),updatedAt:Date.now(),revision:input.strategyId?input.editingRevision:0});
+      // The server acknowledgement is the saved version. A separate read must
+      // not turn a successful write into an apparent failure or duplicate save.
+      setStrategies(current=>[saved,...current.filter(strategy=>strategy.id!==id)].sort((a,b)=>b.updatedAt-a.updatedAt));
+      if(studioState.current.source===input.source&&studioState.current.strategyId===input.strategyId&&draftSession.current===session){
+        setEditingRevision(saved.revision??0);setStrategyId(saved.id);setSource(saved.source);setDraftBefore(null);
+      }
+      setNotice(`Saved ${parsed.name} to your account.`);
+      return saved;
+    } catch (e) { message(e); return null; } finally { savingStrategy.current=false;setBusy(""); }
+  }
+  async function openStudioBacktest(){
+    const session=draftSession.current;
+    if(selectedStrategy&&source===selectedStrategy.source){setPage('runsettings');return;}
+    const saved=await saveStrategy();
+    if(saved&&studioState.current.page==='studio'&&draftSession.current===session)setPage('runsettings');
   }
   async function askGemini() {
     if (busy) return;
@@ -615,7 +642,12 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
     setPortfolioDisplayRunId(value.trim() ? runs.find((run) => run.name.toLowerCase().includes(value.trim().toLowerCase()))?.id || "" : "");
   }
   async function exportBackup() { try { const [ds, ss, rs] = await Promise.all([localStore.datasets(), strategyStore.strategies(), localStore.runs()]); download("testify-backup.json", JSON.stringify({ format: "testify-backup-v1", datasets: ds, strategies: ss, runs: rs })); } catch(e) { message(e); } }
-  function createDraft() { setStrategyId(""); setSource(JSON.stringify({ ...exampleStrategy, name: "New strategy" }, null, 2)); setPage("studio"); setError(""); }
+  function createDraft() {if(studioState.current.busy||savingStrategy.current)return;draftSession.current++;setDraftBefore(null);setValidatedSource(null);setStrategyId("");setSource(JSON.stringify({...exampleStrategy,name:"New strategy"},null,2));setPage("studio");setError("");setNotice("");}
+  function openSavedStrategy(id:string){
+    if(studioState.current.busy||savingStrategy.current)return;
+    const strategy=strategies.find(item=>item.id===id);if(!strategy)return;
+    draftSession.current++;setDraftBefore(null);setValidatedSource(null);setStrategyId(id);setSource(strategy.source);setEditingRevision(strategy.revision??0);setPage('studio');setError('');setNotice('');
+  }
   async function importStrategy(file: File, target: Page = "studio") {
     const originHash=location.hash;
     try {
@@ -707,9 +739,9 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
   if (!storageLoaded && page !== "strategies") return withAssistant(<AccountLoading/>);
   const workspaceSearchProps={value:workspaceSearch,onChange:setWorkspaceSearch,onSearch:(query:string)=>{setLibrarySearch(query);navigateWorkspace('strategies');}};
   if (["overview","strategies","studio","backtests","runsettings","trades","connections"].includes(page)) return withAssistant(<PenpotWorkspace search={workspaceSearchProps} librarySearch={librarySearch} onLibrarySearch={setLibrarySearch} userName={userName} portfolio={dashboardPortfolio} apiFetch={apiFetch} accountControls={accountControls} researchTools={researchTools} batchTools={<BatchBacktests apiFetch={apiFetch} strategy={selectedStrategy} options={{markets:selectedMarkets,start,end,capital,riskPct,spreadBps,feeBps:feeMode==="fixed"?0:feeBps,...(feeMode==="fixed"?{feePerTrade}:{}),slippageBps,splitPct,granularity,datasetId:testDatasetId,name:runName}} busy={!!busy} onRun={(plan,id)=>void runBatch(plan,id)}/>} content={<Connections apiFetch={apiFetch}/>}
-    studio={<Suspense fallback={<p role="status">Opening strategy editor…</p>}><PenpotStrategyStudio source={source} onChange={setSource} strategies={strategies} selected={selectedStrategy} onOpen={setStrategyId}
-      beforeSource={draftBefore} onAcceptPreview={()=>setDraftBefore(null)} onUndo={()=>{setSource(draftBefore??selectedStrategy?.source??JSON.stringify(exampleStrategy,null,2));setDraftBefore(null);}} onRun={()=>setPage('runsettings')} canRun={!!selectedStrategy&&source===selectedStrategy.source} onValidate={() => void validateDraft()} onSave={() => {setDraftBefore(null);void saveStrategy();}}
-      mode={studioMode} onMode={setStudioMode} idea={idea} onIdea={setIdea} busy={busy.startsWith("gemini")} onGenerate={() => void askGemini()} onImprove={() => void askGeminiRevision()}
+    studio={<Suspense fallback={<p role="status">Opening strategy editor…</p>}><PenpotStrategyStudio source={source} onChange={setSource} strategies={strategies} selected={selectedStrategy} onOpen={openSavedStrategy}
+      beforeSource={draftBefore} onAcceptPreview={()=>setDraftBefore(null)} onUndo={()=>{setSource(draftBefore??selectedStrategy?.source??JSON.stringify(exampleStrategy,null,2));setDraftBefore(null);}} onRun={openStudioBacktest} canRun={!!selectedStrategy&&source===selectedStrategy.source} onValidate={validateDraft} onSave={saveStrategy}
+      mode={studioMode} onMode={setStudioMode} idea={idea} onIdea={setIdea} busy={!!busy||libraryLoading} operation={libraryLoading?'loading':busy==='strategy-save'?'save':busy==='strategy-validate'?'validate':busy.startsWith('gemini')?'generate':null} validated={validatedSource===source} onGenerate={() => void askGemini()} onImprove={() => void askGeminiRevision()}
       canImprove={!!selectedStrategy} feedbackCount={selectedFeedbackRuns.length}
       feedbackPicker={<RunPicker title="Backtests for Gemini" runs={feedbackEligible} selectedIds={feedbackIds} onChange={setFeedbackIds} emptyText="Save and backtest this strategy version on the development period first."/>} /></Suspense>}
     loading={libraryLoading} loadError={libraryLoadError} onRetry={loadWorkspace} datasets={datasets}
@@ -742,7 +774,7 @@ export default function App({ userName="there", userId, sessionId, onSessionExpi
         }
       }
     }} markets={markets} error={error} notice={notice}
-    onCreate={createDraft} onOpen={id=>{setStrategyId(id);setSource(strategies.find(s=>s.id===id)!.source);setPage("studio");}}
+    working={!!busy||libraryLoading} onCreate={createDraft} onOpen={openSavedStrategy}
     onRun={()=>void runTest()} onCancel={cancelBacktest} running={busy==="backtest"} runState={runState} progress={runPercent} progressText={runProgress}
     onImport={async file=>{try{await importStrategy(file,"strategies");}catch(e){message(e);}}} onExport={ids=>{const selected=strategies.filter(s=>ids.includes(s.id));if(selected.length)download(selected.length===1?`${selected[0].name.replace(/\W+/g,"-")}.json`:"testify-strategies.json",selected.length===1?selected[0].source:JSON.stringify(selected.map(s=>JSON.parse(s.source)),null,2));}}
     onDelete={deleteLibraryStrategy} onDuplicate={duplicateStrategy} onDraft={draft=>{setSource(draft);setStrategyId("");setPage("studio");}}
